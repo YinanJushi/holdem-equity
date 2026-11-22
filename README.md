@@ -1,23 +1,36 @@
-# Equity Lens ♠♥♦♣
+# Odds Lounge ♠♥♦♣
 
-A Texas Hold'em odds site: watch your win odds change with every card, play the hand out with real betting against AI opponents, then replay it against their actual cards.
+Casino games with the odds out in the open. Watch your chance to win change with every card, get best-play advice, play real hands, then replay them to see what was skill and what was luck.
 
-**Play it:** https://yinanjushi.github.io/holdem-equity/
+**Play it:** https://yinanjushi.github.io/odds-lounge/
 
 A plain static site (HTML + CSS + JavaScript). No backend, no build step, no dependencies.
 
-## Features
+## Games
+
+### ♠ Texas Hold'em (`index.html`)
 
 - **Live odds**: Monte Carlo simulation (30,000 runs per street) of your equity against the players still in the hand, with a preflop → flop → turn → river chart.
 - **Real betting**: 1–8 AI opponents, each with a style (Tight / Loose / Aggressive / Solid). Blinds 1/2, 200 chips per hand, rotating dealer button. Fold, check, call, bet or raise with preset sizes, a slider, or all-in.
-- **Betting advice**: an action and size based on your odds, number of opponents, street, draws and pot odds. One click to follow it.
+- **Betting advice**: an action and size from your odds, number of opponents, street, draws and pot odds. One click to follow it.
 - **Hand analysis**: what each street changed, board texture, how many opponent hands already beat you, outs and the rule of 4 and 2.
 - **Next-card heatmap**: how every possible turn or river card would move your odds.
-- **Showdown replay**: compares the odds you saw with your real odds once opponents' cards are revealed, finds the key card, and grades each of your decisions.
-- **Guess first**: guess your odds before they're revealed to train your feel.
-- **Pick cards**: set your own hole cards and board to analyze hands you've played.
+- **Showdown replay**: the odds you saw vs your real odds once opponents' cards are revealed, the key card, and a grade for each decision.
+- **Pick cards** mode to analyze hands you've played.
 
-Keys: Space deals / next hand, F fold, C check or call, R raise.
+### 🂡 Blackjack (`blackjack.html`)
+
+- **Rules**: 6-deck shoe, dealer stands on soft 17, dealer peeks for blackjack, blackjack pays 3:2, double on any two cards, double after split, one split, split aces get one card.
+- **Live odds**: your chance to win, push or lose and the expected value (EV) of every option (stand, hit, double, split), computed exactly from the cards left in the shoe.
+- **Best-play advice**: the highest-EV play, how much the alternatives cost, and one click to follow it.
+- **Next-card tiles**: each card's chance of coming next, your new total, and your win chance after it.
+- **Dealer outlook**: how the dealer is likely to finish given the up card.
+- **Card counting**: Hi-Lo running count, true count and your edge on the next hand before you bet.
+- **Hand replay**: the dealer's hole card, every decision checked against best play with its cost in chips, and how much of the result was luck.
+
+Both games have **Guess first** mode: guess your odds before they're revealed to train your feel.
+
+Keys — Hold'em: Space deal, F fold, C check/call, R raise. Blackjack: Space deal, H hit, S stand, D double, P split.
 
 ## Run locally
 
@@ -29,9 +42,11 @@ Then open http://localhost:8765.
 
 ## Files
 
-- `engine.js`: 7-card hand evaluator and Monte Carlo simulation
-- `app.js`: table, betting engine, AI opponents, analysis and replay
+- `engine.js`: poker hand evaluator and Monte Carlo simulation
+- `app.js`: Hold'em table, betting engine, AI opponents, analysis and replay
+- `bj-engine.js`: blackjack odds (dealer outcome distribution, optimal-play EV, pre-deal edge)
+- `blackjack.js`: blackjack table, shoe, betting, advice and replay
 - `style.css`: casino theme
-- `index.html`: page structure
+- `index.html`, `blackjack.html`: pages
 
-> Advice and analysis use simplified rules of thumb. Great for practice and hand review; don't use it during real-money games.
+> Advice and analysis are for practice and hand review. Don't use it during real-money games.
