@@ -2,7 +2,13 @@
   const B = window.BJ;
   const $ = s => document.querySelector(s);
   const SUIT = ['♠', '♥', '♦', '♣'];
-  const DECKS = 6, START_BANK = 1000, MIN_BET = 5;
+  const START_BANK = 1000, MIN_BET = 5;
+  const RULE_KEY = 'ol-bj-rules';
+  const DEF_RULES = { decks: 6, h17: false, bjPay: 1.5, das: true };
+  const savedRules = window.UI ? UI.store.load(RULE_KEY, DEF_RULES) : null;
+  let RULES = savedRules || { ...DEF_RULES };
+  // fewer decks help the player; the odds model treats the shoe as large, so add the known effect to the edge figure
+  const DECK_ADJ = { 1: 0.48, 2: 0.19, 6: 0, 8: -0.02 };
   const ACT_NAME = { hit: 'Hit', stand: 'Stand', double: 'Double', split: 'Split' };
 
   // ---------- helpers ----------
@@ -35,7 +41,7 @@
   // ---------- shoe ----------
   function newShoe() {
     const a = [];
-    for (let d = 0; d < DECKS; d++) for (let c = 0; c < 52; c++) a.push(c);
+    for (let d = 0; d < RULES.decks; d++) for (let c = 0; c < 52; c++) a.push(c);
     S.shoe = shuffle(a); S.rc = 0; S.cut = Math.floor(a.length * 0.25); S.justShuffled = true;
   }
   function draw(visible = true) {
@@ -59,7 +65,7 @@
     if (!h) return { double: false, split: false };
     const two = h.cards.length === 2;
     return {
-      double: two && S.bank >= h.bet && !h.splitAces,
+      double: two && S.bank >= h.bet && !h.splitAces && (!h.split || RULES.das),
       split: two && S.hands.length === 1 && B.bjIdx(h.cards[0]) === B.bjIdx(h.cards[1]) && S.bank >= h.bet,
     };
   }
@@ -141,7 +147,7 @@
     update();
     const step = () => {
       const st = B.handState(S.dealer);
-      if (!dealerBJ && live && st.total < 17) {
+      if (!dealerBJ && live && (st.total < 17 || (st.total === 17 && st.soft && RULES.h17))) {
         S.timer = setTimeout(() => { S.dealer.push(draw()); update(); step(); }, 700);
       } else S.timer = setTimeout(finish, 450);
     };
@@ -156,7 +162,7 @@
       staked += h.bet;
       let pay = 0, res;
       if (dealerBJ) { if (h.bj) { pay = h.bet; res = 'Push'; } else res = 'Lose'; }
-      else if (h.bj) { pay = h.bet * 2.5; res = 'Blackjack!'; }
+      else if (h.bj) { pay = h.bet * (1 + RULES.bjPay); res = 'Blackjack'; }
       else if (st.total > 21) res = 'Bust';
       else if (dBust || st.total > ds.total) { pay = h.bet * 2; res = 'Win'; }
       else if (st.total === ds.total) { pay = h.bet; res = 'Push'; }
@@ -200,7 +206,7 @@
     if (S.phase !== 'play') { S.opts = null; return; }
     const h = S.hands[S.cur];
     const p = B.probs(unseenCounts());
-    S.opts = B.options(p, B.bjIdx(S.dealer[0]), h.cards, allowed());
+    S.opts = B.options(p, B.bjIdx(S.dealer[0]), h.cards, allowed(), RULES);
     S.opts.p = p;
   }
 
@@ -235,7 +241,7 @@
     $('#playerHands').innerHTML = ph || '<div class="bj-hand"><div class="bj-cards"><div class="card empty"></div><div class="card empty"></div></div><div class="bj-label">You</div></div>';
 
     // shoe
-    const left = S.shoe.length, total = DECKS * 52;
+    const left = S.shoe.length, total = RULES.decks * 52;
     $('#shoeBox').innerHTML = `<div class="shoe-body"><i style="height:${(left / total) * 100}%"></i></div><div class="shoe-txt">Shoe<br><b>${left}</b> cards<br>Count <b>${S.rc >= 0 ? '+' : ''}${S.rc}</b></div>`;
 
     $('#msg').innerHTML = tableMsg();
@@ -245,12 +251,12 @@
     if (S.phase === 'dealer') return S.holeShown ? 'Dealer plays…' : '';
     if (S.phase === 'over') {
       const R = S.result;
-      if (R.net > 0) return `<span class="win-banner">YOU WIN ${signed(R.net)}!</span>`;
+      if (R.net > 0) return `<span class="win">You win ${signed(R.net)}</span>`;
       if (R.net === 0) return 'Push. Your bet comes back.';
       return R.dealerBJ ? `Dealer has blackjack · <b class="bad">${signed(R.net)}</b>` : `Dealer wins · <b class="bad">${signed(R.net)}</b>`;
     }
     const h = S.hands[S.cur];
-    let s = S.hands.length > 1 ? `👉 Hand ${S.cur + 1}: your move` : '👉 Your move';
+    let s = S.hands.length > 1 ? `Hand ${S.cur + 1}: your move` : 'Your move';
     if (S.peeked && S.log.length === 0 && S.cur === 0) s = 'Dealer checked for blackjack: none.<br>' + s;
     return h ? s : '';
   }
@@ -269,7 +275,7 @@
       $('#splitBtn').hidden = !al.split;
       const a = S.opts && S.opts.best;
       $('#adviceBtn').disabled = !a;
-      $('#adviceBtn').textContent = a ? `💡 Follow advice: ${ACT_NAME[a]}` : '💡 Working out advice…';
+      $('#adviceBtn').textContent = a ? `Follow advice: ${ACT_NAME[a]}` : 'Working out advice…';
     }
     renderSession();
   }
@@ -282,8 +288,8 @@
     }
     if (S.guessLog.length) {
       const avg = S.guessLog.reduce((a, b) => a + b, 0) / S.guessLog.length;
-      const rank = avg < 5 ? 'Pro-level read 🧠' : avg < 10 ? 'Seasoned 👍' : avg < 18 ? 'Getting there 🙂' : 'Rookie, keep practicing 🐣';
-      h += `${h ? '<br>' : ''}🎯 ${S.guessLog.length} guesses, average miss <b>${avg.toFixed(1)}</b> points · ${rank}`;
+      const rank = avg < 5 ? 'Pro-level read ' : avg < 10 ? 'Seasoned ' : avg < 18 ? 'Getting there ' : 'Rookie, keep practicing ';
+      h += `${h ? '<br>' : ''}${S.guessLog.length} guesses, average miss <b>${avg.toFixed(1)}</b> points · ${rank}`;
     }
     $('#session').innerHTML = h;
   }
@@ -291,16 +297,15 @@
   function renderPreDeal() {
     const n = unseenCounts();
     const fresh = !S.shoe.length || S.shoe.length < S.cut;
-    const p = fresh ? B.probs([24, 24, 24, 24, 24, 24, 24, 24, 24, 96]) : B.probs(n);
-    const edge = B.preDealEdge(p) * 100;
+    const p = fresh ? B.probs([4, 4, 4, 4, 4, 4, 4, 4, 4, 16]) : B.probs(n);
+    const edge = B.preDealEdge(p, RULES) * 100 + (DECK_ADJ[RULES.decks] || 0);
     const tc = fresh ? 0 : trueCount();
-    let html = `<p class="ana">Your expected edge on the next hand: <b class="${edge >= 0 ? 'good' : 'bad'}">${edge >= 0 ? '+' : ''}${edge.toFixed(2)}%</b> of your bet${edge < 0 ? ` (the house edge is ${(-edge).toFixed(2)}%)` : ' (the shoe favors you right now!)'}.</p>`;
-    html += `<p class="ana">${fresh ? 'A fresh shoe will be shuffled for this hand.' : `Shoe: <b>${n.reduce((a, b) => a + b, 0)}</b> cards left · Running count <b>${S.rc >= 0 ? '+' : ''}${S.rc}</b> · True count <b>${tc >= 0 ? '+' : ''}${tc.toFixed(1)}</b>`}</p>`;
-    html += `<p class="sub">The count (Hi-Lo) adds 1 for each 2–6 seen and subtracts 1 for each 10 or Ace. A high true count means the shoe is rich in tens and aces, which gives you more blackjacks and makes the dealer bust more. Each +1 of true count is worth roughly +0.5% to you.</p>`;
-    if (tc >= 2) html += '<p class="ana">🔥 The count is high: a card counter would bet bigger here.</p>';
-    else if (tc <= -2) html += '<p class="ana">🥶 The count is low: a card counter would bet the minimum here.</p>';
-    if (S.phase === 'over') html = reviewHTML() + '<h4 class="ana">Next hand</h4>' + html;
-    $('#preTitle').textContent = S.phase === 'over' ? '📋 Hand Replay' : '🎰 Before You Deal';
+    let html = `<p>Your edge on the next hand: <b class="${edge >= 0 ? 'good' : 'bad'}">${edge >= 0 ? '+' : ''}${edge.toFixed(2)}%</b> of your bet${edge < 0 ? ` (house edge ${(-edge).toFixed(2)}%)` : ' (the shoe favors you)'}.</p>`;
+    html += `<p class="sub">${fresh ? 'A fresh shoe will be shuffled' : `${n.reduce((a, b) => a + b, 0)} cards left · Running count ${S.rc >= 0 ? '+' : ''}${S.rc} · True count ${tc >= 0 ? '+' : ''}${tc.toFixed(1)}`}. The count adds 1 for each 2–6 and subtracts 1 for each 10 or ace; each +1 of true count is worth about +0.5% to you.</p>`;
+    if (tc >= 2) html += '<p>The count is high: card counters bet more here.</p>';
+    else if (tc <= -2) html += '<p>The count is low: card counters bet the minimum here.</p>';
+    if (S.phase === 'over') html = reviewHTML() + '<h4>Next hand</h4>' + html;
+    $('#preTitle').textContent = S.phase === 'over' ? 'Hand replay' : 'Before you deal';
     $('#preDeal').innerHTML = html;
   }
 
@@ -322,11 +327,11 @@
     $('#eqBig').textContent = pc(b.w);
     $('#eqBig').style.color = b.ev > 0.05 ? 'var(--up)' : b.ev < -0.3 ? 'var(--down)' : 'var(--text)';
     $('#bWin').style.width = b.w * 100 + '%'; $('#bTie').style.width = b.pu * 100 + '%'; $('#bLose').style.width = b.l * 100 + '%';
-    $('#eqSub').innerHTML = `Chance to win if you play it right: win ${pc(b.w)} · push ${pc(b.pu)} · lose ${pc(b.l)}<br>Expected result: <b>${evTxt(b.ev)}</b> bets (${signed(b.ev * h.bet)} chips at your ${h.bet} bet)`;
+    $('#eqSub').innerHTML = `Win ${pc(b.w)} · Push ${pc(b.pu)} · Lose ${pc(b.l)} with best play · Average result ${signed(b.ev * h.bet)} chips`;
     const prev = S.timeline.length > 1 ? S.timeline[S.timeline.length - 2] : null;
     const d = prev && !prev.final ? (b.w - prev.w) * 100 : null;
     $('#eqDelta').innerHTML = d == null ? '' : `<span class="delta ${d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat'}">${d > 0.5 ? '▲' : d < -0.5 ? '▼' : '■'} ${d >= 0 ? '+' : ''}${d.toFixed(1)}</span>`;
-    $('#comment').innerHTML = b.ev > 0.3 ? '🔥 Great spot. Press your advantage.' : b.ev > 0 ? "👍 You're the favorite here" : b.ev > -0.2 ? '🙂 Close to even' : b.ev > -0.45 ? '📉 Tough spot; the right play loses least' : '🥶 Bad spot: minimize the damage';
+    $('#comment').innerHTML = b.ev > 0.3 ? 'Strong spot' : b.ev > 0 ? "You're the favorite" : b.ev > -0.2 ? 'Close to even' : b.ev > -0.45 ? 'Tough spot' : 'Bad spot; limit the damage';
 
     renderOptTable(o, h);
     renderAnalysis(o, h);
@@ -338,18 +343,16 @@
 
   function renderOptTable(o, h) {
     const order = ['stand', 'hit', 'double', 'split'].filter(k => o.opts[k]);
-    let t = '<table class="rv opt"><tr><th>Play</th><th>Win</th><th>Push</th><th>Lose</th><th>EV (bets)</th></tr>';
-    for (const k of order) {
-      const x = o.opts[k], best = k === o.best;
-      t += `<tr class="${best ? 'best' : ''}"><td>${best ? '★ ' : ''}${ACT_NAME[k]}</td><td>${pc(x.w)}</td><td>${pc(x.pu)}</td><td>${pc(x.l)}</td><td><b class="${x.ev >= 0 ? 'good' : 'bad'}">${evTxt(x.ev)}</b></td></tr>`;
-    }
-    t += '</table>';
     const second = order.filter(k => k !== o.best).sort((a, z) => o.opts[z].ev - o.opts[a].ev)[0];
     const gap = second ? o.opts[o.best].ev - o.opts[second].ev : 0;
-    t += `<div class="adv raise"><div class="adv-act">Best play: ${ACT_NAME[o.best]}</div>`;
-    if (second) t += `<div class="adv-size">${gap < 0.01 ? `Almost a coin flip: ${ACT_NAME[second]} is only ${gap.toFixed(3)} bets worse.` : `${ACT_NAME[second]} would cost ${gap.toFixed(3)} bets on average (${money(gap * h.bet)} chips at your bet).`}</div>`;
-    t += '</div>';
-    if (o.opts.double || o.opts.split) t += '<p class="sub">Double and split EVs count the extra chips you put in. Split shows win/push/lose for each of the two hands.</p>';
+    let t = `<div class="adv raise"><div class="adv-act"><small>Best play</small>${ACT_NAME[o.best]}</div>`;
+    if (second) t += `<div class="adv-size">${gap < 0.01 ? `Close call: ${ACT_NAME[second]} is almost as good.` : `${ACT_NAME[second]} would cost ${money(gap * h.bet)} chips on average.`}</div>`;
+    t += '</div><table class="rv opt" style="margin-top:10px"><tr><th>Play</th><th>Win</th><th>Push</th><th>Lose</th><th>EV</th></tr>';
+    for (const k of order) {
+      const x = o.opts[k];
+      t += `<tr class="${k === o.best ? 'best' : ''}"><td>${ACT_NAME[k]}</td><td>${pc(x.w)}</td><td>${pc(x.pu)}</td><td>${pc(x.l)}</td><td class="${x.ev >= 0 ? 'good' : 'bad'}">${evTxt(x.ev)}</td></tr>`;
+    }
+    t += '</table><p class="sub" style="margin-top:4px">EV is the average result in bets; double and split include the extra chips.</p>';
     $('#optTable').innerHTML = t;
   }
 
@@ -366,7 +369,7 @@
 
   function renderAnalysis(o, h) {
     const st = B.handState(h.cards), up = B.bjIdx(S.dealer[0]), D = o.D, p = o.p;
-    let html = '<h4>Where you stand</h4><p>';
+    let html = '<p>';
     html += `You have <b>${cts(h.cards)}</b> (${handDesc(h.cards)}) against the dealer's <b>${ct(S.dealer[0])}</b>. `;
     if (S.peeked) html += 'The dealer peeked and does <b>not</b> have blackjack. ';
     html += `With a ${upName(S.dealer[0])} showing, the dealer busts <b>${pc(D[5])}</b> of the time.</p>`;
@@ -378,6 +381,7 @@
       html += '</p>';
     }
 
+    const whyStart = html.length;
     html += '<h4>Why this play</h4><ul>';
     const dw = up >= 1 && up <= 5;
     if (!st.soft && st.total >= 12 && st.total <= 16) {
@@ -394,7 +398,8 @@
       if (r === 4) html += '<li>Never split 5s: 10 is a doubling hand, not two weak hands.</li>';
     }
     if (st.total >= 17 && !st.soft) html += '<li>Hard 17 or more: hitting busts too often, so stand.</li>';
-    html += `<li>The odds use the cards left in the shoe, so they shift slightly as the count changes.</li></ul>`;
+    html += '</ul>';
+    if (html.endsWith('<h4>Why this play</h4><ul></ul>')) html = html.slice(0, whyStart);
 
     const tc = trueCount();
     html += `<p class="sub">Shoe: ${S.shoe.length} cards left · Running count ${S.rc >= 0 ? '+' : ''}${S.rc} · True count ${tc >= 0 ? '+' : ''}${tc.toFixed(1)}${tc >= 2 ? ' (rich in tens and aces: good for you)' : tc <= -2 ? ' (rich in small cards: good for the dealer)' : ''}</p>`;
@@ -458,29 +463,29 @@
     box.hidden = false;
     const g = S.guesses[gk], err = Math.abs(g - w * 100);
     if (!S.guessLogged.has(gk)) { S.guessLogged.add(gk); S.guessLog.push(err); }
-    const v = err < 3 ? '🎯 Spot on!' : err < 8 ? '👏 Very close' : err < 15 ? '🤏 A little off' : '🙈 Way off';
+    const v = err < 3 ? 'Spot on!' : err < 8 ? 'Very close' : err < 15 ? 'A little off' : 'Way off';
     box.innerHTML = `You guessed <b>${g}%</b>, actual <b>${pc(w)}</b>, off by <b>${err.toFixed(1)}</b> points · ${v}`;
   }
 
   function reviewHTML() {
     const R = S.result;
     if (!R) return '';
-    let html = '<h4 class="ana">📋 Hand replay</h4><div class="ana">';
+    let html = '<div>';
     const ds = B.handState(S.dealer);
     const dline = R.dealerBJ ? 'The dealer had <b>blackjack</b>.' : `The dealer's hole card was <b>${ct(S.dealer[1])}</b>; the dealer finished with <b>${ds.total > 21 ? `${ds.total} (bust)` : ds.total}</b>.`;
     let verdict;
     if (S.hands.some(h => h.bj) && !R.dealerBJ) verdict = `🂡 <b>Blackjack!</b> Paid 3 to 2.`;
-    else if (R.dealerBJ) verdict = S.hands[0].bj ? '🤝 Both of you had blackjack: push.' : '😶 Nothing you could do: the dealer had blackjack.';
-    else if (R.net > 0) verdict = `💰 You won <b>${signed(R.net)}</b> chips.`;
-    else if (R.net === 0) verdict = '🤝 Push overall.';
-    else verdict = `🧊 You lost <b>${money(-R.net)}</b> chips.`;
+    else if (R.dealerBJ) verdict = S.hands[0].bj ? 'Both of you had blackjack: push.' : 'Nothing you could do: the dealer had blackjack.';
+    else if (R.net > 0) verdict = `You won <b>${signed(R.net)}</b> chips.`;
+    else if (R.net === 0) verdict = 'Push overall.';
+    else verdict = `You lost <b>${money(-R.net)}</b> chips.`;
     html += `<div class="verdict">${verdict} ${dline}</div>`;
 
     if (S.log.length) {
       html += '<ul>';
       for (const d of S.log) {
         const ok = d.act === d.best;
-        html += `<li>${S.hands.length > 1 ? `Hand ${d.hand + 1}, ` : ''}${d.desc} (${cts(d.cards)}) vs ${upName(d.up)}: you chose <b>${ACT_NAME[d.act]}</b> (EV ${evTxt(d.evMine)})${ok ? ' ✅ best play' : `, best was <b>${ACT_NAME[d.best]}</b> (EV ${evTxt(d.evBest)}) ⚠️ cost ${money(d.lost * d.bet)} chips on average`}</li>`;
+        html += `<li>${S.hands.length > 1 ? `Hand ${d.hand + 1}, ` : ''}${d.desc} (${cts(d.cards)}) vs ${upName(d.up)}: you chose <b>${ACT_NAME[d.act]}</b> (EV ${evTxt(d.evMine)})${ok ? ' ✓ best play' : `, best was <b>${ACT_NAME[d.best]}</b> (EV ${evTxt(d.evBest)}) ✗ cost ${money(d.lost * d.bet)} chips on average`}</li>`;
       }
       html += '</ul>';
       if (S.startEV != null) {
@@ -536,5 +541,41 @@
     if (e.code === 'Space' && e.target.tagName !== 'BUTTON' && (S.phase === 'bet' || S.phase === 'over')) { e.preventDefault(); deal(); }
   });
 
+  function rulesText() {
+    return `${RULES.decks} deck${RULES.decks > 1 ? 's' : ''} · Dealer ${RULES.h17 ? 'hits' : 'stands on'} soft 17 · Blackjack pays ${RULES.bjPay === 1.5 ? '3:2' : '6:5'}${RULES.das ? '' : ' · No double after split'}`;
+  }
+  function applyRulesText() {
+    $('#rulesText').textContent = rulesText();
+    $('#feltText').innerHTML = `BLACKJACK PAYS ${RULES.bjPay === 1.5 ? '3 TO 2' : '6 TO 5'}<small>DEALER MUST ${RULES.h17 ? 'HIT SOFT 17' : 'STAND ON ALL 17s'} · ${RULES.decks} DECK${RULES.decks > 1 ? 'S' : ''}</small>`;
+  }
+  function openRules(first) {
+    UI.rulesDialog({
+      title: 'Blackjack rules',
+      intro: 'Casinos change these rules to move the house edge. Pick the table you want to play.',
+      cancellable: !first,
+      values: RULES,
+      fields: [
+        { key: 'decks', name: 'Decks in the shoe', hint: 'Fewer decks are slightly better for you.', options: [1, 2, 6, 8].map(v => ({ v, label: String(v) })) },
+        { key: 'h17', name: 'Soft 17', hint: 'A soft 17 is 17 with an ace counted as 11 (like A-6).', options: [{ v: false, label: 'Dealer stands' }, { v: true, label: 'Dealer hits' }] },
+        { key: 'bjPay', name: 'Blackjack pays', hint: 'What a two-card 21 pays. 3:2 pays 15 on a 10 bet; 6:5 pays 12.', options: [{ v: 1.5, label: '3:2' }, { v: 1.2, label: '6:5' }] },
+        { key: 'das', name: 'Double after split', options: [{ v: true, label: 'Allowed' }, { v: false, label: 'Not allowed' }] },
+      ],
+      preview: v => {
+        const e = B.preDealEdge(B.probs([4, 4, 4, 4, 4, 4, 4, 4, 4, 16]), v) * 100 + (DECK_ADJ[v.decks] || 0);
+        return `House edge with these rules and perfect play: <b>${(-e).toFixed(2)}%</b>.<br>Always: dealer checks for blackjack, double on any two cards, split once, split aces get one card, no surrender or insurance.`;
+      },
+      onSave: v => {
+        const deckChange = v.decks !== RULES.decks;
+        RULES = v;
+        UI.store.save(RULE_KEY, RULES);
+        if (deckChange && (S.phase === 'bet' || S.phase === 'over')) S.shoe = [];
+        applyRulesText();
+        update();
+      },
+    });
+  }
+  $('#rulesBtn').onclick = () => openRules(false);
+  applyRulesText();
   update();
+  if (!savedRules && window.UI) openRules(true);
 })();

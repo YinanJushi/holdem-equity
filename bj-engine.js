@@ -2,7 +2,8 @@
 // Card ids are 0..51 like the poker engine (rank = c >> 2, 0 = 2 ... 12 = A).
 // Blackjack rank index: 0 = A, 1..8 = 2..9, 9 = ten-value (10/J/Q/K).
 // Odds use the current shoe composition as fixed draw probabilities (a close, fast approximation).
-// Rules: dealer stands on soft 17, dealer peeks for blackjack, double any two cards, double after split, one split.
+// Rules are passed in: { h17: dealer hits soft 17, das: double after split, bjPay: 1.5 or 1.2 }.
+// Always: dealer peeks for blackjack, double any two cards, one split, split aces get one card.
 (function (root) {
   const BJ_LABEL = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
   const bjIdx = c => { const r = c >> 2; return r === 12 ? 0 : r <= 7 ? r + 1 : 9; };
@@ -28,11 +29,12 @@
   }
 
   // dealer final distribution: [17, 18, 19, 20, 21, bust]
-  function dealerDist(up, p) {
+  const DEFAULT_RULES = { h17: false, das: true, bjPay: 1.5 };
+  function dealerDist(up, p, rules = DEFAULT_RULES) {
     const memo = new Map();
     function fin(t, s) {
       if (t > 21) return [0, 0, 0, 0, 0, 1];
-      if (t >= 17) { const r = [0, 0, 0, 0, 0, 0]; r[t - 17] = 1; return r; }
+      if (t >= 17 && !(t === 17 && s && rules.h17)) { const r = [0, 0, 0, 0, 0, 0]; r[t - 17] = 1; return r; }
       const k = t * 2 + (s ? 1 : 0);
       if (memo.has(k)) return memo.get(k);
       const r = [0, 0, 0, 0, 0, 0];
@@ -67,7 +69,7 @@
   function mix(acc, o, q, mult = 1) {
     acc.ev += q * o.ev * mult; acc.w += q * o.w; acc.pu += q * o.pu; acc.l += q * o.l;
   }
-  function makeSolver(p, D) {
+  function makeSolver(p, D, rules = DEFAULT_RULES) {
     const standMemo = new Map(), bestMemo = new Map(), hitMemo = new Map();
     function stand(t) {
       if (t > 21) return LOSE;
@@ -123,7 +125,7 @@
         const [t, s] = add(t0, s0, i);
         let o;
         if (r === 0) o = stand(t); // split aces get one card each
-        else { const b = best(t, s), d = dbl(t, s); o = d.ev > b.ev ? d : b; }
+        else { const b = best(t, s); const d = rules.das ? dbl(t, s) : null; o = d && d.ev > b.ev ? d : b; }
         mix(acc, o, p[i]);
       }
       return acc;
@@ -132,8 +134,8 @@
   }
 
   // all options for a hand: which actions are allowed is decided by the caller
-  function options(p, up, cards, allow) {
-    const D = dealerDist(up, p), sv = makeSolver(p, D);
+  function options(p, up, cards, allow, rules = DEFAULT_RULES) {
+    const D = dealerDist(up, p, rules), sv = makeSolver(p, D, rules);
     const { total: t, soft: s } = handState(cards);
     const out = {};
     out.stand = { ...sv.stand(t) };
@@ -149,16 +151,16 @@
   }
 
   // player's expected edge for the next hand before cards are dealt, given the shoe
-  function preDealEdge(p) {
+  function preDealEdge(p, rules = DEFAULT_RULES) {
     let edge = 0;
     for (let up = 0; up < 10; up++) {
       if (!p[up]) continue;
-      const D = dealerDist(up, p), sv = makeSolver(p, D), dbj = dealerBJChance(up, p);
+      const D = dealerDist(up, p, rules), sv = makeSolver(p, D, rules), dbj = dealerBJChance(up, p);
       for (let a = 0; a < 10; a++) for (let b = a; b < 10; b++) {
         const q = p[up] * p[a] * p[b] * (a === b ? 1 : 2);
         if (!q) continue;
         let ev;
-        if ((a === 0 && b === 9) || (a === 9 && b === 0)) ev = (1 - dbj) * 1.5;
+        if ((a === 0 && b === 9) || (a === 9 && b === 0)) ev = (1 - dbj) * rules.bjPay;
         else {
           let [t, s] = add(0, false, a);
           [t, s] = add(t, s, b);
@@ -174,7 +176,7 @@
 
   const hiLo = i => (i >= 1 && i <= 5 ? 1 : i === 0 || i === 9 ? -1 : 0);
 
-  const api = { BJ_LABEL, bjIdx, val, add, handState, isBlackjack, probs, dealerDist, dealerBJChance, makeSolver, options, preDealEdge, hiLo };
+  const api = { DEFAULT_RULES, BJ_LABEL, bjIdx, val, add, handState, isBlackjack, probs, dealerDist, dealerBJChance, makeSolver, options, preDealEdge, hiLo };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.BJ = api;
 })(this);

@@ -3,50 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Odds Lounge · Texas Hold'em Odds & Replay</title>
-<meta name="description" content="Odds Lounge: see your Texas Hold'em win odds update with every card, get betting advice, play real hands against AI opponents, and review each hand against their actual cards.">
-<meta name="theme-color" content="#14060a">
+<title>Odds Lounge · Texas Hold'em</title>
+<meta name="description" content="Play Texas Hold'em against AI opponents and see your odds update with every card, with betting advice and a replay of each hand.">
+<meta name="theme-color" content="#0f1412">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Odds Lounge · Texas Hold'em">
-<meta property="og:description" content="Watch your odds rise and fall with every card. Live equity, betting advice, AI opponents and showdown replays.">
+<meta property="og:description" content="Your odds on every card, betting advice and hand replays.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <header class="top">
-  <div class="marquee">
-    <div class="bulbs" aria-hidden="true"></div>
-    <div class="marquee-inner">
-      <span class="suits" aria-hidden="true">♠ ♥</span>
-      <h1>Odds <em>Lounge</em></h1>
-      <span class="suits" aria-hidden="true">♦ ♣</span>
-    </div>
-    <p>Live odds on every card · Best-play advice · Hand replays</p>
-  </div>
+  <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <nav class="games" aria-label="Games">
+    <a href="index.html" class="on" aria-current="page">Texas Hold'em</a>
+    <a href="blackjack.html">Blackjack</a>
+  </nav>
 </header>
-<nav class="games" aria-label="Games">
-  <a href="index.html" class="on" aria-current="page">♠ Texas Hold'em</a>
-  <a href="blackjack.html">🂡 Blackjack</a>
-</nav>
 
 <main class="layout">
   <section class="left">
     <div class="toolbar">
       <div class="seg" id="modeSeg">
-        <button data-mode="random" class="on">🎲 Play</button>
-        <button data-mode="manual">✍️ Pick cards</button>
+        <button data-mode="random" class="on">Play</button>
+        <button data-mode="manual">Pick cards</button>
       </div>
-      <label class="field">Opponents
-        <select id="oppSel"></select>
-      </label>
-      <label class="chk"><input type="checkbox" id="guessToggle"> 🎯 Guess first</label>
+      <span class="rulesline"><span id="rulesText"></span> · <button class="linkbtn" id="rulesBtn">Rules</button></span>
+      <label class="chk"><input type="checkbox" id="guessToggle"> Guess first</label>
     </div>
 
     <div class="table" id="table">
-      <div class="felt-logo" aria-hidden="true">ODDS LOUNGE<small>♠ ♥ ♦ ♣ · TEXAS HOLD'EM</small></div>
+      <div class="felt-logo" aria-hidden="true">ODDS LOUNGE</div>
       <div id="seats"></div>
       <div class="center">
         <div id="potShow" class="potshow"></div>
@@ -62,7 +52,7 @@
 
     <div class="actions" id="randomTools">
       <button id="actionBtn" class="primary">Deal</button>
-      <span class="hint">Space bar deals too</span>
+      <span class="hint">Space to deal</span>
     </div>
 
     <div id="betBar" class="betbar" hidden>
@@ -79,14 +69,14 @@
         </div>
       </div>
       <div class="bb-foot">
-        <button id="adviceBtn" class="b-adv">💡 Follow advice</button>
-        <span class="hint">Keys: F fold · C check/call · R raise</span>
+        <button id="adviceBtn" class="b-adv">Follow advice</button>
+        <span class="hint">F fold · C check/call · R raise</span>
       </div>
     </div>
 
     <div id="manualTools" hidden>
       <div class="mt-head">
-        <span>Tap an empty spot on the table, then pick a card below. Tap a selected spot again to clear it.</span>
+        <span>Select a spot on the table, then pick a card. Select a filled spot again to clear it.</span>
         <div class="mt-btns"><button id="randBtn">Random card</button><button id="clearBtn">Clear</button></div>
       </div>
       <div id="picker" class="picker"></div>
@@ -96,10 +86,10 @@
   </section>
 
   <aside class="right">
-    <div id="statsEmpty" class="panel empty">Once your hole cards are dealt, your live odds appear here.</div>
+    <div id="statsEmpty" class="panel empty">Deal a hand to see your odds.</div>
     <div id="statsMain" hidden>
       <div id="guessBox" class="panel guess" hidden>
-        <h3>🎯 Take a guess: what are your odds right now?</h3>
+        <h3>Guess your odds</h3>
         <div class="guess-row">
           <input type="range" id="guessRange" min="0" max="100" value="50" aria-label="Your guess">
           <b id="guessVal">50%</b>
@@ -109,55 +99,58 @@
       <div id="guessResult" class="panel guess-result" hidden></div>
 
       <div id="info">
-        <div class="panel eq">
+        <section class="panel">
           <div class="eq-top"><span id="streetTag"></span><span id="eqDelta"></span></div>
-          <div id="eqBig">--</div>
+          <div class="eq-row"><div id="eqBig">--</div><div id="comment" class="comment"></div></div>
           <div class="bar"><i id="bWin"></i><i id="bTie"></i><i id="bLose"></i></div>
           <div id="eqSub" class="sub"></div>
-          <div id="comment" class="comment"></div>
           <div id="prog" class="prog"></div>
-        </div>
-
-        <div class="panel"><h3>🧠 Hand Analysis</h3><div id="analysis" class="ana"></div></div>
-
-        <div class="panel">
-          <h3>💡 Betting Advice</h3>
-          <div id="potInfo" class="potinfo"></div>
-          <div id="potInputs">
-            <div class="pot-in">
-              <label>Pot (incl. opponent's bet)<input id="pot" type="number" value="100" min="0"></label>
-              <label>Amount to call (0 if no bet)<input id="call" type="number" value="0" min="0"></label>
+          <div class="advice-block">
+            <div id="potInfo" class="potinfo"></div>
+            <div id="potInputs">
+              <div class="pot-in">
+                <label>Pot<input id="pot" type="number" value="100" min="0"></label>
+                <label>To call<input id="call" type="number" value="0" min="0"></label>
+              </div>
+              <div class="quick">
+                <button data-bet="0">No bet</button>
+                <button data-bet="0.333">½-pot bet</button>
+                <button data-bet="0.5">Pot bet</button>
+              </div>
             </div>
-            <div class="quick">
-              <button data-bet="0">No bet</button>
-              <button data-bet="0.333">They bet ½ pot</button>
-              <button data-bet="0.5">They bet pot</button>
-            </div>
+            <div id="advice"></div>
+            <div id="potVerdict"></div>
           </div>
-          <div id="advice"></div>
-          <div id="potVerdict"></div>
-          <div class="sub">Simple rules of thumb: they ignore position, stack depth and opponent tendencies. In Play mode the pot and call amount are read from the table automatically.</div>
-        </div>
+        </section>
 
-        <div class="panel"><h3>📈 Odds by Street</h3><div id="chart"></div></div>
-
-        <div class="panel"><h3>🃏 Your Hand</h3><div id="handNow"></div></div>
-
-        <div class="panel" id="heatSec" hidden>
-          <h3 id="heatTitle"></h3>
-          <div id="heat" class="heat"></div>
-          <div id="heatSum" class="sub"></div>
-        </div>
-
-        <div class="panel"><h3>🎰 Your Final Hand After All 5 Board Cards</h3><div id="cats"></div></div>
+        <section class="panel tabs">
+          <div class="tabbar" role="tablist">
+            <button data-tab="ana" class="on" role="tab">Analysis</button>
+            <button data-tab="chart" role="tab">By street</button>
+            <button data-tab="heat" role="tab">Next card</button>
+            <button data-tab="hand" role="tab">Your hand</button>
+          </div>
+          <div class="tabpane ana" id="tab-ana"><div id="analysis"></div></div>
+          <div class="tabpane" id="tab-chart" hidden><div id="chart"></div></div>
+          <div class="tabpane" id="tab-heat" hidden>
+            <div id="heatSec" hidden><h4 id="heatTitle"></h4><div id="heat" class="heat"></div><div id="heatSum" class="sub"></div></div>
+            <p class="sub heat-empty">Shown on the flop and turn.</p>
+          </div>
+          <div class="tabpane" id="tab-hand" hidden>
+            <div id="handNow"></div>
+            <h4 style="margin-top:14px">Final hand after 5 board cards</h4>
+            <div id="cats"></div>
+          </div>
+        </section>
       </div>
     </div>
   </aside>
 </main>
 
-<footer class="foot">For practice and hand review only. Don't use it during real-money games. ♠ ♥ ♦ ♣</footer>
+<footer class="foot">For practice and hand review. Advice uses simple rules of thumb.</footer>
 
-<script src="engine.js"></script>
-<script src="app.js"></script>
+<script src="ui.js?v=5"></script>
+<script src="engine.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

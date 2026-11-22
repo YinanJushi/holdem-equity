@@ -3,44 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Odds Lounge · Blackjack Odds & Replay</title>
-<meta name="description" content="Odds Lounge Blackjack: see your win chance and every option's expected value as each card lands, follow basic-strategy advice, track the count, and replay each hand.">
-<meta name="theme-color" content="#14060a">
+<title>Odds Lounge · Blackjack</title>
+<meta name="description" content="Play blackjack with your chance to win and the value of every option shown as each card lands, plus best-play advice, the count, and a replay of each hand.">
+<meta name="theme-color" content="#0f1412">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Odds Lounge · Blackjack">
-<meta property="og:description" content="Live blackjack odds on every card, best play advice, card counting and hand replays.">
+<meta property="og:description" content="Your odds on every card, best-play advice and hand replays.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
-<body class="bj">
+<body>
 <header class="top">
-  <div class="marquee">
-    <div class="bulbs" aria-hidden="true"></div>
-    <div class="marquee-inner">
-      <span class="suits" aria-hidden="true">♠ ♥</span>
-      <h1>Odds <em>Lounge</em></h1>
-      <span class="suits" aria-hidden="true">♦ ♣</span>
-    </div>
-    <p>Live odds on every card · Best-play advice · Hand replays</p>
-  </div>
+  <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <nav class="games" aria-label="Games">
+    <a href="index.html">Texas Hold'em</a>
+    <a href="blackjack.html" class="on" aria-current="page">Blackjack</a>
+  </nav>
 </header>
-<nav class="games" aria-label="Games">
-  <a href="index.html">♠ Texas Hold'em</a>
-  <a href="blackjack.html" class="on" aria-current="page">🂡 Blackjack</a>
-</nav>
 
 <main class="layout">
   <section class="left">
     <div class="toolbar">
-      <span class="field">Shoe: 6 decks · Dealer stands on soft 17 · Blackjack pays 3:2</span>
-      <label class="chk"><input type="checkbox" id="guessToggle"> 🎯 Guess first</label>
+      <span class="rulesline"><span id="rulesText"></span> · <button class="linkbtn" id="rulesBtn">Rules</button></span>
+      <label class="chk"><input type="checkbox" id="guessToggle"> Guess first</label>
     </div>
 
     <div class="table bj-table" id="table">
-      <div class="bj-arc" aria-hidden="true">BLACKJACK PAYS 3 TO 2<small>DEALER MUST STAND ON ALL 17s · INSURANCE NOT OFFERED</small></div>
+      <div class="bj-arc" id="feltText" aria-hidden="true"></div>
       <div class="shoe" id="shoeBox" aria-label="Shoe"></div>
       <div class="bj-dealer">
         <div class="bj-label" id="dealerLabel">Dealer</div>
@@ -57,7 +49,7 @@
         <span>Bet <b id="betShow"></b></span>
       </div>
       <div class="chip-row" id="chipRow">
-        <button class="bigchip red" data-add="5">5</button>
+        <button class="bigchip" data-add="5">5</button>
         <button class="bigchip blue" data-add="25">25</button>
         <button class="bigchip green" data-add="50">50</button>
         <button class="bigchip black" data-add="100">100</button>
@@ -66,7 +58,7 @@
       <div class="bb-foot">
         <button id="clearBet" class="ghostbtn">Clear bet</button>
         <button id="dealBtn" class="primary">Deal</button>
-        <span class="hint">Space deals</span>
+        <span class="hint">Space to deal</span>
       </div>
     </div>
 
@@ -78,8 +70,8 @@
         <button id="splitBtn" class="b-split">Split</button>
       </div>
       <div class="bb-foot">
-        <button id="adviceBtn" class="b-adv">💡 Follow advice</button>
-        <span class="hint">Keys: H hit · S stand · D double · P split</span>
+        <button id="adviceBtn" class="b-adv">Follow advice</button>
+        <span class="hint">H hit · S stand · D double · P split</span>
       </div>
     </div>
 
@@ -88,12 +80,12 @@
 
   <aside class="right">
     <div id="statsEmpty" class="panel">
-      <h3 id="preTitle">🎰 Before you deal</h3>
-      <div id="preDeal"></div>
+      <h3 id="preTitle">Before you deal</h3>
+      <div id="preDeal" class="ana"></div>
     </div>
     <div id="statsMain" hidden>
       <div id="guessBox" class="panel guess" hidden>
-        <h3>🎯 Take a guess: what's your chance to win this hand?</h3>
+        <h3>Guess your chance to win</h3>
         <div class="guess-row">
           <input type="range" id="guessRange" min="0" max="100" value="50" aria-label="Your guess">
           <b id="guessVal">50%</b>
@@ -103,35 +95,38 @@
       <div id="guessResult" class="panel guess-result" hidden></div>
 
       <div id="info">
-        <div class="panel eq">
+        <section class="panel">
           <div class="eq-top"><span id="streetTag"></span><span id="eqDelta"></span></div>
-          <div id="eqBig">--</div>
+          <div class="eq-row"><div id="eqBig">--</div><div id="comment" class="comment"></div></div>
           <div class="bar"><i id="bWin"></i><i id="bTie"></i><i id="bLose"></i></div>
           <div id="eqSub" class="sub"></div>
-          <div id="comment" class="comment"></div>
-        </div>
+          <div class="advice-block" id="optTable"></div>
+        </section>
 
-        <div class="panel"><h3>💡 Your Options</h3><div id="optTable"></div></div>
-
-        <div class="panel"><h3>🧠 Hand Analysis</h3><div id="analysis" class="ana"></div></div>
-
-        <div class="panel"><h3>📈 Win Chance Card by Card</h3><div id="chart"></div></div>
-
-        <div class="panel" id="heatSec" hidden>
-          <h3>🔥 If you hit, the next card…</h3>
-          <div id="heat" class="bj-heat"></div>
-          <div id="heatSum" class="sub"></div>
-        </div>
-
-        <div class="panel"><h3>🎩 How the Dealer Will Finish</h3><div id="cats"></div></div>
+        <section class="panel tabs">
+          <div class="tabbar" role="tablist">
+            <button data-tab="ana" class="on" role="tab">Analysis</button>
+            <button data-tab="chart" role="tab">Card by card</button>
+            <button data-tab="heat" role="tab">Next card</button>
+            <button data-tab="dealer" role="tab">Dealer</button>
+          </div>
+          <div class="tabpane ana" id="tab-ana"><div id="analysis"></div></div>
+          <div class="tabpane" id="tab-chart" hidden><div id="chart"></div></div>
+          <div class="tabpane" id="tab-heat" hidden>
+            <div id="heatSec" hidden><div id="heat" class="bj-heat"></div><div id="heatSum" class="sub"></div></div>
+            <p class="sub heat-empty">Nothing to draw: your total is 21 or more.</p>
+          </div>
+          <div class="tabpane" id="tab-dealer" hidden><div id="cats"></div></div>
+        </section>
       </div>
     </div>
   </aside>
 </main>
 
-<footer class="foot">For practice and hand review only. Don't use it during real-money games. ♠ ♥ ♦ ♣</footer>
+<footer class="foot">For practice and hand review. Odds are computed from the cards left in the shoe.</footer>
 
-<script src="bj-engine.js"></script>
-<script src="blackjack.js"></script>
+<script src="ui.js?v=5"></script>
+<script src="bj-engine.js?v=5"></script>
+<script src="blackjack.js?v=5"></script>
 </body>
 </html>

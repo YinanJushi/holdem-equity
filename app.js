@@ -5,18 +5,23 @@
   const LENS = [0, 3, 4, 5];
   const LNAME = { 0: 'Preflop', 3: 'Flop', 4: 'Turn', 5: 'River' };
   const CATS = CAT_NAMES;
-  const SB = 1, BB = 2, START = 200;
+  const SB = 1, BB = 2;
+  const RULE_KEY = 'ol-holdem-rules';
+  const DEF_RULES = { opp: 3, stackBB: 100, ante: 0, potLimit: false, style: 'mixed' };
+  const savedRules = window.UI ? UI.store.load(RULE_KEY, DEF_RULES) : null;
+  let RULES = savedRules || { ...DEF_RULES };
+  const startStack = () => RULES.stackBB * BB;
   // Opponent styles: call = calling-threshold multiplier (lower calls more), aggr = betting tendency, bluff = bluff frequency
   const STYLES = [
-    { name: 'Tight', call: 1.15, aggr: 0.45, bluff: 0.05 },
-    { name: 'Loose', call: 0.8, aggr: 0.45, bluff: 0.1 },
-    { name: 'Aggressive', call: 1.0, aggr: 0.85, bluff: 0.25 },
-    { name: 'Solid', call: 1.0, aggr: 0.6, bluff: 0.1 },
+    { key: 'tight', name: 'Tight', call: 1.15, aggr: 0.45, bluff: 0.05 },
+    { key: 'loose', name: 'Loose', call: 0.8, aggr: 0.45, bluff: 0.1 },
+    { key: 'aggressive', name: 'Aggressive', call: 1.0, aggr: 0.85, bluff: 0.25 },
+    { key: 'solid', name: 'Solid', call: 1.0, aggr: 0.6, bluff: 0.1 },
   ];
 
   // slots: 0,1 = your hole cards; 2..6 = board
   const S = {
-    mode: 'random', opp: 3, slots: Array(7).fill(null), opps: [], deck: [],
+    mode: 'random', opp: RULES.opp, slots: Array(7).fill(null), opps: [], deck: [],
     stage: 0, sel: 0, revealed: false, result: null,
     guessMode: false, guesses: {}, guessLog: [], guessLogged: new Set(),
     session: { hands: 0, wins: 0, profit: 0 },
@@ -110,12 +115,15 @@
     for (let k = 1; k <= G.N; k++) { const j = (from + k) % G.N; if (G.need.has(j)) return j; }
     return -1;
   }
+  // pot-limit: the biggest raise is to the current bet plus the pot after calling
+  const potMax = i => { const p = G.players[i]; return G.curBet + G.pot + (G.curBet - p.bet); };
   function clearTimer() { if (G && G.timer) { clearTimeout(G.timer); G.timer = null; } }
 
   function startGame() {
     clearTimer();
     newHand();
-    while (S.styles.length < S.opp) S.styles.push(STYLES[(Math.random() * STYLES.length) | 0]);
+    S.styles = S.styles.slice(0, S.opp);
+    while (S.styles.length < S.opp) S.styles.push(RULES.style === 'mixed' ? STYLES[(Math.random() * STYLES.length) | 0] : STYLES.find(x => x.key === RULES.style));
     const N = S.opp + 1;
     S.button = S.button == null ? (Math.random() * N) | 0 : (S.button + 1) % N;
     G = {
@@ -123,7 +131,8 @@
       cnt: {}, idx: {}, log: [], over: false, timer: null, foldInfo: null,
       heroWaiting: false, decId: 0, aiCache: new Map(),
     };
-    for (let i = 0; i < N; i++) G.players.push({ stack: START, bet: 0, total: 0, folded: false, allin: false, last: '', rs: 0, style: i ? S.styles[i - 1] : null });
+    for (let i = 0; i < N; i++) G.players.push({ stack: startStack(), bet: 0, total: 0, folded: false, allin: false, last: '', rs: 0, style: i ? S.styles[i - 1] : null });
+    if (RULES.ante) G.players.forEach(p => { const a = Math.min(RULES.ante, p.stack); p.stack -= a; p.total += a; G.pot += a; });
     const btn = S.button;
     G.sb = N === 2 ? btn : (btn + 1) % N;
     G.bb = N === 2 ? (btn + 1) % N : (btn + 2) % N;
@@ -160,7 +169,7 @@
     if (type === 'check' && toCall > 0) type = 'call';
     if (type === 'call' && toCall === 0) type = 'check';
     if (type === 'raise') {
-      const max = p.stack + p.bet;
+      const max = RULES.potLimit ? Math.min(p.stack + p.bet, potMax(i)) : p.stack + p.bet;
       if (max <= G.curBet) type = 'call';
       else to = Math.round(Math.min(max, Math.max(to || 0, G.curBet + G.minRaise)));
     }
@@ -214,12 +223,13 @@
     const pot = G.pot, share = Math.floor(pot / winners.length);
     winners.forEach((j, k) => (G.players[j].stack += share + (k === 0 ? pot - share * winners.length : 0)));
     G.pot = 0; G.over = true;
-    const heroNet = G.players[0].stack - START;
+    const heroNet = G.players[0].stack - startStack();
     const heroWin = winners.includes(0) ? 1 / winners.length : 0;
     S.result = { type: showdown ? 'showdown' : 'fold', winners, scores, best, pot, heroNet, heroWin };
     S.revealed = true; S.stage = 5;
     S.session.hands++; S.session.profit += heroNet; S.session.wins += heroWin;
     update();
+    if (window.UI) UI.showTab('ana');
     if (heroWin > 0 && heroNet > 0) chipShower(Math.min(40, 12 + Math.round(heroNet / 4)));
   }
 
@@ -291,7 +301,7 @@
     proceed();
   }
   function raiseBounds() {
-    const p = G.players[0], max = p.stack + p.bet;
+    const p = G.players[0], max = RULES.potLimit ? Math.min(p.stack + p.bet, potMax(0)) : p.stack + p.bet;
     return { min: Math.min(max, G.curBet + G.minRaise), max };
   }
   function presets() {
@@ -305,7 +315,7 @@
     } else {
       [[1 / 3, '⅓ pot'], [0.5, '½ pot'], [2 / 3, '⅔ pot'], [1, 'Pot']].forEach(([f, l]) => out.push({ label: l, to: potTo(f) }));
     }
-    out.push({ label: 'All-in', to: p.stack + p.bet });
+    out.push(RULES.potLimit ? { label: 'Max (pot)', to: raiseBounds().max } : { label: 'All-in', to: p.stack + p.bet });
     return out;
   }
   function moveLabel(m) {
@@ -315,7 +325,8 @@
     const { min, max } = raiseBounds();
     if (max <= G.curBet) return 'Call';
     const t = Math.max(min, Math.min(max, m.to));
-    return t >= max ? `All-in ${max}` : G.curBet === 0 ? `Bet ${t}` : `Raise to ${t}`;
+    const p = G.players[0];
+    return t >= p.stack + p.bet ? `All-in ${t}` : G.curBet === 0 ? `Bet ${t}` : `Raise to ${t}`;
   }
 
   // ---------- pick-cards mode ----------
@@ -420,7 +431,7 @@
         else if (R) {
           const won = R.winners.includes(j);
           const name = R.scores ? handName(R.scores[j]) : '';
-          if (won || name) extra = `<div class="seat-hand ${won ? 'win' : ''}">${won ? '👑 ' : ''}${name || 'Wins the pot'}</div>`;
+          if (won || name) extra = `<div class="seat-hand ${won ? 'win' : ''}">${won ? '' : ''}${name || 'Wins the pot'}</div>`;
         }
       } else if (p && !p.folded) cards = '<div class="card back"></div><div class="card back"></div>';
       else cards = '<div class="card ghost"></div><div class="card ghost"></div>';
@@ -439,7 +450,7 @@
         const R = S.result;
         if (R.heroWin === 1) {
           const how = R.type === 'fold' ? 'everyone folded' : `with ${handName(R.best)}`;
-          return `<span class="win-banner">YOU WIN ${R.pot}!</span><br>${how} · <b class="good">${signed(R.heroNet)}</b>`;
+          return `<span class="win">You win ${R.pot}</span><br>${how} · <b class="good">${signed(R.heroNet)}</b>`;
         }
         const names = R.winners.map(oppName).join(' & ');
         let s = R.type === 'fold' ? `${names} wins ${R.pot} (everyone else folded)` : `${names} ${R.winners.length > 1 ? 'split' : 'wins'} ${R.pot} with ${handName(R.best)}`;
@@ -447,7 +458,7 @@
         return s;
       }
       if (G.players[0].folded) return "You folded. Let's see how it plays out…";
-      if (G.toAct === 0) return '👉 Your turn';
+      if (G.toAct === 0) return 'Your turn';
       if (G.toAct > 0) return `Opponent ${G.toAct} is thinking…`;
       return '';
     }
@@ -485,7 +496,7 @@
     const canRaise = max > G.curBet && toCall < p.stack;
     $('#raiseWrap').hidden = !canRaise;
     $('#raiseBtn').hidden = !canRaise;
-    $('#raiseBtn').textContent = S.raiseTo >= max ? `All-in ${max}` : G.curBet === 0 ? `Bet ${S.raiseTo}` : `Raise to ${S.raiseTo}`;
+    $('#raiseBtn').textContent = S.raiseTo >= p.stack + p.bet ? `All-in ${S.raiseTo}` : G.curBet === 0 ? `Bet ${S.raiseTo}` : `Raise to ${S.raiseTo}`;
     const rg = $('#raiseRange'), num = $('#raiseNum');
     rg.min = num.min = min; rg.max = num.max = max;
     rg.value = num.value = S.raiseTo;
@@ -497,21 +508,21 @@
   }
   function renderAdviceBtn() {
     const b = $('#adviceBtn'), a = S.curAdvice;
-    if (!a || !inGame()) { b.disabled = true; b.textContent = '💡 Working out advice…'; return; }
+    if (!a || !inGame()) { b.disabled = true; b.textContent = 'Working out advice…'; return; }
     b.disabled = false;
-    b.textContent = '💡 Follow advice: ' + moveLabel(a.move);
+    b.textContent = 'Follow advice: ' + moveLabel(a.move);
   }
   function renderSession() {
     const ss = S.session;
     let h = '';
     if (ss.hands) {
       h += `Hands played <b>${ss.hands}</b> · Won <b>${+ss.wins.toFixed(1)}</b> · Session result <b class="${ss.profit >= 0 ? 'good' : 'bad'}">${signed(ss.profit)}</b> chips (${signed(+(ss.profit / BB).toFixed(1))} big blinds)`;
-      h += `<br>Everyone starts each hand with ${START} chips · Blinds ${SB}/${BB}`;
+      h += `<br>Everyone starts each hand with ${startStack()} chips · Blinds ${SB}/${BB}`;
     }
     if (S.guessLog.length) {
       const avg = S.guessLog.reduce((a, b) => a + b, 0) / S.guessLog.length;
-      const rank = avg < 5 ? 'Pro-level read 🧠' : avg < 10 ? 'Seasoned 👍' : avg < 18 ? 'Getting there 🙂' : 'Rookie, keep practicing 🐣';
-      h += `${h ? '<br>' : ''}🎯 ${S.guessLog.length} guesses, average miss <b>${avg.toFixed(1)}</b> points · ${rank}`;
+      const rank = avg < 5 ? 'Pro-level read ' : avg < 10 ? 'Seasoned ' : avg < 18 ? 'Getting there ' : 'Rookie, keep practicing ';
+      h += `${h ? '<br>' : ''}${S.guessLog.length} guesses, average miss <b>${avg.toFixed(1)}</b> points · ${rank}`;
     }
     $('#session').innerHTML = h;
   }
@@ -556,14 +567,10 @@
 
   function commentary(eq, d, fair, L) {
     const ratio = eq / fair;
-    let s = '';
-    if (L === 0) {
-      s = ratio > 1.8 ? '🔥 Premium starting hand. Get in there.' : ratio > 1.25 ? '👍 Clearly better than an average hand' : ratio > 0.9 ? '🙂 Middle of the road; depends on position and price' : '🥶 Weak starting hand; usually a fold';
-    } else {
-      s = d >= 15 ? `🚀 The ${LNAME[L].toLowerCase()} helped you a lot` : d >= 5 ? `📈 The ${LNAME[L].toLowerCase()} made you stronger` : d > -5 ? `➖ The ${LNAME[L].toLowerCase()} didn't change much` : d > -15 ? `📉 The ${LNAME[L].toLowerCase()} wasn't kind to you` : `💥 The ${LNAME[L].toLowerCase()} crushed your hand`;
-      s += ratio > 2 ? ', and you are likely ahead of the whole table' : ratio > 1.2 ? ', and you have the edge' : ratio > 0.8 ? '; it is a close spot' : ', and you are probably behind';
-    }
-    return s;
+    if (L === 0) return ratio > 1.8 ? 'Premium hand' : ratio > 1.25 ? 'Above average' : ratio > 0.9 ? 'Playable; depends on position' : 'Weak; usually a fold';
+    const st = LNAME[L].toLowerCase();
+    const change = d >= 15 ? `Big help on the ${st}` : d >= 5 ? `Improved on the ${st}` : d > -5 ? `Little change on the ${st}` : d > -15 ? `Worse after the ${st}` : `Badly hurt by the ${st}`;
+    return change + (ratio > 2 ? '; likely the best hand' : ratio > 1.2 ? '; ahead of average' : ratio > 0.8 ? '; close spot' : '; probably behind');
   }
 
   function renderChart(L, fair) {
@@ -637,7 +644,7 @@
     const sec = $('#heatSec');
     if (!(L === 3 || L === 4) || !cur || !cur.iters) { sec.hidden = true; return; }
     sec.hidden = false;
-    $('#heatTitle').textContent = L === 3 ? '🔥 How each turn card changes your odds' : '🔥 How each river card changes your odds';
+    $('#heatTitle').textContent = L === 3 ? 'How each turn card changes your odds' : 'How each river card changes your odds';
     const curEq = eqOf(cur);
     const known = new Set(S.slots.slice(0, 2 + L));
     const list = [];
@@ -781,13 +788,13 @@
     const a = advise(eq, P, C, L, ctx);
     if (g) S.curAdvice = a;
     $('#advice').innerHTML =
-      `<div class="adv ${a.cls}"><div class="adv-act">${a.act}</div>` +
+      `<div class="adv ${a.cls}"><div class="adv-act"><small>Advice</small>${a.act}</div>` +
       (a.size ? `<div class="adv-size">${a.size}</div>` : '') +
-      `<ul>${a.why.map(w => `<li>${w}</li>`).join('')}</ul></div>`;
+      `<ul>${a.why.slice(1, 3).map(w => `<li>${w}</li>`).join('')}</ul></div>`;
     if (C <= 0) $('#potVerdict').innerHTML = '';
     else {
       const e = eq / 100, ev = e * P - (1 - e) * C, ok = ev >= 0;
-      $('#potVerdict').innerHTML = `This bet alone: calling ${ok ? 'wins' : 'loses'} <b class="${ok ? 'good' : 'bad'}">${Math.abs(ev).toFixed(1)}</b> chips on average (later streets not included)`;
+      $('#potVerdict').innerHTML = `Calling ${ok ? 'wins' : 'loses'} <b class="${ok ? 'good' : 'bad'}">${Math.abs(ev).toFixed(1)}</b> chips on average (this bet only).`;
     }
     renderAdviceBtn();
   }
@@ -800,7 +807,7 @@
     if (!isFinal(cur)) { box.innerHTML = `You guessed <b>${g}%</b>. Calculating the real odds…`; return; }
     const err = Math.abs(g - eq);
     if (!S.guessLogged.has(key)) { S.guessLogged.add(key); S.guessLog.push(err); }
-    const v = err < 3 ? '🎯 Spot on!' : err < 8 ? '👏 Very close' : err < 15 ? '🤏 A little off' : '🙈 Way off';
+    const v = err < 3 ? 'Spot on!' : err < 8 ? 'Very close' : err < 15 ? 'A little off' : 'Way off';
     box.innerHTML = `You guessed <b>${g}%</b>, actual <b>${pct(eq)}</b>, off by <b>${err.toFixed(1)}</b> points · ${v}`;
   }
 
@@ -979,29 +986,29 @@
     rv.forEach(r => (r.seen = eqOf(getRes(r.l))));
     const last = rv[rv.length - 1];
     const st = l => LNAME[l].toLowerCase();
-    let html = '<h4>📋 Hand replay</h4>';
+    let html = '<h4>Hand replay</h4>';
 
     let verdict;
     if (heroFolded) {
       const fi = G.foldInfo;
-      if (fi.need == null) verdict = `🤔 You folded on the ${st(fi.l)} when you could have checked for free (your real odds were ${pct(last.real)}). With no bet to call, checking is never worse than folding.`;
-      else if (last.real < fi.need) verdict = `✅ <b>Good fold!</b> When you folded on the ${st(fi.l)} your real odds were only ${pct(last.real)}, and calling needed ${pct(fi.need)}.`;
-      else verdict = `😬 That fold <b>gave up value</b>: on the ${st(fi.l)} your real odds were ${pct(last.real)}, above the ${pct(fi.need)} you needed to call. You couldn't see their cards, so don't be too hard on yourself.`;
+      if (fi.need == null) verdict = `You folded on the ${st(fi.l)} when you could have checked for free (your real odds were ${pct(last.real)}). With no bet to call, checking is never worse than folding.`;
+      else if (last.real < fi.need) verdict = `✓ <b>Good fold!</b> When you folded on the ${st(fi.l)} your real odds were only ${pct(last.real)}, and calling needed ${pct(fi.need)}.`;
+      else verdict = `That fold <b>gave up value</b>: on the ${st(fi.l)} your real odds were ${pct(last.real)}, above the ${pct(fi.need)} you needed to call. You couldn't see their cards, so don't be too hard on yourself.`;
     } else if (R.type === 'fold') {
       verdict = last.real < 50
-        ? `😎 <b>Pressure worked!</b> Everyone folded even though you were behind (real odds ${pct(last.real)}), and you took down ${R.pot}.`
-        : `💰 Everyone folded and you won ${R.pot}. You were ahead anyway (real odds ${pct(last.real)}).`;
+        ? `<b>Pressure worked!</b> Everyone folded even though you were behind (real odds ${pct(last.real)}), and you took down ${R.pot}.`
+        : `Everyone folded and you won ${R.pot}. You were ahead anyway (real odds ${pct(last.real)}).`;
     } else {
       const won = R.heroWin === 1, lost = R.heroWin === 0;
       const preRiver = rv.slice(0, 3).map(r => r.real);
       const maxReal = Math.max(...preRiver), minReal = Math.min(...preRiver);
-      if (lost && rv[2].real >= 70) verdict = `😤 <b>Bad beat!</b> On the turn your real odds were ${pct(rv[2].real)}, and the river still turned it around. You played it right; that's luck.`;
-      else if (lost && maxReal >= 60) verdict = `😣 You were ahead at one point (best real odds ${pct(maxReal)}), but your opponent caught up.`;
-      else if (lost) verdict = `🧊 Your opponent led the whole way (your real odds never got above ${pct(maxReal)}). Getting out earlier would have saved chips.`;
-      else if (won && rv[2].real <= 30) verdict = `🍀 <b>Lucky comeback!</b> On the turn your real odds were only ${pct(rv[2].real)}, and the river saved you.`;
-      else if (won && minReal <= 35) verdict = `🔁 You fell behind along the way (lowest real odds ${pct(minReal)}) and fought back to win.`;
-      else if (won) verdict = `💪 You led from start to finish (your real odds never dropped below ${pct(minReal)}).`;
-      else verdict = '🤝 You split the pot.';
+      if (lost && rv[2].real >= 70) verdict = `<b>Bad beat!</b> On the turn your real odds were ${pct(rv[2].real)}, and the river still turned it around. You played it right; that's luck.`;
+      else if (lost && maxReal >= 60) verdict = `You were ahead at one point (best real odds ${pct(maxReal)}), but your opponent caught up.`;
+      else if (lost) verdict = `Your opponent led the whole way (your real odds never got above ${pct(maxReal)}). Getting out earlier would have saved chips.`;
+      else if (won && rv[2].real <= 30) verdict = `<b>Lucky comeback!</b> On the turn your real odds were only ${pct(rv[2].real)}, and the river saved you.`;
+      else if (won && minReal <= 35) verdict = `You fell behind along the way (lowest real odds ${pct(minReal)}) and fought back to win.`;
+      else if (won) verdict = `You led from start to finish (your real odds never dropped below ${pct(minReal)}).`;
+      else verdict = 'You split the pot.';
     }
     html += `<div class="verdict">${verdict}<br>Your result this hand: <b class="${R.heroNet >= 0 ? 'good' : 'bad'}">${signed(R.heroNet)}</b> chips.</div>`;
 
@@ -1020,17 +1027,17 @@
       }
       const l = rv[key.i].l;
       const keyCards = l === 3 ? boardCards(3) : [S.slots[2 + l - 1]];
-      html += `<p>🔑 <b>Key card:</b> the ${st(l)} ${cardsText(keyCards)} moved your real odds from ${pct(rv[key.i - 1].real)} to ${pct(rv[key.i].real)}.</p>`;
+      html += `<p><b>Key card:</b> the ${st(l)} ${cardsText(keyCards)} moved your real odds from ${pct(rv[key.i - 1].real)} to ${pct(rv[key.i].real)}.</p>`;
     }
 
     const off = rv.filter(r => (r.l === 3 || r.l === 4) && r.seen != null).map(r => r.seen - r.real);
-    if (off.some(g => g >= 25)) html += "<p>👀 After the flop the odds you saw were <b>too optimistic</b>: your opponents' real hands were much stronger than random. Players who keep calling or raising usually have something.</p>";
-    else if (off.some(g => g <= -25)) html += "<p>👀 The odds you saw were <b>too pessimistic</b>: your opponents' hands were weak, and you could have bet more for value.</p>";
+    if (off.some(g => g >= 25)) html += "<p>After the flop the odds you saw were <b>too optimistic</b>: your opponents' real hands were much stronger than random. Players who keep calling or raising usually have something.</p>";
+    else if (off.some(g => g <= -25)) html += "<p>The odds you saw were <b>too pessimistic</b>: your opponents' hands were weak, and you could have bet more for value.</p>";
 
     if (G.log.length) {
       const matched = G.log.filter(d => d.match).length, judged = G.log.filter(d => d.match != null).length;
       html += `<h4>Your decisions${judged ? ` (${matched}/${judged} matched the advice)` : ''}</h4><ul>`;
-      html += G.log.map(d => `<li>${LNAME[d.l]}: you chose "${d.mine}"${d.adv ? `, advice was "${d.adv}" ${d.match ? '✅' : '⚠️'}` : ''}</li>`).join('');
+      html += G.log.map(d => `<li>${LNAME[d.l]}: you chose "${d.mine}"${d.adv ? `, advice was "${d.adv}" ${d.match ? '✓' : '✗'}` : ''}</li>`).join('');
       html += '</ul>';
     }
 
@@ -1060,13 +1067,35 @@
   }
 
   // ---------- events ----------
-  const sel = $('#oppSel');
-  for (let i = 1; i <= 8; i++) sel.insertAdjacentHTML('beforeend', `<option value="${i}" ${i === S.opp ? 'selected' : ''}>${i}</option>`);
-  sel.onchange = () => {
-    S.opp = +sel.value;
-    if (S.mode === 'random' && G) { startGame(); return; }
-    update();
-  };
+  function rulesText() {
+    return `${RULES.opp} opponent${RULES.opp > 1 ? 's' : ''} · ${RULES.stackBB} BB · ${RULES.potLimit ? 'Pot-limit' : 'No-limit'}${RULES.ante ? ' · Ante' : ''}`;
+  }
+  function openRules(first) {
+    UI.rulesDialog({
+      title: "Texas Hold'em rules",
+      intro: 'Choose how this table plays. You can change it later between hands.',
+      cancellable: !first,
+      values: RULES,
+      fields: [
+        { key: 'opp', name: 'Opponents', options: [1, 2, 3, 4, 5, 6, 7, 8].map(v => ({ v, label: String(v) })) },
+        { key: 'stackBB', name: 'Starting stack', hint: `Blinds are ${SB}/${BB}. Everyone starts each hand with this many chips.`, options: [{ v: 50, label: '50 BB (100)' }, { v: 100, label: '100 BB (200)' }, { v: 200, label: '200 BB (400)' }] },
+        { key: 'potLimit', name: 'Betting', hint: 'No-limit: bet any amount up to all-in. Pot-limit: the biggest bet or raise is the size of the pot.', options: [{ v: false, label: 'No-limit' }, { v: true, label: 'Pot-limit' }] },
+        { key: 'ante', name: 'Ante', hint: 'An ante is a small forced bet from every player, which makes each pot bigger.', options: [{ v: 0, label: 'None' }, { v: 1, label: '1 chip each' }] },
+        { key: 'style', name: 'Opponents play', options: [{ v: 'mixed', label: 'Mixed' }, { v: 'tight', label: 'Tight' }, { v: 'loose', label: 'Loose' }, { v: 'aggressive', label: 'Aggressive' }] },
+      ],
+      preview: v => `Tight players only play strong hands. Loose players call a lot. Aggressive players bet and raise often. Mixed gives each opponent a random style.`,
+      onSave: v => {
+        RULES = v;
+        UI.store.save(RULE_KEY, RULES);
+        S.opp = RULES.opp; S.styles = [];
+        $('#rulesText').textContent = rulesText();
+        if (S.mode === 'random') { clearTimer(); G = null; S.slots = Array(7).fill(null); S.stage = 0; S.opps = []; S.revealed = false; S.result = null; }
+        update();
+      },
+    });
+  }
+  $('#rulesBtn').onclick = () => openRules(false);
+  $('#rulesText').textContent = rulesText();
   $('#modeSeg').onclick = e => {
     const b = e.target.closest('button');
     if (!b || b.dataset.mode === S.mode) return;
@@ -1121,4 +1150,5 @@
   });
 
   update();
+  if (!savedRules && window.UI) openRules(true);
 })();
