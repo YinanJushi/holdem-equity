@@ -26,8 +26,11 @@
   function cardHTML(c, cls = '') {
     if (c == null) return `<div class="card back ${cls}"></div>`;
     const s = SUIT[c & 3];
-    return `<div class="card s${c & 3} ${cls}"><span class="r">${rankLabel(c)}</span><span class="r2">${s}</span><span class="pip">${s}</span></div>`;
+    const rl = rankLabel(c), face = 'JQK'.includes(rl);
+    return `<div class="card s${c & 3} ${face ? 'face' : ''} ${cls}"><span class="r">${rl}</span><span class="r2">${s}</span><span class="pip">${face ? rl : s}</span></div>`;
   }
+  const sfx = t => window.UI && UI.sfx(t);
+  const chipsHTML = n => (window.UI ? UI.chips(n) : '');
 
   const S = {
     bank: START_BANK, bet: 25, shoe: [], cut: 0, rc: 0, phase: 'bet',
@@ -179,6 +182,7 @@
     S.log.forEach(d => { S.session.judged++; if (d.act === d.best) S.session.matched++; });
     S.timeline.push({ label: 'Result', w: net > 0 ? 1 : net === 0 ? 0.5 : 0, final: true });
     update();
+    if (net > 0) sfx('win');
     if (net > 0) chipShower(Math.min(40, 10 + Math.round(net / 5)));
   }
 
@@ -191,11 +195,11 @@
 
   function chipShower(n) {
     if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const fx = $('#fx'), H = fx.clientHeight + 60, cols = ['', 'blue', 'green', 'black', 'gold'];
+    const fx = $('#fx'), H = fx.clientHeight + 60, cols = ['red', 'green', 'black', 'gold', 'white'];
     let h = '';
     for (let i = 0; i < n; i++) {
       const dur = 1.2 + Math.random() * 1.3, delay = Math.random() * 0.6;
-      h += `<div class="fall" style="left:${Math.random() * 100}%;animation-duration:${dur}s;animation-delay:${delay}s;--dy:${H}px;--rot:${(Math.random() * 720 - 360) | 0}deg"><span class="chip ${cols[(Math.random() * cols.length) | 0]}"></span></div>`;
+      h += `<div class="fall" style="left:${Math.random() * 100}%;animation-duration:${dur}s;animation-delay:${delay}s;--dy:${H}px;--rot:${(Math.random() * 720 - 360) | 0}deg"><span class="cstack" style="height:22px"><i class="disc ${cols[(Math.random() * cols.length) | 0]}" style="--i:0"></i></span></div>`;
     }
     fx.innerHTML = h;
     setTimeout(() => { if (fx.innerHTML === h) fx.innerHTML = ''; }, 3200);
@@ -218,6 +222,7 @@
       const isNew = i >= S.shown.dealer || (i === 1 && S.holeShown && !S.shown.hole);
       return hidden ? cardHTML(null, isNew ? 'deal' : '') : cardHTML(c, isNew ? (i === 1 ? 'flip' : 'deal') : '');
     }).join('');
+    if (dc.includes('deal') || dc.includes('flip')) sfx('card');
     $('#dealerCards').innerHTML = dc;
     let dl = 'Dealer';
     if (S.dealer.length) {
@@ -235,10 +240,11 @@
       const active = S.phase === 'play' && k === S.cur;
       const tot = h.bj ? 'Blackjack' : st.total > 21 ? `Bust (${st.total})` : (st.soft ? 'soft ' : '') + st.total;
       const res = h.res ? `<span class="res ${h.net > 0 ? 'good' : h.net < 0 ? 'bad' : ''}">${h.res} ${h.net ? signed(h.net) : ''}</span>` : '';
-      ph += `<div class="bj-hand ${active ? 'active' : ''}"><div class="bj-cards">${cards}</div><div class="bj-label">${S.hands.length > 1 ? `Hand ${k + 1} · ` : ''}${tot} · <span class="chip gold"></span>${h.bet}${h.doubled ? ' (doubled)' : ''} ${res}</div></div>`;
+      if (h.cards.length > seen) sfx('card');
+      ph += `<div class="bj-hand ${active ? 'active' : ''}"><div class="bj-cards">${cards}</div><div class="bj-label">${S.hands.length > 1 ? `Hand ${k + 1} · ` : ''}${tot}${h.doubled ? ' · doubled' : ''} ${res}</div><div class="betspot">${chipsHTML(h.bet)}<span>${h.bet}</span></div></div>`;
       S.shown.hands[k] = h.cards.length;
     });
-    $('#playerHands').innerHTML = ph || '<div class="bj-hand"><div class="bj-cards"><div class="card empty"></div><div class="card empty"></div></div><div class="bj-label">You</div></div>';
+    $('#playerHands').innerHTML = ph || `<div class="bj-hand"><div class="bj-cards"><div class="card empty"></div><div class="card empty"></div></div><div class="bj-label">Your bet</div><div class="betspot">${S.bet ? chipsHTML(S.bet) + `<span>${S.bet}</span>` : ''}</div></div>`;
 
     // shoe
     const left = S.shoe.length, total = RULES.decks * 52;
@@ -385,8 +391,10 @@
     html += '<h4>Why this play</h4><ul>';
     const dw = up >= 1 && up <= 5;
     if (!st.soft && st.total >= 12 && st.total <= 16) {
-      html += dw ? `<li>Hard ${st.total} vs a weak dealer card (${upName(S.dealer[0])}): let the dealer take the risk of busting.</li>`
-        : `<li>Hard ${st.total} vs a strong dealer card (${upName(S.dealer[0])}) is the "stiff hand" zone: you lose more often than not whatever you do; the best play just loses least.</li>`;
+      const up = upName(S.dealer[0]);
+      if (dw && o.best === 'stand') html += `<li>Hard ${st.total} vs a weak dealer card (${up}): stand and let the dealer take the risk of busting.</li>`;
+      else if (dw) html += `<li>Hard ${st.total} vs a ${up} is an exception: the dealer busts less often with a ${up} than with a 4–6, so taking one card is slightly better.</li>`;
+      else html += `<li>Hard ${st.total} vs a strong dealer card (${up}) is the "stiff hand" zone: you lose more often than not whatever you do; the best play just loses least.</li>`;
     }
     if (!st.soft && (st.total === 10 || st.total === 11) && h.cards.length === 2) html += '<li>10 or 11 is a great doubling hand: many cards give you 20 or 21.</li>';
     if (st.soft && st.total <= 17) html += '<li>Soft hands can\'t bust on the next card, so improving them is cheap.</li>';
@@ -511,9 +519,11 @@
     const b = e.target.closest('[data-add]');
     if (!b || !(S.phase === 'bet' || S.phase === 'over')) return;
     S.bet = Math.min(S.bank < MIN_BET ? START_BANK : S.bank, S.bet + +b.dataset.add);
+    sfx('chip');
+    if (S.phase === 'bet') renderTable();
     renderControls();
   };
-  $('#clearBet').onclick = () => { S.bet = MIN_BET; renderControls(); };
+  $('#clearBet').onclick = () => { S.bet = MIN_BET; if (S.phase === 'bet') renderTable(); renderControls(); };
   $('#dealBtn').onclick = deal;
   $('#hitBtn').onclick = () => act('hit');
   $('#standBtn').onclick = () => act('stand');

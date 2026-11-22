@@ -58,6 +58,56 @@
     dlg.showModal();
   }
 
-  window.UI = { store, initTabs, showTab, rulesDialog };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initTabs); else initTabs();
+  // chip stack: biggest denominations at the bottom, at most `max` discs
+  const DENOMS = [[500, 'gold'], [100, 'black'], [25, 'green'], [5, 'red'], [1, 'white']];
+  function chips(n, max = 8) {
+    const out = [];
+    let r = Math.round(n);
+    for (const [v, c] of DENOMS) while (r >= v && out.length < max) { out.push(c); r -= v; }
+    if (!out.length && n > 0) out.push('white');
+    return `<span class="cstack" style="height:${22 + (out.length - 1) * 3}px">${out.map((c, i) => `<i class="disc ${c}" style="--i:${i}"></i>`).join('')}</span>`;
+  }
+
+  // small synthesized sound effects (no audio files)
+  let actx = null, last = {};
+  let soundOn = (() => { try { return localStorage.getItem('ol-sound') !== '0'; } catch (e) { return true; } })();
+  function tone(t, freq, dur, vol) {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+  }
+  function sfx(type) {
+    if (!soundOn) return;
+    const now = performance.now();
+    if (now - (last[type] || 0) < 70) return;
+    last[type] = now;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+      const t = actx.currentTime;
+      if (type === 'card') {
+        const len = Math.floor(actx.sampleRate * 0.05), buf = actx.createBuffer(1, len, actx.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+        const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+        src.buffer = buf; f.type = 'highpass'; f.frequency.value = 1500; g.gain.value = 0.22;
+        src.connect(f).connect(g).connect(actx.destination); src.start(t);
+      } else if (type === 'chip') {
+        tone(t, 2600, 0.09, 0.05); tone(t + 0.035, 3300, 0.08, 0.04);
+      } else if (type === 'win') {
+        [0, 0.07, 0.14, 0.21].forEach((dt, i) => tone(t + dt, 2200 + i * 400, 0.12, 0.05));
+      }
+    } catch (e) { /* audio not available */ }
+  }
+  function initSound() {
+    const b = document.getElementById('soundBtn');
+    if (!b) return;
+    const paint = () => { b.textContent = soundOn ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed', soundOn); };
+    b.onclick = () => { soundOn = !soundOn; try { localStorage.setItem('ol-sound', soundOn ? '1' : '0'); } catch (e) { } paint(); if (soundOn) sfx('chip'); };
+    paint();
+  }
+
+  window.UI = { store, initTabs, showTab, rulesDialog, chips, sfx };
+  const boot = () => { initTabs(); initSound(); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

@@ -13,15 +13,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <header class="top">
   <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <div class="top-right">
   <nav class="games" aria-label="Games">
     <a href="index.html">Texas Hold'em</a>
     <a href="blackjack.html" class="on" aria-current="page">Blackjack</a>
   </nav>
+  <button id="soundBtn" class="iconbtn" aria-pressed="true">Sound on</button>
+  </div>
 </header>
 
 <main class="layout">
@@ -125,8 +128,8 @@
 
 <footer class="foot">For practice and hand review. Odds are computed from the cards left in the shoe.</footer>
 
-<script src="ui.js?v=5"></script>
-<script src="bj-engine.js?v=5"></script>
-<script src="blackjack.js?v=5"></script>
+<script src="ui.js?v=10"></script>
+<script src="bj-engine.js?v=10"></script>
+<script src="blackjack.js?v=10"></script>
 </body>
 </html>

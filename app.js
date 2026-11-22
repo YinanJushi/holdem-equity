@@ -50,15 +50,12 @@
   function cardHTML(c, cls = '', attr = '') {
     if (c == null) return `<div class="card empty ${cls}" ${attr}></div>`;
     const s = SUIT_SYM[c & 3];
-    return `<div class="card s${c & 3} ${cls}" ${attr}><span class="r">${rankLabel(c)}</span><span class="r2">${s}</span><span class="pip">${s}</span></div>`;
+    const rl = rankLabel(c), face = 'JQK'.includes(rl);
+    return `<div class="card s${c & 3} ${face ? 'face' : ''} ${cls}" ${attr}><span class="r">${rl}</span><span class="r2">${s}</span><span class="pip">${face ? rl : s}</span></div>`;
   }
-  const CHIP_COLORS = ['', 'blue', 'green', 'black', 'gold'];
-  function chipStack(n) {
-    const k = Math.max(1, Math.min(7, Math.ceil(Math.log2(n + 1))));
-    let h = '';
-    for (let i = 0; i < k; i++) h += `<span class="chip ${CHIP_COLORS[i % CHIP_COLORS.length]}"></span>`;
-    return `<span class="stack">${h}</span>`;
-  }
+  const CHIP_COLORS = ['red', 'green', 'black', 'gold', 'white'];
+  const chipStack = n => (window.UI ? UI.chips(n) : '');
+  const sfx = t => window.UI && UI.sfx(t);
 
   const heroCards = () => (S.slots[0] != null && S.slots[1] != null ? [S.slots[0], S.slots[1]] : null);
   function boardLen() {
@@ -102,6 +99,7 @@
     a = Math.max(0, Math.min(a, p.stack));
     p.stack -= a; p.bet += a; p.total += a; G.pot += a;
     if (p.stack === 0) p.allin = true;
+    if (a > 0) sfx('chip');
   }
   function track() {
     const L = boardLen();
@@ -230,6 +228,7 @@
     S.session.hands++; S.session.profit += heroNet; S.session.wins += heroWin;
     update();
     if (window.UI) UI.showTab('ana');
+    if (heroWin > 0 && heroNet > 0) sfx('win');
     if (heroWin > 0 && heroNet > 0) chipShower(Math.min(40, 12 + Math.round(heroNet / 4)));
   }
 
@@ -240,7 +239,7 @@
     for (let i = 0; i < n; i++) {
       const c = CHIP_COLORS[(Math.random() * CHIP_COLORS.length) | 0];
       const dur = 1.2 + Math.random() * 1.3, delay = Math.random() * 0.6;
-      h += `<div class="fall" style="left:${Math.random() * 100}%;animation-duration:${dur}s;animation-delay:${delay}s;--dy:${H}px;--rot:${(Math.random() * 720 - 360) | 0}deg"><span class="chip ${c}"></span></div>`;
+      h += `<div class="fall" style="left:${Math.random() * 100}%;animation-duration:${dur}s;animation-delay:${delay}s;--dy:${H}px;--rot:${(Math.random() * 720 - 360) | 0}deg"><span class="cstack" style="height:22px"><i class="disc ${c || 'red'}" style="--i:0"></i></span></div>`;
     }
     fx.innerHTML = h;
     setTimeout(() => { if (fx.innerHTML === h) fx.innerHTML = ''; }, 3200);
@@ -406,13 +405,14 @@
     if (inGame()) {
       const p = G.players[0], pot = G.over ? S.result.pot : G.pot;
       $('#potShow').innerHTML = `<span class="lbl">Pot</span>${chipStack(pot)}<b>${pot}</b>`;
-      $('#heroInfo').innerHTML = `${badges(0)}You · <span class="chip gold"></span>${p.stack}${p.last ? ` · <span class="act">${p.last}</span>` : ''}`;
+      $('#heroInfo').innerHTML = `<span class="plate"><span class="ava you">You</span><span><span class="pname">${badges(0)}${p.last || 'You'}</span><br><span class="pstack">${p.stack}</span></span></span>`;
     } else {
       $('#potShow').innerHTML = '';
       $('#heroInfo').textContent = 'You';
     }
     renderSeats();
     $('#msg').innerHTML = tableMsg();
+    if (S.slots.some((c, i) => c != null && S.prev[i] !== c)) sfx('card');
     S.prev = S.slots.slice();
   }
   function renderSeats() {
@@ -438,9 +438,14 @@
       const cls = ['seat'];
       if (p && p.folded && !S.revealed) cls.push('folded');
       if (inGame() && !G.over && G.toAct === j) cls.push('acting');
-      const info = p ? `<div class="seat-info"><span class="chip gold"></span>${p.stack}${p.last ? ' · <span class="betchip">' + p.last + '</span>' : ''}</div>` : '';
-      html += `<div class="${cls.join(' ')}" style="left:${x}%;top:${y}%"><div class="seat-cards">${cards}</div><div class="seat-name">${badges(j)}Opp ${j}${p ? ' · ' + p.style.name : ''}</div>${info}${extra}</div>`;
+      const st = p ? p.style : S.styles[i];
+      const plate = `<div class="plate"><span class="ava ${st ? st.key : ''}">${st ? st.name[0] : j}</span><span><span class="pname">${badges(j)}Opp ${j}${st ? `<span class="pstyle"> · ${st.name}</span>` : ''}</span>${p ? `<br><span class="pstack">${p.stack}</span>` : ''}</span></div>`;
+      const act = p && p.last && !S.revealed ? `<div class="seat-act">${p.last}</div>` : '';
+      html += `<div class="${cls.join(' ')}" style="left:${x}%;top:${y}%"><div class="seat-cards">${cards}</div>${plate}${act}${extra}</div>`;
+      // chips this player has put in on the current street, pushed toward the middle of the felt
+      if (p && p.bet > 0 && !G.over) html += `<div class="betpos" style="left:${x + (50 - x) * 0.42}%;top:${y + (44 - y) * 0.42}%">${chipStack(p.bet)}<span>${p.bet}</span></div>`;
     }
+    if (inGame() && !G.over && G.players[0].bet > 0) html += `<div class="betpos" style="left:33%;top:70%">${chipStack(G.players[0].bet)}<span>${G.players[0].bet}</span></div>`;
     $('#seats').innerHTML = html;
   }
   function tableMsg() {

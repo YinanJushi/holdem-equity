@@ -13,15 +13,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <header class="top">
   <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <div class="top-right">
   <nav class="games" aria-label="Games">
     <a href="index.html" class="on" aria-current="page">Texas Hold'em</a>
     <a href="blackjack.html">Blackjack</a>
   </nav>
+  <button id="soundBtn" class="iconbtn" aria-pressed="true">Sound on</button>
+  </div>
 </header>
 
 <main class="layout">
@@ -36,6 +39,7 @@
     </div>
 
     <div class="table" id="table">
+      <div class="felt-line" aria-hidden="true"></div>
       <div class="felt-logo" aria-hidden="true">ODDS LOUNGE</div>
       <div id="seats"></div>
       <div class="center">
@@ -149,8 +153,8 @@
 
 <footer class="foot">For practice and hand review. Advice uses simple rules of thumb.</footer>
 
-<script src="ui.js?v=5"></script>
-<script src="engine.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="ui.js?v=10"></script>
+<script src="engine.js?v=10"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
