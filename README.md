@@ -1,35 +1,37 @@
-# 胜率透视 · Equity Lens
+# Equity Lens ♠♥♦♣
 
-一个德州扑克胜率网站：每发一张牌，实时看到你的胜率怎么变化，再用真实的下注把这手牌打完，最后对照对手底牌复盘。
+A Texas Hold'em odds site: watch your win odds change with every card, play the hand out with real betting against AI opponents, then replay it against their actual cards.
 
-纯前端静态网站（HTML + CSS + JavaScript），不需要后端、不需要安装任何依赖。
+**Play it:** https://yinanjushi.github.io/holdem-equity/
 
-## 功能
+A plain static site (HTML + CSS + JavaScript). No backend, no build step, no dependencies.
 
-- **实时胜率**：用蒙特卡洛模拟（每条街 30,000 次）计算你对抗还在牌局里的对手的胜率，带翻前 → 翻牌 → 转牌 → 河牌的走势图。
-- **真实下注**：1~8 个 AI 对手，各有紧手 / 松手 / 激进 / 稳健风格；盲注 1/2、每手 200 筹码、庄家按钮轮转。你可以弃牌、过牌、跟注、加注（预设尺寸 + 滑杆 + 全下）。
-- **下注建议**：结合胜率、对手人数、街道、听牌和底池赔率给出动作和尺寸，一键「按建议」执行。
-- **牌局分析**：每条街解释发生了什么、牌面质地、有多少种对手手牌已经赢你、补牌数与 4-2 法则。
-- **下一张牌热力图**：转牌 / 河牌每一张可能的牌会让你的胜率涨还是跌。
-- **摊牌复盘**：对比「你看到的胜率」和「翻开对手底牌后的真实胜率」，找出最关键的一张牌，并逐条点评你的决策。
-- **先猜再看**：先猜自己的胜率再揭晓，练习牌感。
-- **手动选牌**：自己指定底牌和公共牌，分析打过的牌。
+## Features
 
-快捷键：空格 发牌 / 下一局，F 弃牌，C 过牌或跟注，R 加注。
+- **Live odds**: Monte Carlo simulation (30,000 runs per street) of your equity against the players still in the hand, with a preflop → flop → turn → river chart.
+- **Real betting**: 1–8 AI opponents, each with a style (Tight / Loose / Aggressive / Solid). Blinds 1/2, 200 chips per hand, rotating dealer button. Fold, check, call, bet or raise with preset sizes, a slider, or all-in.
+- **Betting advice**: an action and size based on your odds, number of opponents, street, draws and pot odds. One click to follow it.
+- **Hand analysis**: what each street changed, board texture, how many opponent hands already beat you, outs and the rule of 4 and 2.
+- **Next-card heatmap**: how every possible turn or river card would move your odds.
+- **Showdown replay**: compares the odds you saw with your real odds once opponents' cards are revealed, finds the key card, and grades each of your decisions.
+- **Guess first**: guess your odds before they're revealed to train your feel.
+- **Pick cards**: set your own hole cards and board to analyze hands you've played.
 
-## 本地运行
+Keys: Space deals / next hand, F fold, C check or call, R raise.
+
+## Run locally
 
 ```bash
 python3 -m http.server 8765
 ```
 
-然后打开 http://localhost:8765 。
+Then open http://localhost:8765.
 
-## 文件
+## Files
 
-- `engine.js`：7 张牌牌型评估和蒙特卡洛模拟
-- `app.js`：牌桌、下注引擎、AI 对手、分析与复盘
-- `style.css`：样式
-- `index.html`：页面结构
+- `engine.js`: 7-card hand evaluator and Monte Carlo simulation
+- `app.js`: table, betting engine, AI opponents, analysis and replay
+- `style.css`: casino theme
+- `index.html`: page structure
 
-> 建议和分析基于简化的经验规则，适合练习和复盘，不要在真钱牌局中实时使用。
+> Advice and analysis use simplified rules of thumb. Great for practice and hand review; don't use it during real-money games.

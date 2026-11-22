@@ -1,8 +1,8 @@
 :root {
-  --bg: #0d1411; --panel: #141f1a; --panel2: #1a2821; --line: #27382f;
-  --text: #e9f0eb; --muted: #8ea399; --gold: #e8c26a;
-  --up: #4fd18b; --down: #ff6b6b; --tie: #e8c26a; --accent: #6ab7ff;
-  --felt: #22654a; --felt2: #123a29; --rail: #3a2716;
+  --bg: #12060a; --panel: #1c0d12; --panel2: #2a141b; --line: #4a2a22;
+  --text: #f6efe3; --muted: #b9a58e; --gold: #f2c75c; --gold2: #b8862b;
+  --up: #4fd18b; --down: #ff6b6b; --tie: #f2c75c; --accent: #6ab7ff;
+  --felt: #1f7a50; --felt2: #0c3b26; --rail: #3b1d10;
   --card: #fbfaf6;
   --cw-board: 56px; --cw-hero: 66px; --cw-seat: 28px;
 }
@@ -10,20 +10,22 @@
 [hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
-  background: var(--bg); color: var(--text);
-  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(242,199,92,.16), transparent 55%),
+    radial-gradient(ellipse at 50% 120%, rgba(120,10,30,.55), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.018) 0 2px, transparent 2px 14px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,.018) 0 2px, transparent 2px 14px),
+    var(--bg);
+  background-attachment: fixed;
+  font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif;
   overflow-x: hidden;
 }
 button { font: inherit; cursor: pointer; }
-.top { padding: 22px 24px 8px; }
-.top h1 { margin: 0; font-size: 26px; letter-spacing: 1px; }
-.top h1 span { color: var(--gold); font-weight: 500; font-size: 16px; margin-left: 6px; }
-.top p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; padding: 12px 24px 40px; max-width: 1320px; margin: 0 auto; }
 @media (max-width: 960px) {
   .layout { grid-template-columns: 1fr; padding: 12px 16px 40px; }
-  .top { padding: 18px 16px 6px; }
 }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; }
@@ -36,7 +38,7 @@ select, input[type=number] {
   border-radius: 8px; padding: 6px 8px; font: inherit;
 }
 
-/* 牌桌 */
+/* Table */
 .table {
   position: relative; aspect-ratio: 16 / 10; min-height: 380px;
   border-radius: 999px;
@@ -60,7 +62,7 @@ select, input[type=number] {
 .seat-hand { font-size: 11px; color: var(--muted); background: rgba(0,0,0,.45); border-radius: 6px; padding: 1px 6px; margin-top: 2px; white-space: nowrap; }
 .seat-hand.win { color: var(--gold); }
 
-/* 扑克牌 */
+/* Cards */
 .card {
   width: var(--cw); height: calc(var(--cw) * 1.4); border-radius: calc(var(--cw) * .12);
   background: var(--card); position: relative; flex: none;
@@ -98,7 +100,7 @@ select, input[type=number] {
 .session { margin-top: 16px; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .session b { color: var(--text); }
 
-/* 右侧数据 */
+/* Stats panel */
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; }
 .panel h3 { margin: 0 0 10px; font-size: 14px; color: var(--muted); font-weight: 600; }
 .empty { color: var(--muted); text-align: center; padding: 40px 16px; }
@@ -122,7 +124,7 @@ select, input[type=number] {
 .guess-row b { font-size: 22px; width: 60px; text-align: right; }
 .guess-result { font-size: 14px; line-height: 1.7; }
 
-/* 图表 */
+/* Chart */
 #chart svg { width: 100%; max-width: 440px; height: auto; display: block; margin: 0 auto; }
 .c-grid { stroke: #22322a; stroke-width: 1; }
 .c-fair { stroke: var(--muted); stroke-dasharray: 4 4; stroke-width: 1; }
@@ -151,7 +153,7 @@ select, input[type=number] {
 .pot-in { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pot-in label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 #potVerdict { margin-top: 10px; font-size: 14px; line-height: 1.6; }
-/* 下注 */
+/* Betting */
 .potshow { font-size: 14px; color: #f3f7f4; margin-bottom: 8px; min-height: 20px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
 .potshow b { color: var(--gold); font-size: 17px; }
 .badge { display: inline-block; font-size: 9px; font-weight: 800; line-height: 14px; padding: 0 4px; border-radius: 7px; background: #dfe7e2; color: #18221d; margin-right: 3px; vertical-align: 1px; }
@@ -202,3 +204,125 @@ select, input[type=number] {
 .adv-size { font-size: 14px; margin-top: 4px; }
 .adv ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); line-height: 1.6; }
 .good { color: var(--up); } .bad { color: var(--down); }
+
+/* ================= Casino theme ================= */
+.top { padding: 22px 24px 6px; display: flex; justify-content: center; }
+.marquee {
+  position: relative; text-align: center; padding: 18px 44px 14px;
+  border-radius: 18px; background: linear-gradient(180deg, #2b0d14, #17060b);
+  border: 2px solid var(--gold2);
+  box-shadow: 0 0 0 4px #12060a, 0 0 0 6px var(--gold2), 0 0 40px rgba(242,199,92,.25), inset 0 0 30px rgba(0,0,0,.6);
+}
+.bulbs { position: absolute; inset: 6px; border-radius: 13px; pointer-events: none;
+  background:
+    radial-gradient(circle, #ffe9a8 0 2.5px, transparent 3px) 0 0 / 22px 22px repeat-x,
+    radial-gradient(circle, #ffe9a8 0 2.5px, transparent 3px) 11px 100% / 22px 22px repeat-x;
+  background-size: 22px 8px, 22px 8px; background-position: 0 0, 11px 100%;
+  animation: bulbs 1.2s steps(2) infinite; opacity: .9; }
+@keyframes bulbs { 50% { background-position: 11px 0, 0 100%; } }
+.marquee-inner { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.marquee h1 {
+  margin: 0; font-family: "Playfair Display", Georgia, serif; font-weight: 900; font-size: 40px; letter-spacing: 2px;
+  color: #ffe6a3; text-shadow: 0 0 6px rgba(255,214,120,.9), 0 0 18px rgba(242,170,60,.6), 0 2px 0 #7a4a10;
+}
+.marquee h1 em { font-style: italic; color: #ff5a6e; text-shadow: 0 0 6px rgba(255,90,110,.9), 0 0 20px rgba(255,40,70,.6); }
+.marquee .suits { color: var(--gold); font-size: 20px; letter-spacing: 6px; opacity: .85; }
+.marquee p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; letter-spacing: 2.5px; text-transform: uppercase; }
+@media (max-width: 640px) {
+  .top { padding: 16px 16px 4px; }
+  .marquee { padding: 14px 18px 12px; width: 100%; }
+  .marquee h1 { font-size: 30px; }
+  .marquee .suits { display: none; }
+  .marquee p { font-size: 10.5px; letter-spacing: 1.5px; }
+}
+
+/* table: polished wood rail + gold inlay + felt texture */
+.table {
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(255,255,255,.10), transparent 60%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(0,0,0,.035) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 50% 45%, var(--felt) 0%, var(--felt2) 78%);
+  border: 16px solid transparent;
+  border-image: none;
+  box-shadow:
+    0 0 0 2px #6b3a17, inset 0 0 0 3px rgba(242,199,92,.55), inset 0 0 0 5px rgba(0,0,0,.35),
+    inset 0 0 70px rgba(0,0,0,.6), 0 18px 50px rgba(0,0,0,.7), 0 0 0 16px #4a2410;
+  outline: 3px solid #2a1006; outline-offset: 13px;
+  margin: 18px 18px 24px;
+}
+@media (max-width: 640px) { .table { margin: 14px 14px 20px; } }
+.table::before {
+  content: ""; position: absolute; inset: -16px; border-radius: inherit; pointer-events: none; z-index: 0;
+  background: linear-gradient(160deg, #7a4521, #3b1d10 40%, #5c2e14 70%, #2a1006);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 15px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 16px), #000 calc(100% - 15px));
+}
+.felt-logo {
+  position: absolute; left: 50%; top: 66%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; opacity: .7;
+  font-family: "Playfair Display", Georgia, serif; font-weight: 900; font-size: 30px; letter-spacing: 6px;
+  color: rgba(255,255,255,.07); white-space: nowrap;
+}
+.felt-logo small { display: block; font-family: "Inter", sans-serif; font-size: 10px; letter-spacing: 4px; font-weight: 700; margin-top: 2px; }
+@media (max-width: 640px) { .felt-logo { font-size: 20px; top: 62%; } }
+
+/* card backs */
+.card.back {
+  background:
+    radial-gradient(circle at 50% 50%, var(--gold) 0 14%, transparent 15%),
+    repeating-linear-gradient(45deg, #8d1a2b 0 4px, #6c1220 4px 8px),
+    #7a1424;
+  border: 2px solid #f4efe4; box-shadow: inset 0 0 0 2px #c79a3b, 0 2px 6px rgba(0,0,0,.4);
+}
+
+/* chips */
+.chip {
+  --c: #c62b3a; display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px; margin-right: 4px;
+  background: radial-gradient(circle, var(--c) 0 38%, #fff 39% 44%, var(--c) 45%), repeating-conic-gradient(#fff 0 20deg, var(--c) 20deg 60deg);
+  background-blend-mode: normal; box-shadow: 0 1px 2px rgba(0,0,0,.6);
+  -webkit-mask: radial-gradient(circle, #000 69%, transparent 71%); mask: radial-gradient(circle, #000 69%, transparent 71%);
+}
+.chip.blue { --c: #2a62c9; } .chip.green { --c: #1f8a4c; } .chip.black { --c: #222; } .chip.gold { --c: #c08a1c; }
+.stack { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 8px; }
+.stack .chip { width: 18px; height: 18px; margin: 0 0 0 -9px; }
+.stack .chip:first-child { margin-left: 0; }
+.potshow { display: flex; align-items: center; justify-content: center; gap: 2px; font-weight: 700; letter-spacing: .5px; }
+.potshow .lbl { font-size: 11px; color: rgba(255,255,255,.7); text-transform: uppercase; letter-spacing: 2px; margin-right: 6px; }
+.betchip { color: var(--gold); font-weight: 700; }
+.badge.d { background: #fff; color: #111; box-shadow: 0 0 0 1px #999 inset; }
+
+/* panels with gold hairline */
+.panel { background: linear-gradient(180deg, rgba(42,20,27,.92), rgba(24,9,14,.92)); border: 1px solid rgba(242,199,92,.22); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.panel h3 { color: var(--gold); text-transform: uppercase; letter-spacing: 1.5px; font-size: 12.5px; }
+#eqBig { font-family: "Playfair Display", Georgia, serif; font-weight: 900; }
+.seg, select, input[type=number] { background: #1f0c12; border-color: rgba(242,199,92,.25); }
+.seg button.on { background: linear-gradient(180deg, #4a1d26, #2e1118); box-shadow: 0 0 0 1px rgba(242,199,92,.45); }
+
+/* buttons */
+.primary {
+  background: linear-gradient(180deg, #ffe08a, #e0a93a 55%, #b8862b); color: #2a1604;
+  box-shadow: 0 3px 0 #7a5210, 0 6px 18px rgba(242,199,92,.25); border-radius: 999px; padding: 12px 28px; letter-spacing: 1px; text-transform: uppercase;
+}
+.primary:active { transform: translateY(2px); box-shadow: 0 1px 0 #7a5210; }
+.betbar { background: linear-gradient(180deg, #2a141b, #180910); border: 1px solid rgba(242,199,92,.3); }
+.bb-main button { border-radius: 999px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 3px 0 rgba(0,0,0,.45); }
+.bb-main button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.45); }
+.b-fold { background: linear-gradient(180deg, #e24b5a, #a3202f); color: #fff; }
+.b-call { background: linear-gradient(180deg, #4a8ff0, #1f56b3); color: #fff; }
+.b-raise { background: linear-gradient(180deg, #5fe39a, #1f9a57); color: #062012; }
+.b-adv { border-radius: 999px; background: linear-gradient(180deg, #ffe08a, #d9a13a); }
+.sizes button { border-radius: 999px; background: #1f0c12; border-color: rgba(242,199,92,.25); }
+
+/* win effects */
+.fx { position: absolute; inset: -16px; pointer-events: none; overflow: hidden; border-radius: inherit; z-index: 5; }
+.fx .fall { position: absolute; top: -30px; width: 20px; height: 20px; animation: fall linear forwards; }
+.fx .fall .chip { width: 20px; height: 20px; margin: 0; }
+@keyframes fall { to { transform: translateY(var(--dy)) rotate(var(--rot)); opacity: .9; } }
+.win-banner {
+  display: inline-block; font-family: "Playfair Display", Georgia, serif; font-weight: 900; font-size: 22px; letter-spacing: 2px;
+  color: #ffe6a3; text-shadow: 0 0 8px rgba(255,214,120,.9), 0 0 22px rgba(242,170,60,.7); animation: pulse 1s ease-in-out infinite alternate;
+}
+@keyframes pulse { to { transform: scale(1.06); } }
+.foot { text-align: center; color: var(--muted); font-size: 12px; padding: 0 16px 28px; letter-spacing: 1px; }
+@media (prefers-reduced-motion: reduce) { .bulbs, .win-banner, .fx .fall { animation: none; } }
+.table { min-height: 0; }
+@media (max-width: 1200px) and (min-width: 641px) { .table { aspect-ratio: 4 / 3; } }

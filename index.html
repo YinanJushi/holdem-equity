@@ -1,37 +1,48 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>胜率透视 · 德州扑克胜率与复盘</title>
-<meta name="description" content="德州扑克胜率透视：每发一张牌实时计算你的胜率，给出下注建议，和有风格的 AI 对手真实下注，摊牌后对照对手底牌复盘。">
-<meta name="theme-color" content="#0d1411">
+<title>Equity Lens · Texas Hold'em Odds & Replay</title>
+<meta name="description" content="Equity Lens: see your Texas Hold'em win odds update with every card, get betting advice, play real hands against AI opponents, and review each hand against their actual cards.">
+<meta name="theme-color" content="#14060a">
 <meta property="og:type" content="website">
-<meta property="og:title" content="胜率透视 · 德州扑克胜率与复盘">
-<meta property="og:description" content="每发一张牌，看清你的胜率如何起伏。实时胜率、下注建议、AI 对手和摊牌复盘。">
+<meta property="og:title" content="Equity Lens · Texas Hold'em Odds & Replay">
+<meta property="og:description" content="Watch your odds rise and fall with every card. Live equity, betting advice, AI opponents and showdown replays.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="top">
-  <h1>胜率透视 <span>Equity Lens</span></h1>
-  <p>每发一张牌，看清你的胜率如何起伏</p>
+  <div class="marquee">
+    <div class="bulbs" aria-hidden="true"></div>
+    <div class="marquee-inner">
+      <span class="suits" aria-hidden="true">♠ ♥</span>
+      <h1>Equity <em>Lens</em></h1>
+      <span class="suits" aria-hidden="true">♦ ♣</span>
+    </div>
+    <p>Texas Hold'em · Live odds on every card · Showdown replays</p>
+  </div>
 </header>
 
 <main class="layout">
   <section class="left">
     <div class="toolbar">
       <div class="seg" id="modeSeg">
-        <button data-mode="random" class="on">🎲 随机发牌</button>
-        <button data-mode="manual">✍️ 手动选牌</button>
+        <button data-mode="random" class="on">🎲 Play</button>
+        <button data-mode="manual">✍️ Pick cards</button>
       </div>
-      <label class="field">对手
+      <label class="field">Opponents
         <select id="oppSel"></select>
       </label>
-      <label class="chk"><input type="checkbox" id="guessToggle"> 🎯 先猜再看</label>
+      <label class="chk"><input type="checkbox" id="guessToggle"> 🎯 Guess first</label>
     </div>
 
     <div class="table" id="table">
+      <div class="felt-logo" aria-hidden="true">EQUITY LENS<small>♠ ♥ ♦ ♣ · CASINO ROYALE OF ODDS</small></div>
       <div id="seats"></div>
       <div class="center">
         <div id="potShow" class="potshow"></div>
@@ -40,38 +51,39 @@
       </div>
       <div class="hero-wrap">
         <div id="hero" class="hero"></div>
-        <div id="heroInfo" class="hero-name">你</div>
+        <div id="heroInfo" class="hero-name">You</div>
       </div>
+      <div id="fx" class="fx" aria-hidden="true"></div>
     </div>
 
     <div class="actions" id="randomTools">
-      <button id="actionBtn" class="primary">发手牌</button>
-      <span class="hint">按空格键也能发牌</span>
+      <button id="actionBtn" class="primary">Deal</button>
+      <span class="hint">Space bar deals too</span>
     </div>
 
     <div id="betBar" class="betbar" hidden>
       <div class="bb-main">
-        <button id="foldBtn" class="b-fold">弃牌</button>
-        <button id="callBtn" class="b-call">过牌</button>
-        <button id="raiseBtn" class="b-raise">加注</button>
+        <button id="foldBtn" class="b-fold">Fold</button>
+        <button id="callBtn" class="b-call">Check</button>
+        <button id="raiseBtn" class="b-raise">Raise</button>
       </div>
       <div id="raiseWrap" class="bb-raise">
         <div id="sizes" class="sizes"></div>
         <div class="bb-slider">
-          <input type="range" id="raiseRange" step="1">
-          <input type="number" id="raiseNum" step="1">
+          <input type="range" id="raiseRange" step="1" aria-label="Raise amount">
+          <input type="number" id="raiseNum" step="1" aria-label="Raise amount">
         </div>
       </div>
       <div class="bb-foot">
-        <button id="adviceBtn" class="b-adv">💡 按建议</button>
-        <span class="hint">快捷键：F 弃牌 · C 过牌/跟注 · R 加注</span>
+        <button id="adviceBtn" class="b-adv">💡 Follow advice</button>
+        <span class="hint">Keys: F fold · C check/call · R raise</span>
       </div>
     </div>
 
     <div id="manualTools" hidden>
       <div class="mt-head">
-        <span>先点牌桌上的空位，再从下方选牌。点已选中的位置可以清空它。</span>
-        <div class="mt-btns"><button id="randBtn">随机一张</button><button id="clearBtn">清空</button></div>
+        <span>Tap an empty spot on the table, then pick a card below. Tap a selected spot again to clear it.</span>
+        <div class="mt-btns"><button id="randBtn">Random card</button><button id="clearBtn">Clear</button></div>
       </div>
       <div id="picker" class="picker"></div>
     </div>
@@ -80,15 +92,15 @@
   </section>
 
   <aside class="right">
-    <div id="statsEmpty" class="panel empty">发出底牌后，这里会实时显示你的胜率</div>
+    <div id="statsEmpty" class="panel empty">Once your hole cards are dealt, your live odds appear here.</div>
     <div id="statsMain" hidden>
       <div id="guessBox" class="panel guess" hidden>
-        <h3>🎯 先猜一猜：你现在的胜率是多少？</h3>
+        <h3>🎯 Take a guess: what are your odds right now?</h3>
         <div class="guess-row">
-          <input type="range" id="guessRange" min="0" max="100" value="50">
+          <input type="range" id="guessRange" min="0" max="100" value="50" aria-label="Your guess">
           <b id="guessVal">50%</b>
         </div>
-        <button id="guessBtn" class="primary">揭晓</button>
+        <button id="guessBtn" class="primary">Reveal</button>
       </div>
       <div id="guessResult" class="panel guess-result" hidden></div>
 
@@ -102,30 +114,30 @@
           <div id="prog" class="prog"></div>
         </div>
 
-        <div class="panel"><h3>🧠 牌局分析</h3><div id="analysis" class="ana"></div></div>
+        <div class="panel"><h3>🧠 Hand Analysis</h3><div id="analysis" class="ana"></div></div>
 
         <div class="panel">
-          <h3>💡 下注建议</h3>
+          <h3>💡 Betting Advice</h3>
           <div id="potInfo" class="potinfo"></div>
           <div id="potInputs">
-          <div class="pot-in">
-            <label>底池（含对手这次下注）<input id="pot" type="number" value="100" min="0"></label>
-            <label>你需要跟注（没人下注填 0）<input id="call" type="number" value="0" min="0"></label>
-          </div>
-          <div class="quick">
-            <button data-bet="0">没人下注</button>
-            <button data-bet="0.333">对手下 1/2 池</button>
-            <button data-bet="0.5">对手下满池</button>
-          </div>
+            <div class="pot-in">
+              <label>Pot (incl. opponent's bet)<input id="pot" type="number" value="100" min="0"></label>
+              <label>Amount to call (0 if no bet)<input id="call" type="number" value="0" min="0"></label>
+            </div>
+            <div class="quick">
+              <button data-bet="0">No bet</button>
+              <button data-bet="0.333">They bet ½ pot</button>
+              <button data-bet="0.5">They bet pot</button>
+            </div>
           </div>
           <div id="advice"></div>
           <div id="potVerdict"></div>
-          <div class="sub">简化的经验规则，没有考虑位置、筹码深度和对手风格，仅供参考。随机发牌模式下会自动读取牌桌上的底池和跟注额。</div>
+          <div class="sub">Simple rules of thumb: they ignore position, stack depth and opponent tendencies. In Play mode the pot and call amount are read from the table automatically.</div>
         </div>
 
-        <div class="panel"><h3>胜率走势</h3><div id="chart"></div></div>
+        <div class="panel"><h3>📈 Odds by Street</h3><div id="chart"></div></div>
 
-        <div class="panel"><h3>当前牌力</h3><div id="handNow"></div></div>
+        <div class="panel"><h3>🃏 Your Hand</h3><div id="handNow"></div></div>
 
         <div class="panel" id="heatSec" hidden>
           <h3 id="heatTitle"></h3>
@@ -133,12 +145,13 @@
           <div id="heatSum" class="sub"></div>
         </div>
 
-        <div class="panel"><h3>发完 5 张公共牌后，你的牌型概率</h3><div id="cats"></div></div>
-
+        <div class="panel"><h3>🎰 Your Final Hand After All 5 Board Cards</h3><div id="cats"></div></div>
       </div>
     </div>
   </aside>
 </main>
+
+<footer class="foot">For practice and hand review only. Don't use it during real-money games. ♠ ♥ ♦ ♣</footer>
 
 <script src="engine.js"></script>
 <script src="app.js"></script>

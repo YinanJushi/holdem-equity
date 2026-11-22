@@ -1,13 +1,13 @@
-// 德州扑克胜率引擎：7 张牌评估 + 蒙特卡洛模拟
-// 牌编码：0..51，rank = c >> 2（0 = 2 ... 12 = A），suit = c & 3（♠♥♦♣）
+// Texas Hold'em equity engine: 7-card hand evaluation + Monte Carlo simulation
+// Card encoding: 0..51, rank = c >> 2 (0 = 2 ... 12 = A), suit = c & 3 (♠♥♦♣)
 (function (root) {
   const RANKS = '23456789TJQKA';
   const SUIT_SYM = ['♠', '♥', '♦', '♣'];
-  const CAT_NAMES = ['高牌', '一对', '两对', '三条', '顺子', '同花', '葫芦', '四条', '同花顺'];
+  const CAT_NAMES = ['High Card', 'One Pair', 'Two Pair', 'Three of a Kind', 'Straight', 'Flush', 'Full House', 'Four of a Kind', 'Straight Flush'];
 
   const RC = new Int8Array(13), SC = new Int8Array(4), SM = new Int32Array(4);
 
-  // 在 rank 位掩码中找顺子，返回最高牌 rank，没有则 -1
+  // Find a straight in a rank bitmask; returns the high rank, or -1
   function straightHigh(m) {
     for (let h = 12; h >= 4; h--) {
       const mask = 0x1f << (h - 4);
@@ -17,7 +17,7 @@
     return -1;
   }
 
-  // 从掩码中按从大到小取 cnt 张作为踢脚，每张占 4 bit
+  // Take the top cnt ranks from a mask as kickers, 4 bits each
   function kick(m, cnt, shift) {
     let v = 0;
     for (let r = 12; r >= 0 && cnt > 0; r--) {
@@ -26,7 +26,7 @@
     return v;
   }
 
-  // 评估 n 张牌（3~7）中最好的 5 张，返回可直接比较大小的整数
+  // Evaluate the best 5 of n cards (3-7); returns a directly comparable integer
   function evalN(a, n) {
     RC.fill(0); SC.fill(0); SM.fill(0);
     let all = 0;
@@ -60,11 +60,11 @@
 
   function handName(score) {
     const c = score >> 20;
-    if (c === 8 && ((score >> 16) & 15) === 12) return '皇家同花顺';
+    if (c === 8 && ((score >> 16) & 15) === 12) return 'Royal Flush';
     return CAT_NAMES[c];
   }
 
-  // 建一个可分段运行的模拟器：hero 两张底牌、已知公共牌、对手人数（对手手牌未知）
+  // Build a simulator that can run in chunks: hero's hole cards, known board, opponent count (opponent hands unknown)
   function makeSim(hero, board, nOpp) {
     const dead = new Uint8Array(52);
     hero.forEach(c => (dead[c] = 1));
@@ -76,8 +76,8 @@
     for (let i = 0; i < B; i++) buf[2 + i] = board[i];
     const st = {
       iters: 0, eq: 0, win: 0, tie: 0,
-      cat: new Float64Array(9),      // 你最终成牌类型的分布
-      next: new Float64Array(52),    // 下一张公共牌为 c 时的累计胜率
+      cat: new Float64Array(9),      // distribution of hero's final hand category
+      next: new Float64Array(52),    // accumulated equity when the next board card is c
       nextN: new Float64Array(52),
     };
     function run(k) {
