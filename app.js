@@ -100,6 +100,7 @@
     p.stack -= a; p.bet += a; p.total += a; G.pot += a;
     if (p.stack === 0) p.allin = true;
     if (a > 0) sfx('chip');
+    if (i === 0) savePending();
   }
   function track() {
     const L = boardLen();
@@ -117,8 +118,31 @@
   const potMax = i => { const p = G.players[i]; return G.curBet + G.pot + (G.curBet - p.bet); };
   function clearTimer() { if (G && G.timer) { clearTimeout(G.timer); G.timer = null; } }
 
+  // ---------- wallet: each hand buys in from the shared chip wallet ----------
+  const PENDING_KEY = 'ol-holdem-pending', MIN_BUYIN = 10 * BB;
+  const savePending = () => { if (G && !G.over) UI.store.save(PENDING_KEY, { buyin: G.buyin, committed: G.players[0].total }); };
+  const clearPending = () => { try { localStorage.removeItem(PENDING_KEY); } catch (e) { } };
+  // a hand left unfinished (page closed): the chips already in the pot are lost, the rest come back
+  (function settleLeftHand() {
+    const p = UI.store.load(PENDING_KEY, { buyin: 0, committed: 0 });
+    if (p && p.buyin) UI.wallet.add(Math.max(0, p.buyin - p.committed));
+    clearPending();
+  })();
+  function abandonHand() {
+    if (G && !G.over) { UI.wallet.add(G.players[0].stack); clearPending(); }
+  }
+
   function startGame() {
     clearTimer();
+    abandonHand();
+    const buyin = Math.min(startStack(), Math.floor(UI.wallet.chips));
+    if (buyin < MIN_BUYIN) {
+      G = null; S.stage = 0;
+      update();
+      $('#msg').innerHTML = UI.wallet.canClaim() ? 'Out of chips. Claim your daily chips at the top.' : 'Out of chips. Your next free chips arrive tomorrow.';
+      return;
+    }
+    UI.wallet.add(-buyin);
     newHand();
     S.styles = S.styles.slice(0, S.opp);
     while (S.styles.length < S.opp) S.styles.push(RULES.style === 'mixed' ? STYLES[(Math.random() * STYLES.length) | 0] : STYLES.find(x => x.key === RULES.style));
@@ -127,10 +151,12 @@
     G = {
       N, pot: 0, curBet: 0, minRaise: BB, need: new Set(), toAct: -1, players: [],
       cnt: {}, idx: {}, log: [], over: false, timer: null, foldInfo: null,
-      heroWaiting: false, decId: 0, aiCache: new Map(),
+      heroWaiting: false, decId: 0, aiCache: new Map(), buyin,
     };
-    for (let i = 0; i < N; i++) G.players.push({ stack: startStack(), bet: 0, total: 0, folded: false, allin: false, last: '', rs: 0, style: i ? S.styles[i - 1] : null });
+    // everyone sits with the same stack, so there are never side pots
+    for (let i = 0; i < N; i++) G.players.push({ stack: buyin, bet: 0, total: 0, folded: false, allin: false, last: '', rs: 0, style: i ? S.styles[i - 1] : null });
     if (RULES.ante) G.players.forEach(p => { const a = Math.min(RULES.ante, p.stack); p.stack -= a; p.total += a; G.pot += a; });
+    savePending();
     const btn = S.button;
     G.sb = N === 2 ? btn : (btn + 1) % N;
     G.bb = N === 2 ? (btn + 1) % N : (btn + 2) % N;
@@ -221,15 +247,34 @@
     const pot = G.pot, share = Math.floor(pot / winners.length);
     winners.forEach((j, k) => (G.players[j].stack += share + (k === 0 ? pot - share * winners.length : 0)));
     G.pot = 0; G.over = true;
-    const heroNet = G.players[0].stack - startStack();
+    const heroNet = G.players[0].stack - G.buyin;
+    UI.wallet.add(G.players[0].stack);
+    clearPending();
     const heroWin = winners.includes(0) ? 1 / winners.length : 0;
     S.result = { type: showdown ? 'showdown' : 'fold', winners, scores, best, pot, heroNet, heroWin };
     S.revealed = true; S.stage = 5;
     S.session.hands++; S.session.profit += heroNet; S.session.wins += heroWin;
+    recordHand(showdown, heroNet, heroWin);
     update();
     if (window.UI) UI.showTab('ana');
     if (heroWin > 0 && heroNet > 0) sfx('win');
     if (heroWin > 0 && heroNet > 0) chipShower(Math.min(40, 12 + Math.round(heroNet / 4)));
+  }
+
+  function recordHand(showdown, net, win) {
+    const hero = G.players[0], log = G.log;
+    const pre = log.filter(d => d.l === 0);
+    const foldL = hero.folded ? G.foldInfo.l : null;
+    const sawFlop = boardLen() >= 3 && foldL !== 0;
+    UI.stats.add('holdem', {
+      t: Date.now(), opp: G.N - 1, bb: BB, net, win, foldL,
+      sd: showdown && !hero.folded,
+      vpip: pre.some(d => d.kind !== 'fold' && (d.facing || d.kind === 'raise')),
+      pfr: pre.some(d => d.kind === 'raise'),
+      sawFlop,
+      eq0: eqOf(getRes(0)), eqF: sawFlop ? eqOf(getRes(3)) : null,
+      acts: log.map(d => [d.l, d.kind, d.facing ? 1 : 0, d.match == null ? -1 : d.match ? 1 : 0]),
+    });
   }
 
   function chipShower(n) {
@@ -294,7 +339,7 @@
     if (type === 'fold') G.foldInfo = { l: L, need: toCall > 0 ? (toCall / (G.pot + toCall)) * 100 : null, idx: activeIdx() };
     const adv = S.curAdvice;
     act(0, type, to);
-    G.log.push({ l: L, mine: p.last, adv: adv ? adv.act : null, match: adv ? moveKind(adv.move.type) === moveKind(type) : null });
+    G.log.push({ l: L, mine: p.last, kind: moveKind(type), facing: toCall > 0, adv: adv ? adv.act : null, match: adv ? moveKind(adv.move.type) === moveKind(type) : null });
     G.heroWaiting = false;
     S.curAdvice = null;
     proceed();
@@ -522,7 +567,7 @@
     let h = '';
     if (ss.hands) {
       h += `Hands played <b>${ss.hands}</b> · Won <b>${+ss.wins.toFixed(1)}</b> · Session result <b class="${ss.profit >= 0 ? 'good' : 'bad'}">${signed(ss.profit)}</b> chips (${signed(+(ss.profit / BB).toFixed(1))} big blinds)`;
-      h += `<br>Everyone starts each hand with ${startStack()} chips · Blinds ${SB}/${BB}`;
+      h += `<br>Each hand buys in for up to ${startStack()} chips from your wallet · Blinds ${SB}/${BB}`;
     }
     if (S.guessLog.length) {
       const avg = S.guessLog.reduce((a, b) => a + b, 0) / S.guessLog.length;
@@ -1094,7 +1139,7 @@
         UI.store.save(RULE_KEY, RULES);
         S.opp = RULES.opp; S.styles = [];
         $('#rulesText').textContent = rulesText();
-        if (S.mode === 'random') { clearTimer(); G = null; S.slots = Array(7).fill(null); S.stage = 0; S.opps = []; S.revealed = false; S.result = null; }
+        if (S.mode === 'random') { clearTimer(); abandonHand(); G = null; S.slots = Array(7).fill(null); S.stage = 0; S.opps = []; S.revealed = false; S.result = null; }
         update();
       },
     });
@@ -1105,6 +1150,7 @@
     const b = e.target.closest('button');
     if (!b || b.dataset.mode === S.mode) return;
     clearTimer();
+    abandonHand();
     G = null;
     S.mode = b.dataset.mode;
     S.revealed = false; S.result = null;

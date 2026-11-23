@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Odds Lounge · Your Stats</title>
+<meta name="description" content="Your playing statistics in Odds Lounge: how often you fold, see the flop, win at showdown, follow best play, and how your chips have moved.">
+<meta name="theme-color" content="#2b1016">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=18">
+</head>
+<body class="statspage">
+<header class="top">
+  <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <div class="top-right">
+  <nav class="games" aria-label="Games">
+    <a href="index.html">Texas Hold'em</a>
+    <a href="blackjack.html">Blackjack</a>
+    <a href="stats.html" class="on" aria-current="page">Stats</a>
+  </nav>
+  <div id="wallet" class="wallet"></div>
+  <button id="soundBtn" class="iconbtn" aria-pressed="true">Sound on</button>
+  </div>
+</header>
+
+<main class="statswrap">
+  <section class="st-intro">
+    <h1>Your stats</h1>
+    <p id="walletLine"></p>
+  </section>
+
+  <section class="st-game" id="holdem">
+    <div class="st-head"><h2>Texas Hold'em</h2><button class="linkbtn" data-reset="holdem">Reset</button></div>
+    <div id="hEmpty" class="st-empty">Play a few hands of <a href="index.html">Texas Hold'em</a> to see your stats here.</div>
+    <div id="hBody">
+      <div class="kpis" id="hKpis"></div>
+      <div class="st-grid">
+        <figure class="panel st-chart"><h3>Where your hands end in a fold</h3><p class="sub">Share of all hands, by the street you folded on.</p><div id="hFold"></div></figure>
+        <figure class="panel st-chart"><h3>Folding when someone bets</h3><p class="sub">When you faced a bet, how often you folded, by street.</p><div id="hFoldBet"></div></figure>
+        <figure class="panel st-chart"><h3>Before and after the flop</h3><p class="sub">Preflop odds compared with the table average (1.0× = average), and how often you won.</p><div id="hFlop"></div></figure>
+        <figure class="panel st-chart"><h3>Chips over time</h3><p class="sub">Your running result, hand by hand.</p><div id="hLine"></div></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="st-game" id="bj">
+    <div class="st-head"><h2>Blackjack</h2><button class="linkbtn" data-reset="bj">Reset</button></div>
+    <div id="bEmpty" class="st-empty">Play a few hands of <a href="blackjack.html">Blackjack</a> to see your stats here.</div>
+    <div id="bBody">
+      <div class="kpis" id="bKpis"></div>
+      <div class="st-grid">
+        <figure class="panel st-chart"><h3>How your hands finish</h3><p class="sub">Share of all hands played (split hands count separately).</p><div id="bRes"></div></figure>
+        <figure class="panel st-chart"><h3>Chips over time</h3><p class="sub">Your running result, hand by hand.</p><div id="bLine"></div></figure>
+      </div>
+    </div>
+  </section>
+  <p class="st-note">Stats and chips are saved in this browser only. Clearing site data resets them.</p>
+</main>
+
+<div id="tip" class="tip" role="status" hidden></div>
+<footer class="foot">For practice and hand review.</footer>
+
+<script src="ui.js?v=18"></script>
+<script src="stats.js?v=18"></script>
+</body>
+</html>

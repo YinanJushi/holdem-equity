@@ -192,7 +192,47 @@
   }
   function initDeck() { const b = document.getElementById('deckBtn'); if (b) b.onclick = deckPicker; }
 
-  window.UI = { store, initTabs, showTab, rulesDialog, chips, sfx, deckPicker };
-  const boot = () => { initTabs(); initSound(); initDeck(); initView(); };
+  // ---------- wallet: one chip balance for both games, refilled by a daily claim ----------
+  const WALLET_KEY = 'ol-wallet', DAILY = 1000;
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+  const loadWallet = () => store.load(WALLET_KEY, { chips: 0, lastClaim: '' });
+  let w = loadWallet();
+  if (!w) { w = { chips: DAILY, lastClaim: today() }; store.save(WALLET_KEY, w); } // first visit: today's chips
+  const wallet = {
+    DAILY,
+    get chips() { return w.chips; },
+    set(v) { w.chips = Math.max(0, Math.round(v * 10) / 10); store.save(WALLET_KEY, w); renderWallet(); },
+    add(n) { this.set(w.chips + n); },
+    canClaim() { return w.lastClaim !== today(); },
+    claim() { if (!this.canClaim()) return false; w.lastClaim = today(); this.set(w.chips + DAILY); sfx('win'); return true; },
+    nextClaimIn() { const d = new Date(); d.setHours(24, 0, 0, 0); return d - new Date(); },
+  };
+  const listeners = [];
+  function renderWallet() {
+    const box = document.getElementById('wallet');
+    if (box) {
+      const ms = wallet.nextClaimIn(), h = Math.floor(ms / 3.6e6), m = Math.floor((ms % 3.6e6) / 6e4);
+      box.innerHTML = `<span class="wallet-amt" title="Your chips (shared by both games)">${chips(Math.max(1, w.chips), 3)}<b>${Math.floor(w.chips).toLocaleString('en-US')}</b></span>` +
+        (wallet.canClaim() ? `<button class="claim" id="claimBtn">Claim ${DAILY.toLocaleString('en-US')}</button>` : `<span class="claim-wait" title="You can claim ${DAILY} free chips once a day">Next ${DAILY.toLocaleString('en-US')} in ${h}h ${m}m</span>`);
+      const b = document.getElementById('claimBtn');
+      if (b) b.onclick = () => wallet.claim();
+    }
+    listeners.forEach(f => f(w.chips));
+  }
+  wallet.onChange = f => listeners.push(f);
+  // another tab changed the wallet
+  window.addEventListener('storage', e => { if (e.key === WALLET_KEY) { w = loadWallet() || w; renderWallet(); } });
+  setInterval(renderWallet, 60000);
+
+  // ---------- stats: every finished hand, kept on this device ----------
+  const STATS_KEY = g => 'ol-stats-' + g, MAX_REC = 1000;
+  const stats = {
+    add(game, rec) { const a = this.get(game); a.push(rec); while (a.length > MAX_REC) a.shift(); store.save(STATS_KEY(game), a); },
+    get(game) { try { const v = JSON.parse(localStorage.getItem(STATS_KEY(game)) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } },
+    clear(game) { try { localStorage.removeItem(STATS_KEY(game)); } catch (e) { } },
+  };
+
+  window.UI = { store, initTabs, showTab, rulesDialog, chips, sfx, deckPicker, wallet, stats };
+  const boot = () => { initTabs(); initSound(); initDeck(); initView(); renderWallet(); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

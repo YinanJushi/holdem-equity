@@ -34,6 +34,12 @@ Both games have a **Cards** picker (twelve card backs: the classic claret lattic
 
 Keys — Hold'em: Space deal, F fold, C check/call, R raise. Blackjack: Space deal, H hit, S stand, D double, P split.
 
+## Chips and stats
+
+- **Daily chips**: both games share one chip wallet. You can claim 1,000 free chips once a day; when you run out, you wait until tomorrow. In Hold'em each hand buys in from the wallet (up to the table's starting stack); leaving mid-hand forfeits the chips already in the pot.
+- **Stats page** (`stats.html`): Hold'em hands won, VPIP, PFR, how often you see the flop, go to showdown and win there, where your hands end in a fold, folding when facing a bet by street, preflop strength of hands played vs folded, and your running result. Blackjack win/push/lose and bust rates, blackjacks, doubles won, best-play accuracy, chips lost to mistakes, luck, and your running result.
+- Chips and stats are stored in the browser only.
+
 ## Run locally
 
 ```bash
@@ -48,8 +54,9 @@ Then open http://localhost:8765.
 - `app.js`: Hold'em table, betting engine, AI opponents, analysis and replay
 - `bj-engine.js`: blackjack odds (dealer outcome distribution, optimal-play EV, pre-deal edge)
 - `blackjack.js`: blackjack table, shoe, betting, advice and replay
-- `ui.js`: tabs and the rules dialog
+- `ui.js`: tabs, rules dialog, card picker, chip wallet and stats storage
+- `stats.js`: the stats page
 - `style.css`: styles
-- `index.html`, `blackjack.html`: pages
+- `index.html`, `blackjack.html`, `stats.html`: pages
 
 > Advice and analysis are for practice and hand review. Don't use it during real-money games.

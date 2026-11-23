@@ -33,13 +33,16 @@
   const chipsHTML = n => (window.UI ? UI.chips(n) : '');
 
   const S = {
-    bank: START_BANK, bet: 25, shoe: [], cut: 0, rc: 0, phase: 'bet',
+    bet: 25, shoe: [], cut: 0, rc: 0, phase: 'bet',
     dealer: [], holeShown: false, peeked: false, hands: [], cur: 0,
     log: [], timeline: [], result: null, opts: null, decKey: 0, startEV: null,
     session: { hands: 0, net: 0, lost: 0, matched: 0, judged: 0 },
     guessMode: false, guesses: {}, guessLog: [], guessLogged: new Set(),
     shown: { dealer: 0, hands: [] }, timer: null,
   };
+
+  // the bankroll is the shared wallet (both games, daily claim)
+  Object.defineProperty(S, 'bank', { get: () => UI.wallet.chips, set: v => UI.wallet.set(v) });
 
   // ---------- shoe ----------
   function newShoe() {
@@ -75,7 +78,7 @@
 
   function deal() {
     if (S.phase !== 'bet' && S.phase !== 'over') return;
-    if (S.bank < MIN_BET) { S.bank = START_BANK; S.bet = 25; }
+    if (S.bank < MIN_BET) { $('#msg').innerHTML = UI.wallet.canClaim() ? 'Out of chips. Claim your daily chips at the top.' : 'Out of chips. Your next free chips arrive tomorrow.'; return; }
     S.bet = Math.min(S.bet, S.bank);
     if (S.bet < MIN_BET) return;
     if (!S.shoe.length || S.shoe.length < S.cut) newShoe(); else S.justShuffled = false;
@@ -181,6 +184,12 @@
     S.session.hands++; S.session.net += net; S.session.lost += lost;
     S.log.forEach(d => { S.session.judged++; if (d.act === d.best) S.session.matched++; });
     S.timeline.push({ label: 'Result', w: net > 0 ? 1 : net === 0 ? 0.5 : 0, final: true });
+    UI.stats.add('bj', {
+      t: Date.now(), net, bet: S.log.length ? S.log[0].bet : S.hands[0].bet, dealerBJ, dBust,
+      hands: S.hands.map(h => ({ res: h.res, bj: !!h.bj, dbl: !!h.doubled, split: !!h.split, bet: h.bet, net: h.net })),
+      dec: S.log.length, ok: S.log.filter(d => d.act === d.best).length, lost: money(lost),
+      ev: S.startEV == null ? null : money(S.startEV * (S.log.length ? S.log[0].bet : S.hands[0].bet) - lost),
+    });
     update();
     if (net > 0) sfx('win');
     if (net > 0) chipShower(Math.min(40, 10 + Math.round(net / 5)));
@@ -273,7 +282,8 @@
     $('#actBar').hidden = S.phase !== 'play';
     $('#bankShow').innerHTML = `<span class="chip gold"></span>${money(S.bank).toLocaleString('en-US')}`;
     $('#betShow').innerHTML = `<span class="chip"></span>${S.bet}`;
-    $('#dealBtn').textContent = S.bank < MIN_BET ? 'Rebuy 1,000 & deal' : S.phase === 'over' ? 'Deal again' : 'Deal';
+    $('#dealBtn').textContent = S.bank < MIN_BET ? 'Out of chips' : S.phase === 'over' ? 'Deal again' : 'Deal';
+    $('#dealBtn').disabled = S.bank < MIN_BET;
     if (S.phase === 'play') {
       const h = S.hands[S.cur], al = allowed(), st = B.handState(h.cards);
       $('#hitBtn').disabled = st.total >= 21;
@@ -518,7 +528,7 @@
   $('#chipRow').onclick = e => {
     const b = e.target.closest('[data-add]');
     if (!b || !(S.phase === 'bet' || S.phase === 'over')) return;
-    S.bet = Math.min(S.bank < MIN_BET ? START_BANK : S.bank, S.bet + +b.dataset.add);
+    S.bet = Math.max(MIN_BET, Math.min(Math.floor(S.bank), S.bet + +b.dataset.add));
     sfx('chip');
     if (S.phase === 'bet') renderTable();
     renderControls();
@@ -584,6 +594,7 @@
       },
     });
   }
+  UI.wallet.onChange(() => { if (S.phase === 'bet' || S.phase === 'over') renderControls(); });
   $('#rulesBtn').onclick = () => openRules(false);
   applyRulesText();
   update();
