@@ -32,10 +32,11 @@ Choose the table before you play: 1–8 opponents, starting stack (50 / 100 / 20
 
 ### Slots & prize wheel (`slots.html`)
 
-- **Lucky Sevens**: 5 reels × 3 rows, 10 paylines, a wild crown, star scatters that award 10–20 free spins with doubled wins, and a progressive jackpot for five sevens on a line. Tuned by simulation to return about 95% over the long run.
-- **Coin-in**: insert chips from your wallet as machine credits and cash out any time; credits left in the machine are kept for your next visit.
-- **Effects**: blurred spinning reels, a slow "tease" when two stars land, drawn paylines, and full-screen celebrations (Nice / Big / Mega win, Jackpot) with light rays, a coin shower, a rolling counter, screen shake and sound.
-- **Prize wheel**: one free spin a day, then 100 chips a spin; slice sizes match the real odds (listed under the wheel).
+- **Three themes**, all original art: Fruit Party, Safari Gold and Ocean Treasure. Same maths in every theme.
+- **The machine**: 5 reels × 3 rows, 10 paylines, a wild, and bonus symbols. Three or more bonus symbols spin the **bonus wheel** on top: 10, 15 or 20 free spins (wins ×2) or one of four jackpots, Mini (25× bet), Minor (60×), Major (250×) and the progressive Grand. Five top symbols on a line also win the Grand. Tuned by simulation to return about 95%.
+- **Coin-in**: insert chips from your wallet as machine credits and cash out any time.
+- **Effects**: blurred spinning reels, a slow tease when two bonus symbols land, drawn paylines, and celebrations whose title climbs (Nice → Big → Super → Mega → Epic win) as the counter rises, with fireworks, confetti, a coin fountain, light rays, screen shake and sound.
+- **Prize wheel**: one free spin a day, then 100 chips a spin. Wheels have chasing rim lights, a flapper that ticks on every peg, and slice sizes that match the real odds.
 
 Both card games have a **Cards** picker (twelve card backs: the classic claret lattice or a solid colour; classic serif or simple faces) and a **Guess first** mode, plus **Hide analysis** for play-only mode and **Full screen**: guess your odds before they're revealed to train your feel.
 
@@ -68,7 +69,7 @@ Then open http://localhost:8765.
 - `ui.js`: tabs, rules dialog, card picker, chip wallet and stats storage
 - `stats.js`: the stats page
 - `account.js`, `config.js`, `supabase/schema.sql`: accounts and synced chips
-- `slots-engine.js`, `slots.js`, `slots.css`: slot machine and prize wheel
+- `slots-engine.js`, `slots-themes.js`, `slots.js`, `slots.css`: slot machine, themes and wheels
 - `style.css`: styles
 - `index.html`, `blackjack.html`, `slots.html`, `stats.html`: pages
 

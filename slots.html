@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20">
-<link rel="stylesheet" href="slots.css?v=20">
+<link rel="stylesheet" href="style.css?v=22">
+<link rel="stylesheet" href="slots.css?v=22">
 </head>
 <body class="slotspage">
 <header class="top">
@@ -30,11 +30,17 @@
 
 <main class="slots-layout">
   <section class="cab-wrap">
+    <div class="theme-pick" id="themePick" role="radiogroup" aria-label="Machine theme"></div>
     <div class="cabinet" id="cabinet">
       <div class="cab-top">
         <div class="bulbs-row" aria-hidden="true"></div>
-        <div class="cab-title">Lucky <em>Sevens</em></div>
-        <div class="jackpot"><span>Progressive jackpot</span><b id="jackpot">5,000</b></div>
+        <div class="cab-title" id="cabTitle">Fruit <em>Party</em></div>
+        <div class="jp-row">
+          <div class="jpm grand"><span>Grand</span><b id="jpGrand">5,000</b></div>
+          <div class="jpm major"><span>Major</span><b id="jpMajor">2,500</b></div>
+          <div class="jpm minor"><span>Minor</span><b id="jpMinor">600</b></div>
+          <div class="jpm mini"><span>Mini</span><b id="jpMini">250</b></div>
+        </div>
         <div class="bulbs-row" aria-hidden="true"></div>
       </div>
 
@@ -86,8 +92,8 @@
       <h3>Prize wheel</h3>
       <p class="sub" id="wheelNote"></p>
       <div class="wheel-box">
-        <div class="wheel-pointer" aria-hidden="true"></div>
-        <svg class="wheel" id="wheel" viewBox="-110 -110 220 220" role="img" aria-label="Prize wheel"></svg>
+        <div class="flapper" aria-hidden="true"></div>
+        <svg class="fwheel" id="wheel" viewBox="-124 -124 248 248" role="img" aria-label="Prize wheel"></svg>
       </div>
       <button class="primary wheel-btn" id="wheelBtn">Spin</button>
       <div class="wheel-result" id="wheelResult" role="status"></div>
@@ -99,6 +105,13 @@
     </section>
   </aside>
 </main>
+
+<div class="bonus-fx" id="bonusFx" hidden>
+  <div class="rays"></div>
+  <div class="bonus-title" id="bonusTitle">Bonus wheel</div>
+  <div class="bwheel-box"><div class="flapper" aria-hidden="true"></div><svg class="fwheel" id="bonusWheel" viewBox="-124 -124 248 248" role="img" aria-label="Bonus wheel"></svg></div>
+  <div class="bonus-msg" id="bonusMsg" role="status"></div>
+</div>
 
 <div class="win-fx" id="winFx" hidden>
   <div class="rays"></div>
@@ -112,10 +125,11 @@
 
 <footer class="foot">For fun with play chips only. No real money.</footer>
 
-<script src="ui.js?v=20"></script>
-<script src="config.js?v=20"></script>
-<script src="account.js?v=20"></script>
-<script src="slots-engine.js?v=20"></script>
-<script src="slots.js?v=20"></script>
+<script src="ui.js?v=22"></script>
+<script src="config.js?v=22"></script>
+<script src="account.js?v=22"></script>
+<script src="slots-engine.js?v=22"></script>
+<script src="slots-themes.js?v=22"></script>
+<script src="slots.js?v=22"></script>
 </body>
 </html>

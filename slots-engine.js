@@ -5,16 +5,32 @@
   const NAMES = ['Cherry', 'Lemon', 'Bell', 'Bar', 'Diamond', 'Seven', 'Crown (wild)', 'Star (scatter)'];
   // pay per line bet for 3, 4, 5 of a kind (left to right)
   const PAY = {
-    [S.CHERRY]: [7, 18, 50],
-    [S.LEMON]: [7, 20, 65],
-    [S.BELL]: [12, 35, 130],
-    [S.BAR]: [18, 65, 250],
-    [S.DIAMOND]: [35, 130, 500],
-    [S.SEVEN]: [65, 325, 0], // five sevens = jackpot
-    [S.WILD]: [80, 400, 1600],
+    [S.CHERRY]: [6, 17, 48],
+    [S.LEMON]: [6, 19, 60],
+    [S.BELL]: [11, 33, 120],
+    [S.BAR]: [17, 60, 240],
+    [S.DIAMOND]: [32, 120, 480],
+    [S.SEVEN]: [60, 300, 0], // five on a line = Grand jackpot
+    [S.WILD]: [75, 380, 1500],
   };
-  // scatter anywhere: pays × total bet and free spins
-  const SCATTER = { 3: { pay: 2, spins: 10 }, 4: { pay: 10, spins: 15 }, 5: { pay: 50, spins: 20 } };
+  // scatter anywhere: pays × total bet and starts the bonus wheel
+  const SCATTER = { 3: { pay: 2 }, 4: { pay: 10 }, 5: { pay: 50 } };
+  // bonus wheel: free spins, or one of four jackpots (mini/minor/major × total bet; grand is the progressive pool)
+  const BONUS = [
+    { id: 'fs10', label: '10 Free Spins', kind: 'fs', v: 10, w: 9 },
+    { id: 'mini', label: 'Mini', kind: 'jp', v: 25, w: 4 },
+    { id: 'fs15', label: '15 Free Spins', kind: 'fs', v: 15, w: 4 },
+    { id: 'minor', label: 'Minor', kind: 'jp', v: 60, w: 2 },
+    { id: 'fs20', label: '20 Free Spins', kind: 'fs', v: 20, w: 2 },
+    { id: 'major', label: 'Major', kind: 'jp', v: 250, w: 0.6 },
+    { id: 'grand', label: 'Grand', kind: 'grand', v: 0, w: 0.12 },
+  ];
+  function bonusSpin(rng = Math.random) {
+    const tot = BONUS.reduce((a, b) => a + b.w, 0);
+    let r = rng() * tot;
+    for (let i = 0; i < BONUS.length; i++) { r -= BONUS[i].w; if (r < 0) return i; }
+    return 0;
+  }
   const FREE_MULT = 2;
   const LINES = [
     [1, 1, 1, 1, 1], [0, 0, 0, 0, 0], [2, 2, 2, 2, 2], [0, 1, 2, 1, 0], [2, 1, 0, 1, 2],
@@ -75,7 +91,7 @@
     const sc = [];
     grid.forEach((col, r) => col.forEach((x, row) => { if (x === S.SCATTER) sc.push([r, row]); }));
     const sp = SCATTER[Math.min(5, sc.length)];
-    const scatter = sp ? { count: sc.length, cells: sc, spins: sp.spins, pay: sp.pay * lineBet * LINES.length * mult } : null;
+    const scatter = sp ? { count: sc.length, cells: sc, pay: sp.pay * lineBet * LINES.length * mult } : null;
     const total = wins.reduce((a, w) => a + w.pay, 0) + (scatter ? scatter.pay : 0);
     return { wins, scatter, total, jackpot };
   }
@@ -94,7 +110,7 @@
     return WHEEL.length - 1;
   }
 
-  const api = { S, NAMES, PAY, SCATTER, FREE_MULT, LINES, STRIPS, spin, gridAt, evaluate, WHEEL, WHEEL_PRICE, wheelSpin };
+  const api = { S, NAMES, PAY, SCATTER, FREE_MULT, LINES, STRIPS, spin, gridAt, evaluate, BONUS, bonusSpin, WHEEL, WHEEL_PRICE, wheelSpin };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SLOTS = api;
 })(this);
