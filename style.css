@@ -429,3 +429,49 @@ dialog.rules .seg button.on { background: var(--ink); color: var(--ivory); }
   .fx .fall, .card.deal, .card.flip, .betpos, #statsMain:not([hidden]) #info > .panel:first-child { animation: none; }
   * { transition: none !important; }
 }
+
+/* ---------- deck choice: solid-colour backs (original designs) and face styles ---------- */
+html[data-deck="sky"]     { --deck: #7fb6cc; }
+html[data-deck="ink"]     { --deck: #34496e; }
+html[data-deck="mint"]    { --deck: #5aa891; }
+html[data-deck="apricot"] { --deck: #e3a083; }
+html[data-deck="brick"]   { --deck: #9e3530; }
+html[data-deck="stone"]   { --deck: #979c9d; }
+html[data-deck="pine"]    { --deck: #23402f; }
+html[data-deck]:not([data-deck="classic"]) .card.back,
+.deck-opt[data-solid] .card.back {
+  background: var(--deck); border: 3px solid #fbf8f0;
+  box-shadow: inset 0 0 0 3px var(--deck), inset 0 0 0 4px rgba(255,255,255,.85), 0 2px 6px rgba(0,0,0,.45);
+}
+html[data-deck]:not([data-deck="classic"]) .card.back::after,
+.deck-opt[data-solid] .card.back::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 26%; aspect-ratio: 1; transform: translate(-50%, -50%) rotate(45deg);
+  border: 1.5px solid rgba(255,255,255,.85); box-shadow: 0 0 0 calc(var(--cw) * .04) var(--deck), 0 0 0 calc(var(--cw) * .04 + 1px) rgba(255,255,255,.5);
+}
+html[data-face="simple"] .card, .deck-face[data-face="simple"] .card { font-family: var(--sans); font-weight: 800; }
+html[data-face="simple"] .card .r, .deck-face[data-face="simple"] .card .r { letter-spacing: -.02em; }
+html[data-face="simple"] .card.face .pip, .deck-face[data-face="simple"] .card.face .pip { font-family: var(--sans); font-style: normal; font-weight: 800; }
+html[data-face="simple"] .card.face::after, .deck-face[data-face="simple"] .card.face::after { display: none; }
+
+/* deck picker dialog */
+.deck-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+.deck-opt { background: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--text); font: inherit; font-size: 12px; }
+.deck-opt .card { --cw: 34px; }
+.deck-opt.on { border-color: var(--brass); box-shadow: inset 0 0 0 1px var(--brass); }
+.deck-face { display: flex; gap: 10px; }
+.deck-face .card { --cw: 34px; }
+.deck-faces { display: flex; gap: 10px; margin-bottom: 16px; }
+.deck-faces button { background: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--text); font: inherit; font-size: 12px; }
+.deck-faces button.on { border-color: var(--brass); box-shadow: inset 0 0 0 1px var(--brass); }
+@media (max-width: 420px) { .deck-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; } .deck-opt .card { --cw: 28px; } }
+.deck-opt.deck-opt .card.back.back-classic {
+  background:
+    linear-gradient(45deg, rgba(244,226,200,.13) 25%, transparent 25%, transparent 75%, rgba(244,226,200,.13) 75%) 0 0 / 7px 7px,
+    linear-gradient(-45deg, rgba(244,226,200,.13) 25%, transparent 25%, transparent 75%, rgba(244,226,200,.13) 75%) 0 0 / 7px 7px,
+    #6e1824;
+  border: 3px solid #f6f1e5; box-shadow: inset 0 0 0 1px rgba(210,178,116,.8), 0 2px 6px rgba(0,0,0,.45);
+}
+.deck-opt.deck-opt .card.back.back-classic::after { display: none; }
+.deck-face[data-face="classic"] .card { font-family: var(--serif); font-weight: 700; }
+.deck-face[data-face="classic"] .card.face .pip { font-family: var(--serif); font-style: italic; font-weight: 700; }
+.deck-face[data-face="classic"] .card.face::after { display: block; }

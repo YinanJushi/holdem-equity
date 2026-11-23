@@ -107,7 +107,56 @@
     paint();
   }
 
-  window.UI = { store, initTabs, showTab, rulesDialog, chips, sfx };
-  const boot = () => { initTabs(); initSound(); };
+  // ---------- deck choice ----------
+  const DECKS = [
+    { id: 'classic', name: 'Classic' },
+    { id: 'sky', name: 'Sky', c: '#7fb6cc' },
+    { id: 'ink', name: 'Ink', c: '#34496e' },
+    { id: 'mint', name: 'Mint', c: '#5aa891' },
+    { id: 'apricot', name: 'Apricot', c: '#e3a083' },
+    { id: 'brick', name: 'Brick', c: '#9e3530' },
+    { id: 'stone', name: 'Stone', c: '#979c9d' },
+    { id: 'pine', name: 'Pine', c: '#23402f' },
+  ];
+  const DECK_KEY = 'ol-deck';
+  let deck = store.load(DECK_KEY, { back: 'classic', face: 'classic' }) || { back: 'classic', face: 'classic' };
+  function applyDeck() {
+    document.documentElement.dataset.deck = deck.back;
+    document.documentElement.dataset.face = deck.face;
+  }
+  applyDeck();
+  const sample = (rank, suit, cls) => `<div class="card s${cls} ${'JQK'.includes(rank) ? 'face' : ''}"><span class="r">${rank}</span><span class="r2">${suit}</span><span class="pip">${'JQK'.includes(rank) ? rank : suit}</span></div>`;
+  function deckPicker() {
+    let dlg = document.getElementById('deckDlg');
+    if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'deckDlg'; dlg.className = 'rules'; document.body.appendChild(dlg); }
+    const render = () => {
+      let h = '<h2>Choose your cards</h2><p>Pick a card back and a face style. Your choice is saved on this device.</p>';
+      h += '<div class="rule-name">Card back</div><div class="deck-grid">';
+      for (const d of DECKS) {
+        h += `<button type="button" class="deck-opt ${deck.back === d.id ? 'on' : ''}" data-back="${d.id}" ${d.c ? `data-solid style="--deck:${d.c}"` : ''}><div class="card back ${d.c ? '' : 'back-classic'}"></div>${d.name}</button>`;
+      }
+      h += '</div><div class="rule-name">Card faces</div><div class="deck-faces">';
+      for (const [id, name] of [['classic', 'Classic serif'], ['simple', 'Simple']]) {
+        h += `<button type="button" class="${deck.face === id ? 'on' : ''}" data-face="${id}"><span class="deck-face" data-face="${id}">${sample('A', '♠', 0)}${sample('K', '♥', 1)}${sample('7', '♦', 2)}</span>${name}</button>`;
+      }
+      h += '</div><div class="rule-actions"><button type="button" class="primary" data-act="done">Done</button></div>';
+      dlg.innerHTML = h;
+    };
+    dlg.onclick = e => {
+      const b = e.target.closest('[data-back]'), f = e.target.closest('button[data-face]');
+      if (b) deck.back = b.dataset.back;
+      else if (f) deck.face = f.dataset.face;
+      else if (e.target.closest('[data-act="done"]')) { dlg.close(); return; }
+      else return;
+      store.save(DECK_KEY, deck);
+      applyDeck(); render(); sfx('card');
+    };
+    render();
+    dlg.showModal();
+  }
+  function initDeck() { const b = document.getElementById('deckBtn'); if (b) b.onclick = deckPicker; }
+
+  window.UI = { store, initTabs, showTab, rulesDialog, chips, sfx, deckPicker };
+  const boot = () => { initTabs(); initSound(); initDeck(); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
