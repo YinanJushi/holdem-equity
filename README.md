@@ -30,7 +30,14 @@ Choose the table before you play: 1–8 opponents, starting stack (50 / 100 / 20
 - **Card counting**: Hi-Lo running count, true count and your edge on the next hand before you bet.
 - **Hand replay**: the dealer's hole card, every decision checked against best play with its cost in chips, and how much of the result was luck.
 
-Both games have a **Cards** picker (twelve card backs: the classic claret lattice or a solid colour; classic serif or simple faces) and a **Guess first** mode, plus **Hide analysis** for play-only mode and **Full screen**: guess your odds before they're revealed to train your feel.
+### Slots & prize wheel (`slots.html`)
+
+- **Lucky Sevens**: 5 reels × 3 rows, 10 paylines, a wild crown, star scatters that award 10–20 free spins with doubled wins, and a progressive jackpot for five sevens on a line. Tuned by simulation to return about 95% over the long run.
+- **Coin-in**: insert chips from your wallet as machine credits and cash out any time; credits left in the machine are kept for your next visit.
+- **Effects**: blurred spinning reels, a slow "tease" when two stars land, drawn paylines, and full-screen celebrations (Nice / Big / Mega win, Jackpot) with light rays, a coin shower, a rolling counter, screen shake and sound.
+- **Prize wheel**: one free spin a day, then 100 chips a spin; slice sizes match the real odds (listed under the wheel).
+
+Both card games have a **Cards** picker (twelve card backs: the classic claret lattice or a solid colour; classic serif or simple faces) and a **Guess first** mode, plus **Hide analysis** for play-only mode and **Full screen**: guess your odds before they're revealed to train your feel.
 
 Keys — Hold'em: Space deal, F fold, C check/call, R raise. Blackjack: Space deal, H hit, S stand, D double, P split.
 
@@ -39,6 +46,10 @@ Keys — Hold'em: Space deal, F fold, C check/call, R raise. Blackjack: Space de
 - **Daily chips**: both games share one chip wallet. You can claim 1,000 free chips once a day; when you run out, you wait until tomorrow. In Hold'em each hand buys in from the wallet (up to the table's starting stack); leaving mid-hand forfeits the chips already in the pot.
 - **Stats page** (`stats.html`): Hold'em hands won, VPIP, PFR, how often you see the flop, go to showdown and win there, where your hands end in a fold, folding when facing a bet by street, preflop strength of hands played vs folded, and your running result. Blackjack win/push/lose and bust rates, blackjacks, doubles won, best-play accuracy, chips lost to mistakes, luck, and your running result.
 - Chips and stats are stored in the browser only.
+
+## Accounts (optional)
+
+With a Supabase project configured in `config.js`, players can sign in with an email link and their chips sync across devices. Daily claims, secret codes (each once per account) and balance changes are checked on the server by the functions in `supabase/schema.sql`. Without a project the site runs in guest mode with chips stored in the browser.
 
 ## Run locally
 
@@ -56,7 +67,9 @@ Then open http://localhost:8765.
 - `blackjack.js`: blackjack table, shoe, betting, advice and replay
 - `ui.js`: tabs, rules dialog, card picker, chip wallet and stats storage
 - `stats.js`: the stats page
+- `account.js`, `config.js`, `supabase/schema.sql`: accounts and synced chips
+- `slots-engine.js`, `slots.js`, `slots.css`: slot machine and prize wheel
 - `style.css`: styles
-- `index.html`, `blackjack.html`, `stats.html`: pages
+- `index.html`, `blackjack.html`, `slots.html`, `stats.html`: pages
 
 > Advice and analysis are for practice and hand review. Don't use it during real-money games.

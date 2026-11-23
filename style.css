@@ -560,3 +560,16 @@ html[data-immersive="1"][data-focus="1"] .bj-table { min-height: max(420px, calc
   .top-right .games { width: 100%; gap: 18px; }
   .top-right .wallet { margin-right: auto; }
 }
+
+/* ---------- account ---------- */
+.acct { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.fld { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 10px; }
+.fld input { font: inherit; font-weight: 400; font-size: 15px; padding: 9px 11px; border-radius: 8px; border: 1px solid rgba(34,25,21,.25); background: #fffaf0; color: var(--ink); }
+.fld input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
+.code-form { display: flex; gap: 8px; align-items: flex-end; }
+.code-form .fld { flex: 1; margin-bottom: 0; }
+.code-form .primary { padding: 10px 16px; }
+.acct-msg { min-height: 20px; font-size: 13px; margin: 8px 0 12px; color: var(--ink); }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; z-index: 80;
+  background: var(--ivory); color: var(--ink); padding: 10px 16px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.4); font-size: 14px; max-width: calc(100vw - 32px); transition: opacity .2s, transform .2s; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }

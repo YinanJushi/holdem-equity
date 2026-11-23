@@ -167,6 +167,28 @@
     line($('#bLine'), running(B.map(r => r.net)), 'chips');
   }
 
+  // ---------- Slots & wheel ----------
+  function slots() {
+    const S = UI.stats.get('slots'), Wh = UI.stats.get('wheel');
+    $('#sEmpty').hidden = !!(S.length || Wh.length); $('#sBody').hidden = !(S.length || Wh.length);
+    if (!S.length && !Wh.length) return;
+    const bet = S.reduce((a, r) => a + r.bet, 0), won = S.reduce((a, r) => a + r.win, 0);
+    const best = S.reduce((a, r) => Math.max(a, r.win), 0), feats = S.filter(r => r.feature).length, jps = S.filter(r => r.jackpot).length;
+    const wCost = Wh.reduce((a, r) => a + r.cost, 0), wWon = Wh.reduce((a, r) => a + r.prize, 0);
+    kpis($('#sKpis'), [
+      { label: 'Spins', value: S.length.toLocaleString('en-US'), sub: `${S.filter(r => r.free).length} of them free` },
+      { label: 'Result', value: signed(won - bet), sub: `Bet ${Math.round(bet).toLocaleString('en-US')} · won ${Math.round(won).toLocaleString('en-US')}` },
+      { label: 'Return', value: fmtP(pct(won, bet)), sub: 'The machine is built to return about 95%' },
+      { label: 'Biggest win', value: Math.round(best).toLocaleString('en-US') },
+      { label: 'Free-spin features', value: feats.toLocaleString('en-US'), sub: jps ? `${jps} jackpot${jps > 1 ? 's' : ''}!` : 'No jackpot yet' },
+      { label: 'Wheel spins', value: Wh.length.toLocaleString('en-US'), sub: `Paid ${wCost} · won ${wWon.toLocaleString('en-US')}` },
+    ]);
+    line($('#sLine'), running(S.map(r => r.win - r.bet)), 'chips');
+    const prizes = [...new Set(UI_WHEEL_PRIZES)];
+    bars($('#wBars'), prizes.map(p => { const c = Wh.filter(r => r.prize === p).length; return { label: p >= 5000 ? 'Jackpot' : `${p} chips`, value: Wh.length ? pct(c, Wh.length) : null, text: fmtP(pct(c, Wh.length)), detail: `${c} of ${Wh.length} spins` }; }), { max: 100 });
+  }
+  const UI_WHEEL_PRIZES = [10, 25, 50, 75, 100, 200, 500, 1000, 5000];
+
   function walletLine() {
     const w = UI.wallet, ms = w.nextClaimIn(), h = Math.floor(ms / 3.6e6), m = Math.floor((ms % 3.6e6) / 6e4);
     $('#walletLine').innerHTML = `You have <b>${Math.floor(w.chips).toLocaleString('en-US')}</b> chips. ` +
@@ -175,10 +197,11 @@
 
   document.querySelectorAll('[data-reset]').forEach(b => (b.onclick = () => {
     const g = b.dataset.reset;
-    if (!confirm(`Delete all your ${g === 'bj' ? 'Blackjack' : "Texas Hold'em"} stats on this device? This can't be undone.`)) return;
-    UI.stats.clear(g); render();
+    const name = g === 'bj' ? 'Blackjack' : g === 'slots' ? 'Slots and prize wheel' : "Texas Hold'em";
+    if (!confirm(`Delete all your ${name} stats on this device? This can't be undone.`)) return;
+    UI.stats.clear(g); if (g === 'slots') UI.stats.clear('wheel'); render();
   }));
   UI.wallet.onChange(walletLine);
-  function render() { walletLine(); holdem(); blackjack(); }
+  function render() { walletLine(); holdem(); blackjack(); slots(); }
   render();
 })();

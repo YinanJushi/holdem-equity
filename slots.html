@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Odds Lounge · Slots & Prize Wheel</title>
+<meta name="description" content="A five-reel slot machine with free spins and a progressive jackpot, plus a daily prize wheel. Insert chips, spin, cash out.">
+<meta name="theme-color" content="#2b1016">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="slots.css?v=20">
+</head>
+<body class="slotspage">
+<header class="top">
+  <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <div class="top-right">
+  <nav class="games" aria-label="Games">
+    <a href="index.html">Texas Hold'em</a>
+    <a href="blackjack.html">Blackjack</a>
+    <a href="slots.html" class="on" aria-current="page">Slots</a>
+    <a href="stats.html">Stats</a>
+  </nav>
+  <div id="wallet" class="wallet"></div>
+  <button id="soundBtn" class="iconbtn" aria-pressed="true">Sound on</button>
+  </div>
+</header>
+
+<main class="slots-layout">
+  <section class="cab-wrap">
+    <div class="cabinet" id="cabinet">
+      <div class="cab-top">
+        <div class="bulbs-row" aria-hidden="true"></div>
+        <div class="cab-title">Lucky <em>Sevens</em></div>
+        <div class="jackpot"><span>Progressive jackpot</span><b id="jackpot">5,000</b></div>
+        <div class="bulbs-row" aria-hidden="true"></div>
+      </div>
+
+      <div class="reel-frame">
+        <div class="reels" id="reels"></div>
+        <svg class="lines" id="lines" aria-hidden="true"></svg>
+        <div class="fs-banner" id="fsBanner" hidden>Free spins <b id="fsLeft">0</b> · wins ×2</div>
+      </div>
+
+      <div class="leds">
+        <div class="led"><span>Credits</span><b id="credits">0</b></div>
+        <div class="led"><span>Bet</span><b id="betAmt">10</b></div>
+        <div class="led win"><span>Win</span><b id="winAmt">0</b></div>
+      </div>
+      <div class="ticker" id="ticker" role="status">Insert chips to play</div>
+
+      <div class="cab-controls">
+        <div class="ctl-group">
+          <span class="ctl-label">Bet per line</span>
+          <div class="stepper"><button id="betDown" aria-label="Lower bet">−</button><b id="lineBet">1</b><button id="betUp" aria-label="Raise bet">+</button></div>
+          <span class="ctl-sub">10 lines</span>
+        </div>
+        <button class="spin-btn" id="spinBtn">Spin</button>
+        <div class="ctl-group">
+          <button class="cab-btn" id="autoBtn">Auto</button>
+          <button class="cab-btn" id="payBtn">Pays</button>
+        </div>
+      </div>
+
+      <div class="coin-tray">
+        <span class="ctl-label">Insert chips</span>
+        <div class="coins" id="coins">
+          <button class="coin" data-coin="10">10</button>
+          <button class="coin" data-coin="50">50</button>
+          <button class="coin" data-coin="100">100</button>
+          <button class="coin" data-coin="500">500</button>
+        </div>
+        <div class="slot-mouth" id="slotMouth" aria-hidden="true"></div>
+        <button class="cab-btn cash" id="cashBtn">Cash out</button>
+      </div>
+
+      <button class="lever" id="lever" aria-label="Pull the lever to spin"><span class="lever-rod"></span><span class="lever-ball"></span></button>
+    </div>
+    <p class="hint slots-hint">Space to spin. Chips you insert become credits; cash out to put them back in your wallet.</p>
+  </section>
+
+  <aside class="slots-side">
+    <section class="panel wheel-panel">
+      <h3>Prize wheel</h3>
+      <p class="sub" id="wheelNote"></p>
+      <div class="wheel-box">
+        <div class="wheel-pointer" aria-hidden="true"></div>
+        <svg class="wheel" id="wheel" viewBox="-110 -110 220 220" role="img" aria-label="Prize wheel"></svg>
+      </div>
+      <button class="primary wheel-btn" id="wheelBtn">Spin</button>
+      <div class="wheel-result" id="wheelResult" role="status"></div>
+      <details class="st-table"><summary>Prizes and odds</summary><table id="wheelOdds"></table></details>
+    </section>
+    <section class="panel">
+      <h3>This session</h3>
+      <div id="slotSession" class="sub"></div>
+    </section>
+  </aside>
+</main>
+
+<div class="win-fx" id="winFx" hidden>
+  <div class="rays"></div>
+  <canvas id="coinRain"></canvas>
+  <div class="win-card">
+    <div class="win-tier" id="winTier">Big win</div>
+    <div class="win-num" id="winNum">0</div>
+    <div class="win-skip">Click to continue</div>
+  </div>
+</div>
+
+<footer class="foot">For fun with play chips only. No real money.</footer>
+
+<script src="ui.js?v=20"></script>
+<script src="config.js?v=20"></script>
+<script src="account.js?v=20"></script>
+<script src="slots-engine.js?v=20"></script>
+<script src="slots.js?v=20"></script>
+</body>
+</html>

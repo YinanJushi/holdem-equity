@@ -120,12 +120,16 @@
 
   // ---------- wallet: each hand buys in from the shared chip wallet ----------
   const PENDING_KEY = 'ol-holdem-pending', MIN_BUYIN = 10 * BB;
-  const savePending = () => { if (G && !G.over) UI.store.save(PENDING_KEY, { buyin: G.buyin, committed: G.players[0].total }); };
+  const savePending = () => { if (G && !G.over) UI.store.save(PENDING_KEY, { buyin: G.buyin, committed: G.players[0].total, mode: UI.wallet.mode }); };
   const clearPending = () => { try { localStorage.removeItem(PENDING_KEY); } catch (e) { } };
   // a hand left unfinished (page closed): the chips already in the pot are lost, the rest come back
   (function settleLeftHand() {
     const p = UI.store.load(PENDING_KEY, { buyin: 0, committed: 0 });
-    if (p && p.buyin) UI.wallet.add(Math.max(0, p.buyin - p.committed));
+    if (p && p.buyin) {
+      const back = Math.max(0, p.buyin - p.committed);
+      if ((p.mode || 'local') === UI.wallet.mode) UI.wallet.add(back);
+      else if ((p.mode || 'local') === 'local') UI.wallet.localAdd(back);
+    }
     clearPending();
   })();
   function abandonHand() {
