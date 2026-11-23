@@ -117,6 +117,10 @@
     { id: 'brick', name: 'Brick', c: '#9e3530' },
     { id: 'stone', name: 'Stone', c: '#979c9d' },
     { id: 'pine', name: 'Pine', c: '#23402f' },
+    { id: 'pumpkin', name: 'Pumpkin', c: '#e07b2e' },
+    { id: 'pink', name: 'Pink', c: '#e58aab' },
+    { id: 'lime', name: 'Lime', c: '#8cc63f' },
+    { id: 'charcoal', name: 'Charcoal', c: '#2b2b2e' },
   ];
   const DECK_KEY = 'ol-deck';
   let deck = store.load(DECK_KEY, { back: 'classic', face: 'classic' }) || { back: 'classic', face: 'classic' };
@@ -154,9 +158,41 @@
     render();
     dlg.showModal();
   }
+  // ---------- view: hide analysis (play-only) and full screen ----------
+  const VIEW_KEY = 'ol-view';
+  let view = store.load(VIEW_KEY, { focus: false }) || { focus: false };
+  const applyView = () => { document.documentElement.dataset.focus = view.focus ? '1' : '0'; };
+  applyView();
+  function initView() {
+    const fb = document.getElementById('focusBtn'), sb = document.getElementById('fsBtn');
+    if (fb) {
+      const paint = () => { fb.textContent = view.focus ? 'Show analysis' : 'Hide analysis'; fb.setAttribute('aria-pressed', view.focus); };
+      fb.onclick = () => { view.focus = !view.focus; store.save(VIEW_KEY, view); applyView(); paint(); };
+      paint();
+    }
+    if (sb) {
+      // "Full screen" = hide the site chrome so the table fills the window, plus real browser full screen where allowed
+      const can = document.fullscreenEnabled || document.webkitFullscreenEnabled;
+      const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+      let imm = false, wasFs = false;
+      const paint = () => { sb.textContent = imm ? 'Exit full screen' : 'Full screen'; sb.setAttribute('aria-pressed', imm); };
+      const setImm = v => { imm = v; document.documentElement.dataset.immersive = v ? '1' : '0'; paint(); };
+      sb.onclick = () => {
+        const el = document.documentElement;
+        if (imm) { if (isFs()) (document.exitFullscreen || document.webkitExitFullscreen).call(document); setImm(false); return; }
+        setImm(true);
+        if (can) { try { const pr = (el.requestFullscreen || el.webkitRequestFullscreen).call(el); if (pr && pr.catch) pr.catch(() => {}); } catch (e) { /* stays in the in-page version */ } }
+      };
+      const onFs = () => { if (isFs()) wasFs = true; else if (wasFs) { wasFs = false; setImm(false); } };
+      document.addEventListener('fullscreenchange', onFs);
+      document.addEventListener('webkitfullscreenchange', onFs);
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && imm && !isFs()) setImm(false); });
+      paint();
+    }
+  }
   function initDeck() { const b = document.getElementById('deckBtn'); if (b) b.onclick = deckPicker; }
 
   window.UI = { store, initTabs, showTab, rulesDialog, chips, sfx, deckPicker };
-  const boot = () => { initTabs(); initSound(); initDeck(); };
+  const boot = () => { initTabs(); initSound(); initDeck(); initView(); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

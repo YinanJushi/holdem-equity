@@ -30,7 +30,7 @@ Choose the table before you play: 1–8 opponents, starting stack (50 / 100 / 20
 - **Card counting**: Hi-Lo running count, true count and your edge on the next hand before you bet.
 - **Hand replay**: the dealer's hole card, every decision checked against best play with its cost in chips, and how much of the result was luck.
 
-Both games have a **Cards** picker (eight card backs: the classic claret lattice or a solid colour; classic serif or simple faces) and a **Guess first** mode: guess your odds before they're revealed to train your feel.
+Both games have a **Cards** picker (twelve card backs: the classic claret lattice or a solid colour; classic serif or simple faces) and a **Guess first** mode, plus **Hide analysis** for play-only mode and **Full screen**: guess your odds before they're revealed to train your feel.
 
 Keys — Hold'em: Space deal, F fold, C check/call, R raise. Blackjack: Space deal, H hit, S stand, D double, P split.
 
