@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=67';
+import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=69';
 
 const FLOOR = -0.76;                       // the floor, with the table top at y = 0 (metres)
 const CW = 0.102, CH = 0.143;              // card size (a little larger than life so it reads on screen)
@@ -703,6 +703,7 @@ export function createCasino(host, kind) {
   let tAll = 0;
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.1, clock.getDelta()); tAll += dt;
+    if (!document.body.classList.contains('t3d-on')) return;   // the flat table is showing: nothing to draw
     if (!reduced()) view.sway += dt;
     // camera: a cinematic turn to the bar while your drink is mixed; otherwise drift back to the table when idle
     if (view.cine) {

@@ -1,6 +1,6 @@
 // Texas Hold'em in 3D: turns the table description from app.js into seated opponents, cards, chips and labels.
 // "Pick cards" mode needs the flat table (you click card spots), so the 3D view steps aside there.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=67';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=69';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'holdem') : null;
@@ -17,7 +17,7 @@ if (C) {
     const paintSizes = () => {
       const can = wrapR && !wrapR.hidden;
       box.hidden = !can;
-      box.innerHTML = can ? [...src.querySelectorAll('[data-to]')].map(b => `<button type="button" data-to="${b.dataset.to}">${b.firstChild.textContent.trim()}<small>${b.dataset.to}</small></button>`).join('') : '';
+      box.innerHTML = can ? [...src.querySelectorAll('[data-to]')].map(b => { const lab = b.firstChild.textContent.trim().replace(/^(\d+(?:\.\d+)?)×$/, '$1× raise'); return `<button type="button" data-to="${b.dataset.to}" aria-label="Raise to ${b.dataset.to} (${lab})"><span>${b.dataset.to}</span><small>${lab}</small></button>`; }).join('') : '';
     };
     new MutationObserver(paintSizes).observe(src, { childList: true, subtree: true });
     if (wrapR) new MutationObserver(paintSizes).observe(wrapR, { attributes: true, attributeFilter: ['hidden'] });
