@@ -7,7 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 const FLOOR = -0.76;                       // the floor, with the table top at y = 0 (metres)
 const CW = 0.102, CH = 0.143;              // card size (a little larger than life so it reads on screen)
@@ -44,14 +44,14 @@ const snd = {
 
 // ---------- the drinks menu ----------
 export const DRINKS = [
-  { id: 'oldfashioned', name: 'Old Fashioned', note: 'Bourbon, bitters, orange peel', glass: 'rocks', col: '#b8651b', garnish: ['peel', 'cherry'], ice: 'cube' },
-  { id: 'martini', name: 'Dry Martini', note: 'Gin, dry vermouth, olive', glass: 'martini', col: '#e9efd6', garnish: ['olive'] },
-  { id: 'mojito', name: 'Mojito', note: 'Rum, lime, mint, soda', glass: 'highball', col: '#cfe8a8', garnish: ['mint', 'lime'], ice: 'cubes', straw: true },
-  { id: 'cosmo', name: 'Cosmopolitan', note: 'Vodka, cranberry, lime', glass: 'martini', col: '#e0446a', garnish: ['twist'] },
-  { id: 'margarita', name: 'Margarita', note: 'Tequila, lime, salted rim', glass: 'coupe', col: '#e6ee9c', garnish: ['lime', 'salt'] },
-  { id: 'espresso', name: 'Espresso Martini', note: 'Vodka, coffee, crema', glass: 'martini', col: '#3a2418', garnish: ['beans'], foam: '#d9b98a' },
-  { id: 'sunrise', name: 'Virgin Sunrise', note: 'Orange, grenadine, no alcohol', glass: 'highball', col: '#ff9a2e', col2: '#d81b3c', garnish: ['orange', 'cherry'], ice: 'cubes', straw: true, na: true },
-  { id: 'spritz', name: 'Lemon Sparkler', note: 'Sparkling water, lemon, no alcohol', glass: 'highball', col: '#eef6f2', garnish: ['lemon'], ice: 'cubes', na: true, bubbles: true },
+  { id: 'oldfashioned', name: 'Old Fashioned', note: 'Bourbon, bitters, orange peel', price: 15, glass: 'rocks', col: '#b8651b', clear: 0.55, garnish: ['peel', 'cherry'], ice: 'cube' },
+  { id: 'martini', name: 'Dry Martini', note: 'Gin, dry vermouth, olive', price: 15, glass: 'martini', col: '#eef2dc', clear: 0.9, garnish: ['olive'] },
+  { id: 'mojito', name: 'Mojito', note: 'Rum, lime, mint, soda', price: 12, glass: 'highball', col: '#d6ecb0', clear: 0.75, garnish: ['mint', 'lime'], ice: 'cubes', straw: '#1d1d1d' },
+  { id: 'cosmo', name: 'Cosmopolitan', note: 'Vodka, cranberry, lime', price: 12, glass: 'martini', col: '#e0446a', clear: 0.6, garnish: ['lime'] },
+  { id: 'margarita', name: 'Margarita', note: 'Tequila, lime, salted rim', price: 12, glass: 'coupe', col: '#e8f0a4', clear: 0.6, garnish: ['lime', 'salt'] },
+  { id: 'espresso', name: 'Espresso Martini', note: 'Vodka, coffee, crema', price: 15, glass: 'martini', col: '#2e1a10', clear: 0, garnish: ['beans'], foam: '#d9b98a' },
+  { id: 'sunrise', name: 'Virgin Sunrise', note: 'Orange, grenadine, no alcohol', price: 5, glass: 'highball', col: '#ff9a2e', col2: '#c8102e', clear: 0.35, garnish: ['orange', 'cherry'], ice: 'cubes', straw: '#ff5a8a', na: true },
+  { id: 'sparkler', name: 'Lemon Sparkler', note: 'Sparkling water, lemon, no alcohol', price: 3, glass: 'highball', col: '#f2f8f4', clear: 0.95, garnish: ['lemon'], ice: 'cubes', straw: '#f2c14e', na: true, bubbles: true },
 ];
 
 export function createCasino(host, kind) {
@@ -67,8 +67,8 @@ export function createCasino(host, kind) {
   host.appendChild(wrap);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#1a0c08');
-  scene.fog = new THREE.Fog('#1c0e09', 8, 26);
+  scene.background = new THREE.Color('#120806');
+  scene.fog = new THREE.Fog('#120806', 3.2, 9.5);
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.28;
@@ -95,35 +95,7 @@ export function createCasino(host, kind) {
 
 
   // ---------- people ----------
-  // Faces: a real 3D head scan ("Infinite" by Lee Perry-Smith, CC BY 3.0, via the three.js examples), shared by
-  // everyone and made different with skin tone, hair, glasses and clothes. Until it loads, a plain head stands in.
-  const HEAD_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r170/examples/models/gltf/LeePerrySmith/';
-  const headAsset = new Promise(res => {
-    try {
-      new GLTFLoader().load(HEAD_URL + 'LeePerrySmith.glb', gltf => {
-        let mesh = null; gltf.scene.updateMatrixWorld(true);
-        gltf.scene.traverse(o => { if (o.isMesh && !mesh) mesh = o; });
-        if (!mesh) return res(null);
-        let geo = mesh.geometry.clone(); geo.applyMatrix4(mesh.matrixWorld);
-        geo.computeBoundingBox();
-        const full = new THREE.Vector3(); geo.boundingBox.getSize(full);
-        // keep the head and neck only: drop every triangle that reaches into the shoulders of the bust
-        const cut = geo.boundingBox.min.y + full.y * 0.34, pos = geo.attributes.position;
-        const idx = geo.index ? Array.from(geo.index.array) : [...Array(pos.count).keys()];
-        const keep = [];
-        for (let i = 0; i < idx.length; i += 3) if (pos.getY(idx[i]) > cut && pos.getY(idx[i + 1]) > cut && pos.getY(idx[i + 2]) > cut) keep.push(idx[i], idx[i + 1], idx[i + 2]);
-        geo.setIndex(keep);
-        // size it from the crown to the cut, and put the bottom of the neck at the origin
-        const box = new THREE.Box3(); for (const i of keep) box.expandByPoint(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)));
-        const size = new THREE.Vector3(), c = new THREE.Vector3(); box.getSize(size); box.getCenter(c);
-        const k = 0.255 / size.y; geo.translate(-c.x, -box.min.y, -c.z); geo.scale(k, k, k);
-        const tl = new THREE.TextureLoader();
-        const map = tl.load(HEAD_URL + 'Map-COL.jpg'); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4;
-        const normal = tl.load(HEAD_URL + 'Infinite-Level_02_Tangent_SmoothUV.jpg');
-        res({ geo, map, normal, h: size.y * k, d: size.z * k, w: size.x * k });
-      }, undefined, () => res(null));
-    } catch (e) { res(null); }
-  });
+  // Faces are stylized on purpose: friendly, simple features that read well at a glance (no uncanny realism).
   const UP = new THREE.Vector3(0, 1, 0);
   // place a limb (a capsule of known length) between two points
   function limb(mesh, a, b) { const d = new THREE.Vector3().subVectors(b, a), L = d.length(); mesh.position.copy(a).addScaledVector(d, 0.5); mesh.quaternion.setFromUnitVectors(UP, d.normalize()); mesh.scale.set(1, L / mesh.userData.len, 1); }
@@ -149,28 +121,54 @@ export function createCasino(host, kind) {
     }
     [-1, 1].forEach(sd => { const sh = new THREE.Mesh(new THREE.SphereGeometry(0.052, 16, 12), sm); sh.scale.set(1, 0.85, 0.95); sh.position.set(sd * 0.18, 0.37, 0); g.add(sh); });
     const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.043, 0.05, 0.08, 14), km); neck.position.y = 0.47; g.add(neck);
-    // head: the plain stand-in, swapped for the scan when it arrives
-    const headG = new THREE.Group(); headG.position.y = 0.42; g.add(headG);
-    const look = new THREE.Group(); look.rotation.x = 0.2; headG.add(look);   // eyes down to the table
-    const stand = new THREE.Mesh(new THREE.SphereGeometry(0.1, 24, 18), km); stand.scale.set(0.88, 1.1, 0.98); stand.position.y = 0.19; look.add(stand);
-    headAsset.then(H => {
-      if (!H) return;
-      look.remove(stand); neck.visible = false;
-      const hm = new THREE.MeshStandardMaterial({ map: H.map, normalMap: H.normal, color: tint, roughness: 0.55, normalScale: new THREE.Vector2(0.8, 0.8) });
-      const head = new THREE.Mesh(H.geo, hm); head.castShadow = true; look.add(head);
-      const hh = H.h, cy = hh * 0.7;   // the centre of the skull
-      const hairM = new THREE.MeshStandardMaterial({ color: hair, roughness: 0.85 });
-      if (hairStyle !== 'none') {   // hair over the crown and the back of the head, clear of the face
-        const cap = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.56), hairM);
-        cap.scale.set(hh * 0.33, hh * 0.36, hh * 0.39); cap.position.set(0, cy - hh * 0.02, -hh * 0.06); cap.rotation.x = -0.5; look.add(cap);
-      }
-      if (hairStyle === 'long') { const back = new THREE.Mesh(new THREE.CapsuleGeometry(hh * 0.3, hh * 0.45, 6, 16), hairM); back.scale.z = 0.55; back.position.set(0, cy - hh * 0.3, -hh * 0.2); look.add(back); }
-      if (hairStyle === 'bun') { const bun = new THREE.Mesh(new THREE.SphereGeometry(hh * 0.15, 16, 12), hairM); bun.position.set(0, cy + hh * 0.2, -hh * 0.3); look.add(bun); }
-      if (glasses) {
-        const gm = new THREE.MeshStandardMaterial({ color: '#141414', metalness: 0.6, roughness: 0.3 });
-        [-1, 1].forEach(sd => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.017, 0.0022, 6, 20), gm); r.position.set(sd * hh * 0.12, cy - hh * 0.1, hh * 0.37); look.add(r); });
-        const br = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.003, 0.003), gm); br.position.set(0, cy - hh * 0.09, hh * 0.38); look.add(br);
-      }
+    // head: a soft rounded head with big friendly eyes, brows, a small nose and a smile
+    const headG = new THREE.Group(); headG.position.y = 0.5; g.add(headG);
+    const look = new THREE.Group(); look.rotation.x = 0.1; headG.add(look);   // eyes a little down, on the table
+    const hc = new THREE.Vector3(0, 0.1, 0);   // centre of the head
+    const hg = new THREE.SphereGeometry(0.095, 40, 30), hp = hg.attributes.position;
+    for (let i = 0; i < hp.count; i++) { const y = hp.getY(i); if (y < 0) { const k = 1 - Math.min(1, -y / 0.095) * 0.22; hp.setX(i, hp.getX(i) * k); hp.setZ(i, hp.getZ(i) * (k + 0.06)); } }
+    hg.computeVertexNormals();
+    const skull = new THREE.Mesh(hg, km); skull.scale.set(0.94, 1.08, 0.98); skull.position.copy(hc); look.add(skull);
+    [-1, 1].forEach(sd => { const ear = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 10), km); ear.scale.set(0.5, 1, 0.75); ear.position.set(sd * 0.09, hc.y, -0.005); look.add(ear); });
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.013, 12, 10), new THREE.MeshStandardMaterial({ color: new THREE.Color('#dcae94').multiply(tint), roughness: 0.6 })); nose.scale.set(0.8, 0.95, 0.85); nose.position.set(0, hc.y - 0.008, 0.095); look.add(nose);
+    const eyeW = new THREE.MeshStandardMaterial({ color: '#fbfaf6', roughness: 0.25 });
+    const irisM = new THREE.MeshStandardMaterial({ color: ['#3a2414', '#2a3a5a', '#2a4a2a', '#4a2a14'][Math.floor(Math.random() * 4)], roughness: 0.2 });
+    const shine = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+    const eyes = [];
+    [-1, 1].forEach(sd => {
+      const e = new THREE.Group(); e.position.set(sd * 0.032, hc.y + 0.014, 0.08); look.add(e);
+      const white = new THREE.Mesh(new THREE.SphereGeometry(0.016, 16, 12), eyeW); white.scale.set(1, 1.12, 0.55); e.add(white);
+      const iris = new THREE.Mesh(new THREE.SphereGeometry(0.0095, 14, 10), irisM); iris.scale.set(1, 1.05, 0.5); iris.position.set(0, -0.002, 0.0075); e.add(iris);
+      const hl = new THREE.Mesh(new THREE.SphereGeometry(0.0028, 8, 6), shine); hl.position.set(sd * -0.003 + 0.003, 0.003, 0.012); e.add(hl);
+      eyes.push(e);
+      const brow = new THREE.Mesh(new THREE.CapsuleGeometry(0.0036, 0.022, 4, 8), new THREE.MeshStandardMaterial({ color: hair, roughness: 0.8 }));
+      brow.rotation.z = Math.PI / 2 + sd * 0.12; brow.position.set(sd * 0.032, hc.y + 0.042, 0.086); look.add(brow);
+    });
+    const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.017, 0.0032, 8, 16, Math.PI * 0.75), new THREE.MeshStandardMaterial({ color: '#9a4a46', roughness: 0.5 }));
+    mouth.rotation.z = Math.PI + Math.PI * 0.125; mouth.position.set(0, hc.y - 0.026, 0.088); mouth.scale.y = 0.7; look.add(mouth);
+    // hair
+    const hairM = new THREE.MeshStandardMaterial({ color: hair, roughness: 0.75 });
+    if (hairStyle !== 'none') {
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), hairM);
+      cap.scale.set(0.98, 0.9, 1.05); cap.position.set(0, hc.y + 0.012, -0.008); cap.rotation.x = -0.35; look.add(cap);
+      const fringe = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.4), hairM);
+      fringe.scale.set(1.35, 0.55, 0.9); fringe.position.set(-0.012, hc.y + 0.058, 0.04); fringe.rotation.set(0.45, 0, 0.25); look.add(fringe);
+    }
+    if (hairStyle === 'long') { const back = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.11, 6, 16), hairM); back.scale.z = 0.6; back.position.set(0, hc.y - 0.055, -0.05); look.add(back); }
+    if (hairStyle === 'bun') { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.036, 16, 12), hairM); bun.position.set(0, hc.y + 0.085, -0.06); look.add(bun); }
+    if (glasses) {
+      const gm = new THREE.MeshStandardMaterial({ color: '#1a1a1a', metalness: 0.5, roughness: 0.3 });
+      [-1, 1].forEach(sd => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.0024, 6, 24), gm); r.position.set(sd * 0.032, hc.y + 0.013, 0.093); look.add(r); });
+      const br = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.003, 0.003), gm); br.position.set(0, hc.y + 0.018, 0.096); look.add(br);
+    }
+    // blink every few seconds
+    let nextBlink = 1 + Math.random() * 4;
+    animated.push((t) => {
+      if (!g.parent) return;
+      const ph = t - nextBlink;
+      const k = ph > 0 && ph < 0.14 ? 0.12 : 1;
+      eyes.forEach(e => (e.scale.y = k));
+      if (ph > 0.14) nextBlink = t + 2.5 + Math.random() * 4;
     });
     // arms: placed by a two-bone reach, so hands land exactly where they are put (on the table, not through it)
     const capsule = (r, len, mat) => { const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 12), mat); m.userData.len = len + r * 2; return m; };
@@ -451,8 +449,8 @@ export function createCasino(host, kind) {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
     if (!drag.moved || view.cine) return;
-    view.yaw = Math.max(-1.5, Math.min(1.5, drag.yaw - dx * 0.005));
-    view.pitch = Math.max(-0.45, Math.min(0.35, drag.pitch + dy * 0.004));
+    view.yaw = Math.max(-0.32, Math.min(0.32, drag.yaw - dx * 0.003));
+    view.pitch = Math.max(-0.2, Math.min(0.1, drag.pitch + dy * 0.0025));
     view.idle = 0; cv.style.cursor = 'grabbing';
   });
   cv.addEventListener('pointerup', e => {
@@ -469,11 +467,11 @@ export function createCasino(host, kind) {
     seat.pos.copy(T.seat.pos); seat.target.copy(T.seat.target);
     if (tall) { seat.pos.y += 0.08; seat.pos.z += 0.14; }
     // keep the table across the view on tall phone screens too
-    camera.fov = w / h < 1 ? Math.min(78, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(46) / 2) * 1.25 / (w / h)) * 180 / Math.PI) : 50;
+    camera.fov = w / h < 1 ? Math.min(72, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(44) / 2) * 1.2 / (w / h)) * 180 / Math.PI) : 47;
     camera.updateProjectionMatrix();
   }
 
-  // ---------- the bar and your drink ----------
+  // ---------- your drink: brought to your elbow by a server, sipped when you click it ----------
   const drinkSpot = T.drinkSpot;
   let drink = null;
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -484,119 +482,174 @@ export function createCasino(host, kind) {
     ray.setFromCamera(ndc, camera);
     return ray.intersectObject(drink.obj, true).length > 0;
   }
-  function buildGlass(D) {
-    const g = new THREE.Group();
-    const glassM = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, roughness: 0.04, metalness: 0, clearcoat: 1, side: THREE.DoubleSide, depthWrite: false });
-    const liqM = new THREE.MeshStandardMaterial({ color: D.col, roughness: 0.15, transparent: true, opacity: 0.88, emissive: D.col, emissiveIntensity: 0.12 });
-    const liquid = new THREE.Group(); g.add(liquid);
-    let H = 0.1, top = 0.1, R = 0.035, cone = false;
-    if (D.glass === 'rocks') {
-      R = 0.042; H = 0.085;
-      g.add(new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.95, H, 28, 1, true), glassM));
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.95, R * 0.95, 0.012, 28), glassM); base.position.y = -H / 2 + 0.006; g.add(base);
-      const l = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.93, R * 0.9, H * 0.55, 28), liqM); l.position.y = 0; liquid.add(l); l.geometry.translate(0, H * 0.275, 0); liquid.position.y = -H / 2 + 0.012;
-      top = H * 0.55 - H / 2 + 0.012;
-      g.position.y = H / 2;
-    } else if (D.glass === 'highball') {
-      R = 0.034; H = 0.15;
-      g.add(new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 28, 1, true), glassM));
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.014, 28), glassM); base.position.y = -H / 2 + 0.007; g.add(base);
-      const l = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.94, R * 0.94, H * 0.78, 28), liqM); l.geometry.translate(0, H * 0.39, 0); liquid.add(l); liquid.position.y = -H / 2 + 0.014;
-      if (D.col2) { const l2 = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.945, R * 0.945, H * 0.22, 28), new THREE.MeshStandardMaterial({ color: D.col2, roughness: 0.2, transparent: true, opacity: 0.92 })); l2.geometry.translate(0, H * 0.11, 0); liquid.add(l2); }
-      top = H * 0.78 - H / 2 + 0.014;
-      g.position.y = H / 2;
-    } else { // martini / coupe: a bowl on a stem
-      cone = D.glass === 'martini';
-      const bowlH = cone ? 0.07 : 0.045, bowlR = cone ? 0.058 : 0.05, stemH = 0.075;
-      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, stemH, 10), glassM); stem.position.y = stemH / 2; g.add(stem);
-      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.036, 0.004, 28), glassM); foot.position.y = 0.002; g.add(foot);
-      const bowl = cone ? new THREE.Mesh(new THREE.ConeGeometry(bowlR, bowlH, 32, 1, true), glassM) : new THREE.Mesh(new THREE.SphereGeometry(bowlR, 32, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), glassM);
-      if (cone) { bowl.rotation.x = Math.PI; bowl.position.y = stemH + bowlH / 2; } else { bowl.position.y = stemH + bowlR * 0.98; bowl.scale.y = bowlH / bowlR; }
-      g.add(bowl);
-      const lg = cone ? new THREE.ConeGeometry(bowlR * 0.8, bowlH * 0.8, 32) : new THREE.SphereGeometry(bowlR * 0.94, 32, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-      if (cone) { lg.rotateX(Math.PI); lg.translate(0, bowlH * 0.4, 0); }
-      else lg.scale(1, bowlH / bowlR, 1).translate(0, bowlH * 0.94, 0);
-      const l = new THREE.Mesh(lg, liqM); liquid.add(l); liquid.position.y = stemH + (cone ? 0 : bowlR * 0.98 - bowlH * 0.94);
-      if (D.foam) { const f = new THREE.Mesh(new THREE.CylinderGeometry(bowlR * 0.8, bowlR * 0.8, 0.006, 28), new THREE.MeshStandardMaterial({ color: D.foam, roughness: 0.9 })); f.position.y = bowlH * 0.8; liquid.add(f); }
-      top = stemH + bowlH * (cone ? 0.82 : 0.9); R = bowlR * 0.8; H = top;
-      if (D.garnish.includes('salt')) { const rim = new THREE.Mesh(new THREE.TorusGeometry(bowlR * 0.99, 0.004, 6, 40), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1 })); rim.rotation.x = Math.PI / 2; rim.position.y = stemH + (cone ? bowlH : bowlH * 0.98 + bowlR * 0.0); g.add(rim); }
+  const V2 = (r, y) => new THREE.Vector2(r, y);
+  // glass shapes: outer wall up, over the rim, inner wall down (so the glass has real thickness)
+  const GLASS = {
+    rocks: { outer: [[0, 0], [0.04, 0], [0.043, 0.004], [0.045, 0.088]], inner: [[0, 0.013], [0.04, 0.013], [0.042, 0.088]], top: 0.088 },
+    highball: { outer: [[0, 0], [0.031, 0], [0.033, 0.004], [0.035, 0.15]], inner: [[0, 0.015], [0.03, 0.015], [0.032, 0.15]], top: 0.15 },
+    martini: { outer: [[0, 0], [0.036, 0], [0.036, 0.004], [0.006, 0.008], [0.004, 0.07], [0.008, 0.078], [0.066, 0.142]], inner: [[0, 0.082], [0.062, 0.141]], top: 0.142 },
+    coupe: { outer: [[0, 0], [0.034, 0], [0.034, 0.004], [0.006, 0.008], [0.004, 0.068], [0.014, 0.078], [0.042, 0.092], [0.056, 0.106], [0.06, 0.118]], inner: [[0, 0.08], [0.02, 0.083], [0.04, 0.094], [0.053, 0.106], [0.057, 0.117]], top: 0.118 },
+  };
+  function innerRadius(prof, y) { for (let i = 1; i < prof.length; i++) { const [r0, y0] = prof[i - 1], [r1, y1] = prof[i]; if (y <= y1) return r0 + (r1 - r0) * Math.max(0, (y - y0) / Math.max(1e-6, y1 - y0)); } return prof[prof.length - 1][0]; }
+  // liquid: the inside of the glass filled to a height (a lathe that closes over the top)
+  function liquidGeo(G, frac, D) {
+    const y0 = G.inner[0][1] + 0.0005, y1 = G.top - 0.012, yl = y0 + (y1 - y0) * frac;
+    const pts = [V2(0, y0)];
+    for (let i = 0; i <= 10; i++) { const y = y0 + (yl - y0) * (i / 10); pts.push(V2(Math.max(0.0005, innerRadius(G.inner, y) - 0.0012), y)); }
+    pts.push(V2(0, yl));
+    const geo = new THREE.LatheGeometry(pts, 32);
+    if (D.col2) { // two layers that blend, like grenadine settling under orange
+      const c1 = new THREE.Color(D.col2), c2 = new THREE.Color(D.col), cols = [], pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) { const t = Math.min(1, Math.max(0, (pos.getY(i) - y0) / Math.max(0.001, (y1 - y0) * 0.55))); const c = c1.clone().lerp(c2, t); cols.push(c.r, c.g, c.b); }
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
     }
-    const lvl = () => liquid.scale.y;
-    // ice, garnish, straw
-    const iceM = new THREE.MeshPhysicalMaterial({ color: '#eaf6ff', transparent: true, opacity: 0.55, roughness: 0.1 });
-    const yTop = top;   // already in the glass's own coordinates
-    if (D.ice === 'cube') { const ic = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), iceM); ic.position.y = yTop - 0.022; ic.rotation.set(0.2, 0.5, 0.1); g.add(ic); }
-    if (D.ice === 'cubes') for (let i = 0; i < 3; i++) { const ic = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.024, 0.024), iceM); ic.position.set((Math.random() - 0.5) * 0.026, yTop - 0.014 - i * 0.026, (Math.random() - 0.5) * 0.03); ic.rotation.set(Math.random(), Math.random(), Math.random()); g.add(ic); }
-    const add = (m, x, y, z) => { m.position.set(x, y, z); g.add(m); return m; };
+    return { geo, yl };
+  }
+  const lathe = pts => new THREE.LatheGeometry(pts.map(([r, y]) => V2(r, y)), 40);
+  const glassMat = () => new THREE.MeshPhysicalMaterial({ color: '#ffffff', metalness: 0, roughness: 0.05, transparent: true, opacity: 0.2, clearcoat: 1, clearcoatRoughness: 0.04, specularIntensity: 1, envMapIntensity: 2.2, depthWrite: false, side: THREE.DoubleSide });
+  const citrusTex = col => canvasTex(128, 128, (g) => {
+    g.fillStyle = col; g.beginPath(); g.arc(64, 64, 63, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#fbf6dc'; g.beginPath(); g.arc(64, 64, 54, 0, Math.PI * 2); g.fill();
+    for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5; g.fillStyle = col; g.globalAlpha = 0.75; g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 50, a + 0.06, a + Math.PI / 5 - 0.06); g.closePath(); g.fill(); }
+    g.globalAlpha = 1; g.fillStyle = '#fbf6dc'; g.beginPath(); g.arc(64, 64, 6, 0, Math.PI * 2); g.fill();
+  });
+  function buildGlass(D) {
+    const G = GLASS[D.glass];
+    const holder = new THREE.Group(), g = new THREE.Group(); holder.add(g);
+    const outer = G.outer.slice(), inner = G.inner.slice().reverse();
+    const shell = new THREE.Mesh(lathe([...outer, [outer[outer.length - 1][0] - 0.0015, G.top + 0.001], ...inner]), glassMat());
+    shell.renderOrder = 2; g.add(shell);
+    const liqM = new THREE.MeshPhysicalMaterial({ color: D.col2 ? '#ffffff' : D.col, vertexColors: !!D.col2, roughness: 0.1, clearcoat: 0.6, transparent: D.clear > 0.5, opacity: D.clear > 0.5 ? 0.78 : 1, emissive: D.col2 ? '#000000' : D.col, emissiveIntensity: 0.08 });
+    const L = liquidGeo(G, 1, D);
+    const liquid = new THREE.Mesh(L.geo, liqM); g.add(liquid);
+    const garnish = new THREE.Group(); g.add(garnish);
+    const yTop = L.yl, rTop = innerRadius(G.inner, G.top - 0.004);
+    const add = (m, x, y, z, par = garnish) => { m.position.set(x, y, z); par.add(m); return m; };
+    // ice
+    const iceM = new THREE.MeshPhysicalMaterial({ color: '#f4fbff', roughness: 0.12, transparent: true, opacity: 0.55, clearcoat: 1, depthWrite: false });
+    if (D.ice === 'cube') { const ic = add(new THREE.Mesh(new RoundedBoxGeometry(0.048, 0.048, 0.048, 3, 0.008), iceM), 0, yTop - 0.012, 0); ic.rotation.set(0.15, 0.6, 0.08); }
+    if (D.ice === 'cubes') for (let i = 0; i < 4; i++) { const ic = add(new THREE.Mesh(new RoundedBoxGeometry(0.024, 0.024, 0.024, 2, 0.005), iceM), (i % 2 ? 0.009 : -0.009), yTop - 0.01 - i * 0.022, (i % 3 - 1) * 0.008); ic.rotation.set(i * 0.7, i * 1.1, i * 0.4); }
     D.garnish.forEach(k => {
-      if (k === 'cherry') { add(new THREE.Mesh(new THREE.SphereGeometry(0.011, 14, 10), new THREE.MeshStandardMaterial({ color: '#b0101e', roughness: 0.25 })), 0.008, yTop + 0.004, 0.006); }
-      if (k === 'olive') { const pick = add(new THREE.Mesh(new THREE.CylinderGeometry(0.0015, 0.0015, 0.1, 6), M.gold), 0.01, yTop + 0.01, 0); pick.rotation.z = 0.5; add(new THREE.Mesh(new THREE.SphereGeometry(0.01, 12, 10), new THREE.MeshStandardMaterial({ color: '#7a8a2a', roughness: 0.4 })), 0.004, yTop - 0.006, 0).scale.set(1, 1.3, 1); }
-      if (k === 'lime' || k === 'lemon' || k === 'orange') {
-        const c = k === 'lime' ? '#7cc242' : k === 'lemon' ? '#f4d23a' : '#f28a1a';
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.005, 24), new THREE.MeshStandardMaterial({ color: c, roughness: 0.5, emissive: c, emissiveIntensity: 0.08 }));
-        wheel.rotation.z = Math.PI / 2; wheel.rotation.y = 0.4; add(wheel, R * 0.9, yTop + 0.012, 0);
+      if (k === 'cherry') {
+        const ch = add(new THREE.Mesh(new THREE.SphereGeometry(0.011, 18, 14), new THREE.MeshPhysicalMaterial({ color: '#8a0614', roughness: 0.15, clearcoat: 1 })), -rTop * 0.35, yTop + 0.006, rTop * 0.2);
+        const stem = new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, 0.009, 0), new THREE.Vector3(0.004, 0.025, 0), new THREE.Vector3(0.014, 0.035, 0)), 12, 0.0012, 6), new THREE.MeshStandardMaterial({ color: '#4a6a1a' })); ch.add(stem);
       }
-      if (k === 'peel' || k === 'twist') { const p = add(new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.003, 6, 16, Math.PI * 1.4), new THREE.MeshStandardMaterial({ color: k === 'peel' ? '#f28a1a' : '#7cc242', roughness: 0.5 })), R * 0.6, yTop + 0.008, 0); p.rotation.x = 1.2; }
-      if (k === 'mint') for (let i = 0; i < 4; i++) { const lf = add(new THREE.Mesh(new THREE.SphereGeometry(0.01, 8, 6), new THREE.MeshStandardMaterial({ color: '#3a9a3a', roughness: 0.6 })), (Math.random() - 0.5) * 0.03, yTop + 0.006, (Math.random() - 0.5) * 0.03); lf.scale.set(1.4, 0.3, 0.8); lf.rotation.y = Math.random() * 3; }
-      if (k === 'beans') for (let i = 0; i < 3; i++) { const b = add(new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 6), new THREE.MeshStandardMaterial({ color: '#2a160c', roughness: 0.4 })), (i - 1) * 0.011, yTop + 0.003, 0); b.scale.set(1, 0.6, 1.4); }
+      if (k === 'olive') {
+        const pick = add(new THREE.Mesh(new THREE.CylinderGeometry(0.0013, 0.0013, 0.11, 6), new THREE.MeshStandardMaterial({ color: '#c9a35a', roughness: 0.6 })), 0.01, yTop + 0.012, 0); pick.rotation.z = 0.55;
+        const ball = add(new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 6), M.gold), 0.04, yTop + 0.058, 0); void ball;
+        [0, 1].forEach(i => { const ol = add(new THREE.Mesh(new THREE.SphereGeometry(0.0095, 16, 12), new THREE.MeshPhysicalMaterial({ color: '#6f7d2a', roughness: 0.3, clearcoat: 0.6 })), 0.004 - i * 0.012, yTop - 0.012 + i * 0.016 - 0.01, 0); ol.scale.set(1, 1.3, 1); ol.rotation.z = 0.55; const pim = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 8, 6), new THREE.MeshStandardMaterial({ color: '#c8202f' })); pim.position.y = 0.011; ol.add(pim); });
+      }
+      if (k === 'lime' || k === 'lemon' || k === 'orange') {
+        const col = k === 'lime' ? '#6cb33a' : k === 'lemon' ? '#f2cf2e' : '#f08a1a';
+        const tex = citrusTex(col);
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.027, 0.005, 32), [new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 }), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 })]);
+        wheel.rotation.set(Math.PI / 2, 0, 0.5); add(wheel, rTop * 0.92 + 0.004, G.top - 0.006, 0); // perched on the rim, slit over the edge
+      }
+      if (k === 'peel') { const helix = new THREE.CatmullRomCurve3(Array.from({ length: 12 }, (_, i) => new THREE.Vector3(Math.cos(i * 0.9) * 0.008, i * 0.004, Math.sin(i * 0.9) * 0.008))); const pl = add(new THREE.Mesh(new THREE.TubeGeometry(helix, 40, 0.0035, 6), new THREE.MeshStandardMaterial({ color: '#f08a1a', roughness: 0.45 })), rTop * 0.45, yTop - 0.004, -rTop * 0.2); pl.rotation.z = 0.5; }
+      if (k === 'mint') {
+        const leaf = new THREE.Shape(); leaf.moveTo(0, 0); leaf.quadraticCurveTo(0.012, 0.012, 0, 0.03); leaf.quadraticCurveTo(-0.012, 0.012, 0, 0);
+        const lg = new THREE.ShapeGeometry(leaf, 8), lm = new THREE.MeshStandardMaterial({ color: '#2f8a2f', roughness: 0.55, side: THREE.DoubleSide });
+        for (let i = 0; i < 7; i++) { const lf = add(new THREE.Mesh(lg, lm), -0.008 + (i % 3) * 0.006, yTop + 0.004 + (i % 2) * 0.006, -0.006 + (i % 2) * 0.006); lf.rotation.set(-0.6 + (i % 3) * 0.25, i * 0.9, (i - 3) * 0.25); }
+      }
+      if (k === 'salt') { const rim = new THREE.Mesh(new THREE.TorusGeometry(G.outer[G.outer.length - 1][0] - 0.001, 0.0028, 8, 64), new THREE.MeshStandardMaterial({ color: '#f8f8f4', roughness: 1 })); rim.rotation.x = Math.PI / 2; rim.position.y = G.top - 0.001; g.add(rim); }
+      if (k === 'beans') for (let i = 0; i < 3; i++) { const b = add(new THREE.Mesh(new THREE.SphereGeometry(0.0055, 10, 8), new THREE.MeshPhysicalMaterial({ color: '#2a160c', roughness: 0.25, clearcoat: 0.8 })), (i - 1) * 0.011, yTop + 0.006, 0.004 * (i - 1)); b.scale.set(1, 0.6, 1.4); }
     });
-    if (D.straw) { const s = add(new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, H * 1.15, 8), new THREE.MeshStandardMaterial({ color: D.na ? '#ff5a8a' : '#111', roughness: 0.4 })), R * 0.4, 0.03, 0); s.rotation.z = -0.18; }
-    const coaster = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.003, 32), new THREE.MeshStandardMaterial({ color: '#1a0a06', roughness: 0.9 }));
-    const holder = new THREE.Group(); holder.add(coaster); holder.add(g); coaster.position.y = 0.0015; g.position.y += 0.003;
+    if (D.foam) { const f = new THREE.Mesh(new THREE.CylinderGeometry(innerRadius(G.inner, yTop) - 0.002, innerRadius(G.inner, yTop - 0.004) - 0.002, 0.004, 32), new THREE.MeshStandardMaterial({ color: D.foam, roughness: 0.9 })); f.position.y = yTop; garnish.add(f); }
+    if (D.straw) {
+      const stripes = canvasTex(16, 128, (gg) => { gg.fillStyle = D.straw; gg.fillRect(0, 0, 16, 128); gg.fillStyle = 'rgba(255,255,255,.85)'; for (let y = 0; y < 128; y += 22) gg.fillRect(0, y, 16, 8); });
+      const st = add(new THREE.Mesh(new THREE.CylinderGeometry(0.0032, 0.0032, G.top * 1.25, 10), new THREE.MeshStandardMaterial({ map: stripes, roughness: 0.4 })), rTop * 0.35, G.top * 0.62, -rTop * 0.2, g); st.rotation.z = -0.16;
+    }
+    // bubbles rising in the sparkling ones
+    let bubbles = null;
+    if (D.bubbles) {
+      bubbles = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0018, 6, 4), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.7 }), 24);
+      bubbles.userData.p = Array.from({ length: 24 }, () => ({ x: (Math.random() - 0.5) * 0.04, z: (Math.random() - 0.5) * 0.04, y: Math.random(), v: 0.4 + Math.random() * 0.6 }));
+      g.add(bubbles);
+    }
+    // coaster with the lounge's mark
+    const coastTex = canvasTex(128, 128, (gg) => { gg.fillStyle = '#1c0b08'; gg.beginPath(); gg.arc(64, 64, 64, 0, Math.PI * 2); gg.fill(); gg.strokeStyle = '#c99a2e'; gg.lineWidth = 3; gg.beginPath(); gg.arc(64, 64, 54, 0, Math.PI * 2); gg.stroke(); gg.fillStyle = '#d9a843'; gg.font = 'italic 700 40px Georgia, serif'; gg.textAlign = 'center'; gg.textBaseline = 'middle'; gg.fillText('OL', 64, 68); });
+    const coaster = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.003, 40), [new THREE.MeshStandardMaterial({ color: '#1c0b08' }), new THREE.MeshStandardMaterial({ map: coastTex, roughness: 0.85 }), new THREE.MeshStandardMaterial({ color: '#1c0b08' })]);
+    coaster.position.y = 0.0015; holder.add(coaster); g.position.y = 0.003;
     holder.traverse(o => { if (o.isMesh) o.castShadow = true; });
-    return { obj: holder, glass: g, liquid, lvl, D };
+    return { obj: holder, glass: g, liquid, garnish, G, D, frac: 1, bubbles };
+  }
+  function setLevel(d, frac) {
+    d.frac = frac;
+    const L = liquidGeo(d.G, Math.max(0.001, frac), d.D);
+    d.liquid.geometry.dispose(); d.liquid.geometry = L.geo;
+    d.liquid.visible = frac > 0.02;
+    // things floating on top ride down with it; ice settles
+    d.garnish.children.forEach(m => { if (m.userData.y0 == null) m.userData.y0 = m.position.y; });
+    const drop = (1 - frac) * ((d.G.top - 0.012) - (d.G.inner[0][1])) * 0.85;
+    d.garnish.children.forEach(m => { if (m.userData.y0 < d.G.top - 0.008) m.position.y = Math.max(d.G.inner[0][1] + 0.012, m.userData.y0 - drop); });
   }
 
-  // bartender mixing: turn to look at the bar, shaker going, then the drink arrives at your elbow
+  // the server: a sleeve and a white glove carrying a round tray in from the side
+  const server = new THREE.Group(); server.visible = false; scene.add(server);
+  {
+    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.42, 6, 14), new THREE.MeshStandardMaterial({ color: '#141014', roughness: 0.6 }));
+    sleeve.rotation.z = Math.PI / 2; sleeve.position.set(0.3, -0.03, 0); server.add(sleeve);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.03, 16), new THREE.MeshStandardMaterial({ color: '#f4f1ea', roughness: 0.6 })); cuff.rotation.z = Math.PI / 2; cuff.position.set(0.075, -0.03, 0); server.add(cuff);
+    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 12), new THREE.MeshStandardMaterial({ color: '#fbfaf6', roughness: 0.7 })); glove.scale.set(1.2, 0.45, 1); glove.position.set(0.03, -0.02, 0); server.add(glove);
+    const tray = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.008, 40), new THREE.MeshStandardMaterial({ color: '#d8d8de', metalness: 1, roughness: 0.2 })); tray.position.set(0, -0.004, 0); server.add(tray);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.004, 6, 48), M.gold); lip.rotation.x = Math.PI / 2; server.add(lip);
+    server.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  }
   function order(D) {
-    if (drink && drink.state !== 'ready') return false;
+    if (drink && !['ready', 'done'].includes(drink.state)) return false;
     if (drink) { scene.remove(drink.obj); drink = null; }
-    const G = buildGlass(D);
-    drink = { ...G, state: 'mixing', t: 0, sips: 0 };
-    const quick = reduced();
-    if (!quick) view.cine = { t: 0, dur: 4.6, from: view.yaw, fromP: view.pitch };
-    bar.shaking = quick ? 0.01 : 2.6;
-    snd.shake();
-    setTimeout(() => snd.pour(), quick ? 0 : 2600);
-    drink.arriveAt = quick ? 0.2 : 3.4;
+    drink = { ...buildGlass(D), state: 'coming', t: 0, sips: 0 };
+    snd.pour();
     return true;
   }
   function sip() {
     if (!drink || drink.state !== 'ready') return;
-    drink.state = 'sip'; drink.t = 0; snd.sip();
+    drink.state = 'sip'; drink.t = 0; drink.drank = false; snd.sip();
   }
+  const SIPS = 4;
   function stepDrink(dt) {
     if (!drink) return;
     const d = drink; d.t += dt;
-    if (d.state === 'mixing' && d.t >= d.arriveAt) {
-      d.state = 'arrive'; d.t = 0;
-      scene.add(d.obj);
+    const sx = drinkSpot.x, sz = drinkSpot.z;
+    if (d.state === 'coming') {           // the tray slides in from the right, a little above the table
+      if (d.t > 1.4 && !d.obj.parent) { server.add(d.obj); d.obj.position.set(0, 0.004, 0); server.visible = true; }
+      const p = Math.min(1, Math.max(0, (d.t - 1.4) / 1.0)), e = easeOut(p);
+      server.position.set(lerp(sx + 0.9, sx, e), 0.09, lerp(sz - 0.25, sz, e));
+      if (p >= 1) { d.state = 'place'; d.t = 0; }
     }
-    if (d.state === 'arrive') {
-      const p = Math.min(1, d.t / 0.9), e = easeOut(p);
-      d.obj.position.set(lerp(drinkSpot.x + 0.6, drinkSpot.x, e), 0, lerp(drinkSpot.z - 0.1, drinkSpot.z, e));
-      d.obj.rotation.y = (1 - e) * 1.2;
-      if (p >= 1) { d.state = 'ready'; snd.clink(); api.onDrink && api.onDrink('ready', d.D); }
+    if (d.state === 'place') {            // set the glass down on the table, then the tray leaves
+      const p = Math.min(1, d.t / 0.5);
+      if (d.obj.parent === server) { const wpos = new THREE.Vector3(); d.obj.getWorldPosition(wpos); scene.add(d.obj); d.obj.position.copy(wpos); }
+      d.obj.position.set(sx, lerp(0.093, 0, easeOut(p)), sz);
+      if (p >= 1) { snd.clink(); d.state = 'ready'; d.t = 0; d.leaving = 0; api.onDrink && api.onDrink('ready', d.D); }
     }
-    if (d.state === 'sip') {
-      // lift it toward you, tip, put it back
+    if (server.visible && (d.state === 'ready' || d.state === 'sip')) {
+      d.leaving = (d.leaving || 0) + dt;
+      const p = Math.min(1, d.leaving / 0.8);
+      server.position.set(lerp(sx, sx + 0.95, ease(p)), 0.09 + p * 0.05, lerp(sz, sz - 0.2, p));
+      if (p >= 1) server.visible = false;
+    }
+    if (d.state === 'sip') {               // lift it toward you, tip, put it back
       const p = Math.min(1, d.t / 1.8), up = Math.sin(Math.min(1, p / 0.5) * Math.PI / 2) * (p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3);
       const eye = camera.position, fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
-      const hold = new THREE.Vector3().copy(eye).addScaledVector(fwd, 0.32); hold.y -= 0.12;
-      d.obj.position.set(lerp(drinkSpot.x, hold.x, up), lerp(0, hold.y, up), lerp(drinkSpot.z, hold.z, up));
-      d.glass.rotation.x = -up * 0.55;
-      if (p > 0.35 && !d.drank) { d.drank = true; d.sips++; }
-      const target = Math.max(0.02, 1 - d.sips * 0.25);
-      d.liquid.scale.y = lerp(d.liquid.scale.y, target, Math.min(1, dt * 3));
-      if (p >= 1) { d.drank = false; d.state = d.sips >= 4 ? 'done' : 'ready'; d.t = 0; d.glass.rotation.x = 0; if (d.sips >= 4) api.onDrink && api.onDrink('empty', d.D); }
+      const hold = new THREE.Vector3().copy(eye).addScaledVector(fwd, 0.3); hold.y -= 0.13;
+      d.obj.position.set(lerp(sx, hold.x, up), lerp(0, hold.y, up), lerp(sz, hold.z, up));
+      d.glass.rotation.x = -up * 0.6;
+      if (p > 0.42 && !d.drank) { d.drank = true; d.sips++; }
+      const target = Math.max(0, 1 - d.sips / SIPS);
+      if (Math.abs(d.frac - target) > 0.005) setLevel(d, lerp(d.frac, target, Math.min(1, dt * 4)));
+      if (p >= 1) { d.glass.rotation.x = 0; setLevel(d, target); d.state = d.sips >= SIPS ? 'done' : 'ready'; d.t = 0; if (d.sips >= SIPS) api.onDrink && api.onDrink('empty', d.D); }
     }
-    if (d.state === 'done') {
-      const p = Math.min(1, d.t / 1.2);
-      d.obj.position.x = drinkSpot.x + easeOut(p) * 0.7; d.obj.traverse(o => { if (o.material && 'opacity' in o.material) { o.material.transparent = true; } });
-      d.obj.scale.setScalar(1 - p * 0.5);
+    if (d.state === 'done' && d.t > 2.5) {  // the empty glass is cleared away
+      const p = Math.min(1, (d.t - 2.5) / 0.8);
+      d.obj.position.x = sx + ease(p) * 0.9; d.obj.position.y = p * 0.06;
       if (p >= 1) { scene.remove(d.obj); drink = null; }
     }
-    if (d.state === 'ready' && d.D.bubbles && Math.random() < 0.3) { /* fizz is implied by the glass sparkle */ }
+    if (d.bubbles && d.obj.parent) {
+      const B = d.bubbles, top = d.G.inner[0][1] + (d.G.top - 0.012 - d.G.inner[0][1]) * d.frac, m = new THREE.Matrix4();
+      B.userData.p.forEach((b, i) => { b.y += b.v * dt * 0.4; if (b.y > 1) b.y = 0; m.makeTranslation(b.x * 0.6, d.G.inner[0][1] + (top - d.G.inner[0][1]) * b.y, b.z * 0.6); B.setMatrixAt(i, m); });
+      B.instanceMatrix.needsUpdate = true; B.visible = d.frac > 0.05;
+    }
   }
 
   // ---------- bloom and the frame loop ----------
@@ -623,7 +676,7 @@ export function createCasino(host, kind) {
       if (p >= 1) { view.cine = null; view.yaw = 0; view.pitch = 0; }
     } else if (!drag) {
       view.idle += dt;
-      if (view.idle > 7) { view.yaw *= 1 - Math.min(1, dt * 1.5); view.pitch *= 1 - Math.min(1, dt * 1.5); }
+      if (view.idle > 3.5) { view.yaw *= 1 - Math.min(1, dt * 1.5); view.pitch *= 1 - Math.min(1, dt * 1.5); }
     }
     aim();
     animated.forEach(f => f(tAll, dt));
@@ -952,7 +1005,7 @@ export function createCasino(host, kind) {
     return {
       seat: { pos: new THREE.Vector3(0, 0.43, 0.98), target: new THREE.Vector3(0, 0.07, -0.42) },
       dealFrom: { x: 0.8, z: -0.3 }, muck: { x: -0.85, z: -0.32 },
-      drinkSpot: { x: 0.27, z: 0.6 }, barYaw: 1.38, barPitch: 0.06, dealer,
+      drinkSpot: { x: 0.2, z: 0.64 }, barYaw: 1.38, barPitch: 0.06, dealer,
     };
   }
 
@@ -974,7 +1027,7 @@ export function createCasino(host, kind) {
     return {
       seat: { pos: new THREE.Vector3(0, 0.46, 1.02), target: new THREE.Vector3(0, 0.05, -0.38) },
       dealFrom: { x: 0, z: -0.45 }, muck: { x: 0.35, z: -0.42 },
-      drinkSpot: { x: 0.28, z: 0.58 }, barYaw: 1.4, barPitch: 0.06, A, B, chair,
+      drinkSpot: { x: 0.2, z: 0.62 }, barYaw: 1.4, barPitch: 0.06, A, B, chair,
     };
   }
   function rrStadium(g, cx, cy, a, b) { g.beginPath(); g.moveTo(cx - a + b, cy - b); g.lineTo(cx + a - b, cy - b); g.arc(cx + a - b, cy, b, -Math.PI / 2, Math.PI / 2); g.lineTo(cx - a + b, cy + b); g.arc(cx - a + b, cy, b, Math.PI / 2, Math.PI * 1.5); g.stroke(); }
@@ -994,22 +1047,25 @@ export function barButton(host, casino) {
   let tt = null;
   const say = (s, ms = 3800) => { toast.innerHTML = s; toast.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => toast.classList.remove('on'), ms); };
   casino.onDrink = (st, D) => {
-    if (st === 'ready') say(`Your <b>${D.name}</b> is here. On the house. Click the glass to take a sip.`, 5200);
+    if (st === 'ready') say(`Your <b>${D.name}</b> is here. Click the glass to take a sip.`, 5200);
     if (st === 'empty') say('All gone. Another round? The bar is always open.');
   };
   btn.onclick = () => {
     let dlg = document.getElementById('barDlg');
     if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'barDlg'; dlg.className = 'rules bar-dlg'; document.body.appendChild(dlg); }
-    dlg.innerHTML = `<h2>The bar</h2><p class="sub">Drinks are on the house while you play. Pick one and the bartender will mix it.</p>
-      <div class="drinks">${DRINKS.map(d => `<button type="button" class="drink" data-id="${d.id}"><span class="sw" style="--c:${d.col};--c2:${d.col2 || d.col}"></span><span><b>${d.name}</b>${d.na ? '<em>No alcohol</em>' : ''}<br><small>${d.note}</small></span></button>`).join('')}</div>
+    const have = window.UI ? Math.floor(UI.wallet.chips) : 0;
+    dlg.innerHTML = `<h2>The bar</h2><p class="sub">A server will bring it to your seat. Drinks cost a few chips, taken from your wallet (you have ${have.toLocaleString('en-US')}).</p>
+      <div class="drinks">${DRINKS.map(d => `<button type="button" class="drink" data-id="${d.id}" ${have < d.price ? 'disabled' : ''}><span class="sw" style="--c:${d.col};--c2:${d.col2 || d.col}"></span><span class="dn"><b>${d.name}</b>${d.na ? '<em>No alcohol</em>' : ''}<br><small>${d.note}</small></span><span class="pr">${d.price}</span></button>`).join('')}</div>
       <div class="rule-actions"><button type="button" class="ghostbtn" data-close>Not now</button></div>`;
     dlg.onclick = e => {
       if (e.target.closest('[data-close]')) return dlg.close();
       const b = e.target.closest('[data-id]'); if (!b) return;
       const D = DRINKS.find(x => x.id === b.dataset.id);
       dlg.close();
-      if (casino.order(D)) say(`One <b>${D.name}</b> coming up…`, 3200);
-      else say('Your last drink is still on its way.');
+      if (!window.UI || UI.wallet.chips < D.price) { say('Not enough chips in your wallet for that one.'); return; }
+      if (!casino.order(D)) { say('Your last drink is still on its way.'); return; }
+      UI.wallet.add(-D.price);
+      say(`One <b>${D.name}</b> coming up · ${D.price} chips`, 3000);
     };
     dlg.showModal();
   };
