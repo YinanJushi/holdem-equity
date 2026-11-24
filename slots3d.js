@@ -498,6 +498,15 @@ function create(host) {
     camera.aspect = w / h; camera.updateProjectionMatrix();
     const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     fitDist = Math.max(5.95 / t, 4.1 / (t * camera.aspect)) + 1.2;
+    // phones: tip the button deck up toward the viewer and make the buttons and chips bigger
+    const small = w < 520;
+    deck.rotation.x = small ? 0.55 : 0.3;
+    deck.position.set(0, small ? -3.42 : -3.15, small ? 1.25 : 0.95);
+    Object.values(buttons).forEach(b => b.g.scale.setScalar(small ? (b.id.startsWith('coin') ? 1.2 : 1.22) : 1));
+    betMesh.scale.setScalar(small ? 1.25 : 1);
+    [10, 50, 100, 500].forEach((n, i) => (buttons['coin' + n].g.position.x = small ? -2.2 + i * 0.62 : -1.85 + i * 0.62));
+    slotG.position.x = small ? -2.92 : -2.75;
+    buttons.spin.g.position.set(small ? 0.2 : 0.05, 0.17, small ? 0.46 : 0.32);
   }
   new ResizeObserver(resize).observe(host);
   resize();
@@ -510,7 +519,17 @@ function create(host) {
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     const hit = ray.intersectObjects(clickables, false)[0];
-    return hit ? hit.object.userData.btn : null;
+    if (hit) return hit.object.userData.btn;
+    const reach = e.pointerType === 'touch' || r.width < 520 ? 34 : 10;
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    let best = null, bestD = reach;
+    const cands = Object.values(buttons).map(b => [b, b.g]).concat([[leverBtn, ball]]);
+    cands.forEach(([b, obj]) => {
+      obj.getWorldPosition(wp).project(camera);
+      const d = Math.hypot((wp.x + 1) / 2 * r.width - px, (1 - wp.y) / 2 * r.height - py);
+      if (d < bestD) { bestD = d; best = b; }
+    });
+    return best;
   };
   renderer.domElement.addEventListener('pointermove', e => {
     const r = renderer.domElement.getBoundingClientRect();
