@@ -860,3 +860,17 @@ body:not(.t3d-on) .bet-pill { display: none; }
 .bc-z.P { background: #2a62c9; } .bc-z.T { background: #1e9a5a; } .bc-z.B { background: #c22a35; }
 .bc-z:disabled { opacity: .5; cursor: default; }
 .bc-z[data-n]:not([data-n=""])::after { content: attr(data-n); position: absolute; top: -9px; right: -6px; background: #f2c14e; color: #1b0a06; font: 800 11px "Share Tech Mono", monospace; border-radius: 999px; padding: 2px 6px; }
+
+/* coin pusher: the super jackpot meter */
+.pz-jp { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: linear-gradient(90deg, rgba(40,10,70,.9), rgba(70,20,110,.9)); border: 1px solid #c58bff; box-shadow: 0 0 18px rgba(170,100,255,.45); color: #f3e6ff; font: 700 12px var(--sans); white-space: nowrap; pointer-events: auto; }
+.pz-jp small { font: 700 10.5px var(--sans); letter-spacing: .06em; opacity: .85; }
+.pz-jp b { font: 400 20px "Share Tech Mono", ui-monospace, monospace; color: #ffe08a; text-shadow: 0 0 10px rgba(255,210,120,.8); }
+.pz-stars i { font-style: normal; font-size: 16px; color: rgba(255,255,255,.22); margin: 0 1px; }
+.pz-stars i.on { color: #e3b3ff; text-shadow: 0 0 10px #b26bff, 0 0 3px #fff; }
+.pz-jp.flash { animation: pzJp 1.2s ease-out; }
+@keyframes pzJp { 0% { transform: translateX(-50%) scale(1.25); box-shadow: 0 0 40px #c58bff; } 100% { transform: translateX(-50%) scale(1); } }
+@media (max-width: 640px) { .pz-jp { top: 54px; } }
+.pz-pop.star { font-size: 30px; color: #e3b3ff; text-shadow: 0 0 14px #9a4dff, 0 2px 4px rgba(0,0,0,.8); }
+.pz-banner.hold { animation: pzBannerHold 4.5s ease-out forwards; border-color: #c58bff; box-shadow: 0 0 60px rgba(170,100,255,.7), inset 0 0 20px rgba(200,140,255,.3); }
+.pz-banner.hold b { color: #f0d4ff; font-size: clamp(34px, 9vw, 60px); text-shadow: 0 0 22px #b26bff; }
+@keyframes pzBannerHold { 0% { opacity: 0; transform: translateX(-50%) scale(.4) rotate(-6deg); } 10% { opacity: 1; transform: translateX(-50%) scale(1.15) rotate(2deg); } 18% { transform: translateX(-50%) scale(1) rotate(0); } 90% { opacity: 1; } 100% { opacity: 0; } }

@@ -882,7 +882,14 @@ Object.assign(I18N.dict, {
 "MINI": "迷你",
 "AUTO": "自动",
 "PAYS": "赔付表",
-"Tap Player, Banker or Tie (on the table or below) to bet, then Deal.": "点闲、庄或和（桌面或下方按钮都可以）下注，然后按发牌。"
+"Tap Player, Banker or Tie (on the table or below) to bet, then Deal.": "点闲、庄或和（桌面或下方按钮都可以）下注，然后按发牌。",
+"SUPER JACKPOT": "超级大奖",
+"SUPER JACKPOT!": "超级大奖！",
+"coins": "枚",
+"STAR COIN!": "星星币！",
+"Push {0} purple star coins into the tray to win the super jackpot.": "把 {0} 枚紫色星星币推进收币盘，就能赢得超级大奖。",
+"Coin Flood": "金币洪流",
+"Win the coin pusher SUPER JACKPOT (three star coins).": "赢得推币机超级大奖（集齐三颗星）。"
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],

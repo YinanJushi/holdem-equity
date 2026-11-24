@@ -12,7 +12,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=87';
+import { headerChrome, onQuality } from './chrome3d.js?v=88';
 
 const COIN = 5, GOLD = 5, $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#pzHost');
@@ -33,7 +33,7 @@ function start() {
   const key = new THREE.SpotLight('#fff1dc', 1.9, 3, 0.9, 1, 1.2); key.position.set(0.1, 1.0, 0.25); key.target.position.set(0, 0, -0.15); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0005; scene.add(key, key.target);
 
   // ---------- the machine's layout (metres; z points toward you) ----------
-  const W = 0.36, FRONT = 0.3, BACK = -0.72, WIN = 0.16;
+  const W = 0.36, FRONT = 0.3, BACK = -0.72, WIN = 0.15;
   const R = 0.03, TH = 0.01;                                   // coin radius and thickness
   const P1 = { h: 0.06, d: 0.4 }, SLAB = { y0: 0.064, y1: 0.15, z1: -0.3 };   // lower pusher; the upper deck slab above its back half
   const P2 = { h: 0.04, d: 0.22 }, SCRAPER = { y0: 0.194, z1: -0.5 };        // upper pusher; the scraper above its back half
@@ -61,7 +61,7 @@ function start() {
 
   // ---------- coins ----------
   const coins = [];   // { body, gold, gate, vy, paid }
-  const MAXC = 520;
+  const MAXC = 680;
   function addCoin(x, y, z, gold, opts = {}) {
     if (coins.length >= MAXC) return null;
     const q = opts.q || new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * (opts.tumble || 0.3), Math.random() * 6, (Math.random() - 0.5) * (opts.tumble || 0.3)));
@@ -69,7 +69,7 @@ function start() {
     if (opts.vy) d.setLinvel(opts.vx || 0, opts.vy, opts.vz || 0);
     const body = world.createRigidBody(d);
     world.createCollider(RAPIER.ColliderDesc.roundCylinder(TH / 2 - 0.002, R - 0.002, 0.002).setDensity(gold ? 9 : 8).setFriction(0.32).setRestitution(0.08), body);
-    const c = { body, gold, gate: !!opts.gate, vy: 0, paid: false };
+    const c = { body, gold, star: !!opts.star, gate: !!opts.gate, vy: 0, paid: false };
     coins.push(c); return c;
   }
   const removeCoin = i => { world.removeRigidBody(coins[i].body); coins.splice(i, 1); };
@@ -153,7 +153,8 @@ function start() {
   const coinGeo = new THREE.CylinderGeometry(R, R, TH, 32);
   const silverI = new THREE.InstancedMesh(coinGeo, coinMats('#9a9ca8', '#eef0f6', '#6a6c78', '♠', 0.95), MAXC);
   const goldI = new THREE.InstancedMesh(coinGeo, coinMats('#c8902a', '#ffe08a', '#8a5a12', '★', 1, '#8a5a10'), MAXC);
-  [silverI, goldI].forEach(m => { m.castShadow = true; m.receiveShadow = true; m.count = 0; m.frustumCulled = false; scene.add(m); });
+  const starI = new THREE.InstancedMesh(coinGeo, coinMats('#5a24b8', '#ead2ff', '#2e0c66', '✦', 0.85, '#8a3cff'), 40);
+  [silverI, goldI, starI].forEach(m => { m.castShadow = true; m.receiveShadow = true; m.count = 0; m.frustumCulled = false; scene.add(m); });
 
   // ---------- sparkles ----------
   const NP = 600, pPos = new Float32Array(NP * 3), pCol = new Float32Array(NP * 3), parts = [];
@@ -199,9 +200,48 @@ function start() {
   function pop(text, cls = '') { const p = document.createElement('div'); p.className = 'pz-pop ' + cls; p.textContent = text; popWrap.appendChild(p); setTimeout(() => p.remove(), 1600); }
   const banner = document.createElement('div'); banner.className = 'pz-banner'; banner.hidden = true; banner.setAttribute('role', 'status'); host.appendChild(banner);
   let bannerT = 0;
-  function showBanner(big, small) { banner.innerHTML = `<b>${big}</b>${small ? `<span>${small}</span>` : ''}`; banner.hidden = false; banner.classList.remove('go'); void banner.offsetWidth; banner.classList.add('go'); clearTimeout(bannerT); bannerT = setTimeout(() => { banner.hidden = true; }, 2200); }
+  function showBanner(big, small) { banner.innerHTML = `<b>${big}</b>${small ? `<span>${small}</span>` : ''}`; banner.hidden = false; banner.classList.remove('go', 'hold'); void banner.offsetWidth; banner.classList.add('go'); clearTimeout(bannerT); bannerT = setTimeout(() => { banner.hidden = true; }, 2200); }
+  function bannerHold(ms) { banner.classList.add('hold'); clearTimeout(bannerT); bannerT = setTimeout(() => { banner.hidden = true; banner.classList.remove('hold'); }, ms); }
   let shake = 0;
+  // ---------- the super jackpot: three star coins in the tray release a flood of coins ----------
+  // About one coin in 220 is a purple star coin. Each one pushed into the paying tray lights a star; the third
+  // star releases the jackpot. The jackpot starts at 40 coins and grows by one for every 12 coins dropped (up to 180).
+  const JKEY = 'ol-pz-jp', STAR_P = 1 / 220, JP_BASE = 40, JP_EVERY = 12, JP_MAX = 180;
+  let JP = (() => { try { const v = JSON.parse(localStorage.getItem(JKEY) || 'null'); if (v && Number.isFinite(v.stars) && Number.isFinite(v.since)) return v; } catch (e) { /* default */ } return { stars: 0, since: 0 }; })();
+  const jpSize = () => Math.min(JP_MAX, JP_BASE + Math.floor(JP.since / JP_EVERY));
+  const saveJP = () => { if (!sim) try { localStorage.setItem(JKEY, JSON.stringify(JP)); } catch (e) { /* ignore */ } };
+  const meter = document.createElement('div'); meter.className = 'pz-jp'; meter.setAttribute('role', 'status'); host.appendChild(meter);
+  function paintMeter(flash) {
+    meter.innerHTML = `<small>${tr('SUPER JACKPOT')}</small><span class="pz-stars">${[0, 1, 2].map(i => `<i class="${i < JP.stars ? 'on' : ''}">★</i>`).join('')}</span><b>${jpSize()}</b><small>${tr('coins')}</small>`;
+    meter.title = tr('Push 3 purple star coins into the tray to win the super jackpot.');
+    if (flash) { meter.classList.remove('flash'); void meter.offsetWidth; meter.classList.add('flash'); }
+  }
+  function starIn(x, z) {
+    JP.stars++;
+    if (sim) { sim.stars = (sim.stars || 0) + 1; if (JP.stars >= 3) superJackpot(); return; }
+    burst(x, 0, z, 60, 1.1, [0.9, 0.5, 1.6]); fanfare(false); pop(`★ ${JP.stars} / 3`, 'star');
+    if (JP.stars >= 3) setTimeout(superJackpot, 900); else { saveJP(); paintMeter(true); }
+  }
+  let superT = 0;
+  function superJackpot() {
+    const n = jpSize();
+    JP = { stars: 0, since: 0 }; saveJP();
+    wallUp = Math.max(wallUp, 25);
+    // the flood: waves of silver coins across both decks, with a gold coin now and then
+    const base = rainQ.length ? rainQ[rainQ.length - 1].at : 0;
+    for (let i = 0; i < n; i++) rainQ.push({ at: base + 0.4 + i * 0.03 + Math.floor(i / 30) * 0.5, gold: i % 25 === 24, wide: true });
+    if (sim) { sim.super = (sim.super || 0) + 1; sim.superCoins = (sim.superCoins || 0) + n; return; }
+    superT = 4 + n * 0.03 + Math.floor(n / 30) * 0.5;
+    showBanner(tr('SUPER JACKPOT!'), `${n} ${tr('coins')}`); bannerHold(4500);
+    lamp.redraw(tr('SUPER JACKPOT!'), `${n} ${tr('coins')}`, '#c58bff');
+    fanfare(true); setTimeout(() => fanfare(true), 700); shake = 2;
+    for (let k = 0; k < 6; k++) setTimeout(() => burst((Math.random() - 0.5) * 0.5, 0.45 + Math.random() * 0.2, -0.3 + Math.random() * 0.3, 70, 1.4, k % 2 ? [1.2, 0.85, 0.3] : [0.9, 0.5, 1.6]), k * 500);
+    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: 'super', n } }));
+    paintMeter(true);
+    setTimeout(() => { if (!rolling) lamp.redraw(); }, 9000);
+  }
   function payout(c, x, z) {
+    if (c.star) starIn(x, z);
     const v = COIN * (c.gold ? GOLD : 1);
     if (sim) { sim.won += v; sim.mid = (sim.mid || 0) + 1; if (c.gold) sim.goldOut = (sim.goldOut || 0) + 1; return; }
     pending += v; won += v;
@@ -219,13 +259,16 @@ function start() {
       last = performance.now();
       pending -= COIN; dropped += COIN; drops++;
     }
-    const c = addCoin(aimX + (Math.random() - 0.5) * 0.006, DROP.y, DROP.z + (Math.random() - 0.5) * 0.01, drops % 20 === 0, { gate: true, vy: -0.4 });
+    const gold = drops % 20 === 0, star = !gold && Math.random() < STAR_P;
+    if (!free || sim) { JP.since++; if (!sim && JP.since % JP_EVERY === 0) { saveJP(); paintMeter(); } }
+    const c = addCoin(aimX + (Math.random() - 0.5) * 0.006, DROP.y, DROP.z + (Math.random() - 0.5) * 0.01, gold, { gate: true, vy: -0.4, star });
+    if (c && star && !sim) { burst(c.body.translation().x, DROP.y, DROP.z, 25, 0.5, [0.9, 0.5, 1.6]); pop(tr('STAR COIN!'), 'star'); }
     if (c && !sim) { beep(1800); info(); document.body.classList.add('pz-played'); window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-drop' } })); }
   }
 
   // ---------- the bonus lamp ----------
   const BONUS = [
-    { k: 'shower', p: 0.24, big: 'COIN SHOWER', small: '8 free coins' },
+    { k: 'shower', p: 0.24, big: 'COIN SHOWER', small: '6 free coins' },
     { k: 'gold', p: 0.16, big: 'GOLD RUSH', small: '2 gold coins' },
     { k: 'walls', p: 0.15, big: 'FUNNEL WALLS', small: 'walls guide the corners in for 15 seconds' },
     { k: 'jackpot', p: 0.025, big: 'JACKPOT!', small: '20 coins + 3 gold' },
@@ -237,7 +280,7 @@ function start() {
   function pickBonus() { let r = Math.random(); for (const b of BONUS) { if (r < b.p) return b; r -= b.p; } return BONUS[BONUS.length - 1]; }
   function applyBonus(b) {
     const rain = (n, gold) => { const base = rainQ.length ? rainQ[rainQ.length - 1].at : 0; for (let i = 0; i < n; i++) rainQ.push({ at: base + (i + 1) * 0.09, gold }); };
-    if (b.k === 'shower') rain(8, false);
+    if (b.k === 'shower') rain(6, false);
     else if (b.k === 'gold') rain(2, true);
     else if (b.k === 'walls') wallUp = 15;
     else if (b.k === 'jackpot') { rain(20, false); rain(3, true); wallUp = 15; }
@@ -268,7 +311,7 @@ function start() {
     // coin rain from a bonus
     if (rainQ.length) {
       rainT += dt;
-      while (rainQ.length && rainQ[0].at <= rainT) { const r = rainQ.shift(); addCoin((Math.random() - 0.5) * (W * 2 - 0.1), 0.42 + Math.random() * 0.05, -0.2 + Math.random() * 0.4, r.gold, { tumble: 3, vy: -0.2 }); if (!sim) burst(0, 0.4, 0, 3, 0.3); }
+      while (rainQ.length && rainQ[0].at <= rainT) { const r = rainQ.shift(); const zz = r.wide ? -0.25 + Math.random() * 0.5 : -0.2 + Math.random() * 0.4; addCoin((Math.random() - 0.5) * (W * 2 - 0.1), (r.wide ? 0.5 : 0.42) + Math.random() * 0.08, zz, r.gold, { tumble: 3, vy: r.wide ? -0.6 : -0.2 }); if (!sim) burst(0, 0.4, 0, r.wide ? 1 : 3, 0.3); }
       if (!rainQ.length) rainT = 0;
     }
     world.step();
@@ -291,7 +334,7 @@ function start() {
   function savePile() {
     if (jammed) return;
     try {
-      const list = coins.filter(c => !c.paid).map(c => { const p = c.body.translation(), q = c.body.rotation(); return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, c.gold ? 1 : 0].map(v => Math.round(v * 1e4) / 1e4); });
+      const list = coins.filter(c => !c.paid).map(c => { const p = c.body.translation(), q = c.body.rotation(); return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, c.star ? 2 : c.gold ? 1 : 0].map(v => Math.round(v * 1e4) / 1e4); });
       localStorage.setItem(BOARD, JSON.stringify({ t: tp, list }));
     } catch (e) { /* private mode: the pile just won't be kept */ }
   }
@@ -300,7 +343,7 @@ function start() {
   if (saved && Array.isArray(saved.list) && saved.list.length > 30) {
     tp = saved.t || 0;
     pusher1.setTranslation(pos1(tp), true); pusher2.setTranslation(pos2(tp), true);
-    saved.list.forEach(a => { if (Array.isArray(a) && a.length === 8 && a.every(Number.isFinite)) addCoin(a[0], a[1] + 0.0005, a[2], !!a[7], { q: new THREE.Quaternion(a[3], a[4], a[5], a[6]) }); });
+    saved.list.forEach(a => { if (Array.isArray(a) && a.length === 8 && a.every(Number.isFinite)) addCoin(a[0], a[1] + 0.0005, a[2], a[7] === 1, { q: new THREE.Quaternion(a[3], a[4], a[5], a[6]), star: a[7] === 2 }); });
     for (let i = 0; i < 20; i++) physStep();
   } else {
     for (let i = 0; i < 95; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.01 + (i % 4) * 0.012, 0.02 + Math.random() * (FRONT - 0.1), Math.random() < 0.05);
@@ -331,13 +374,14 @@ function start() {
   // ---------- drawing ----------
   const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), v3 = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
   function drawCoins() {
-    let ns = 0, ng = 0;
+    let ns = 0, ng = 0, nst = 0;
     for (const c of coins) {
       const p = c.body.translation(), q = c.body.rotation();
       m4.compose(v3.set(p.x, p.y, p.z), qt.set(q.x, q.y, q.z, q.w), one);
-      if (c.gold) goldI.setMatrixAt(ng++, m4); else silverI.setMatrixAt(ns++, m4);
+      if (c.star && nst < 40) starI.setMatrixAt(nst++, m4); else if (c.gold) goldI.setMatrixAt(ng++, m4); else silverI.setMatrixAt(ns++, m4);
     }
-    silverI.count = ns; goldI.count = ng; silverI.instanceMatrix.needsUpdate = true; goldI.instanceMatrix.needsUpdate = true;
+    silverI.count = ns; goldI.count = ng; starI.count = nst;
+    silverI.instanceMatrix.needsUpdate = true; goldI.instanceMatrix.needsUpdate = true; starI.instanceMatrix.needsUpdate = true;
   }
   const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.28, 0.2, 1.45); composer.addPass(bloom); composer.addPass(new OutputPass());
@@ -392,7 +436,8 @@ function start() {
       if (rolling <= 0) { rolling = 0; const b = rollOut; rollOut = null; applyBonus(b); }
     }
     // lights: chase normally, flash during a bonus
-    const party = rolling > 0 || rainQ.length > 0 || shake > 0.3;
+    if (superT > 0) superT -= dt;
+    const party = rolling > 0 || rainQ.length > 0 || shake > 0.3 || superT > 0;
     bulbs.forEach((b, i) => { const on = party ? (Math.floor(t * 14) + i) % 2 === 0 : (i + Math.floor(t * 6)) % 3 === 0; const hue = party ? ((i * 0.09 + t) % 1) : 0.12; if (on) b.material.color.setHSL(hue, 1, 0.75).multiplyScalar(2.6); else b.material.color.setRGB(0.5, 0.35, 0.12); });
     ledM.color.setRGB(2.4 + Math.sin(t * 3) * 0.4, 1.7, 0.6);
     // the win counter rolls up
@@ -406,7 +451,7 @@ function start() {
     camera.lookAt(camLook);
     composer.render();
   });
-  info();
+  info(); paintMeter();
 
   // for testing: run the machine fast without drawing; returns cost and winnings in chips
   window.OL_PUSHER = {
@@ -427,6 +472,8 @@ function start() {
       const r = { ...sim, cost, onDeck: coins.length }; sim = null; return r;
     },
     coins: () => coins.length,
+    superJackpot() { JP.stars = 2; starIn(0, FRONT); },
+    jp: () => ({ ...JP, size: jpSize() }),
     bonus(k) { if (rolling > 0) return; rollOut = BONUS.find(b => b.k === k) || BONUS[0]; rolling = 1.6; },
     where: () => { const r = { upper: 0, p2top: 0, p1top: 0, deck: 0, deckLayers: [0, 0, 0, 0, 0] }; coins.forEach(c => { const p = c.body.translation(); if (p.y > 0.19) r.p2top++; else if (p.y > 0.145) r.upper++; else if (p.z < fz1(tp) - 0.005 && p.y > 0.055) r.p1top++; else { r.deck++; r.deckLayers[Math.min(4, Math.floor(p.y / TH))]++; } }); return r; },
   };

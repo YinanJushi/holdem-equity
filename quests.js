@@ -46,6 +46,7 @@
     { id: 'slot_jackpot', icon: '♛', reward: 1000, name: 'Jackpot', text: 'Hit the slot machine jackpot.' },
     { id: 'pz_gold', icon: '●', reward: 150, name: 'Gold Digger', text: 'Push a gold coin into the coin pusher tray.' },
     { id: 'pz_jackpot', icon: '✦', reward: 800, name: 'Pusher Jackpot', text: 'Hit the JACKPOT on the coin pusher bonus lamp.' },
+    { id: 'pz_super', icon: '★', reward: 1000, name: 'Coin Flood', text: 'Win the coin pusher SUPER JACKPOT (three star coins).' },
     { id: 'high_roller', icon: '$', reward: 300, name: 'High Roller', text: 'Bet 1,000 chips or more at once.' },
     { id: 'bartender', icon: '🍸', reward: 200, name: 'Regular at the Bar', text: 'Order 5 drinks.' },
     { id: 'explorer', icon: '⌂', reward: 500, name: 'Grand Tour', text: 'Play every game in the lounge.' },
@@ -165,6 +166,7 @@
       } else if (d.type === 'pusher-bonus') {
         if (d.k !== 'none') bump('pz_bonus');
         if (d.k === 'jackpot') unlock('pz_jackpot');
+        if (d.k === 'super') unlock('pz_super');
       } else if (d.type === 'drink') {
         bump('drink'); A.drinks = (A.drinks || 0) + 1; save(AKEY, A); if (A.drinks >= 5) unlock('bartender');
       }
