@@ -573,3 +573,9 @@ html[data-immersive="1"][data-focus="1"] .bj-table { min-height: max(420px, calc
 .toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; z-index: 80;
   background: var(--ivory); color: var(--ink); padding: 10px 16px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.4); font-size: 14px; max-width: calc(100vw - 32px); transition: opacity .2s, transform .2s; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
+.acct-tabs { margin: 4px 0 14px; }
+.acct-row { align-items: center; flex-wrap: wrap; }
+.acct-row .linkbtn { margin-right: auto; font-size: 13px; color: var(--brass); }
+.acct-row .linkbtn + .linkbtn { margin-right: auto; }
+.acct-note { background: rgba(200,163,90,.15); border-radius: 8px; padding: 8px 10px; }
+#setPwForm { margin-top: 4px; }

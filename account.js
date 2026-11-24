@@ -71,6 +71,8 @@
     return b;
   }
 
+  // arriving from a password-reset email: ask for a new password once signed in
+  try { if (/type=recovery/.test(location.hash)) sessionStorage.setItem('ol-set-pw', '1'); } catch (e) { }
   // a stored session means we start on the cloud wallet right away, before the library loads
   let stored = null;
   try { stored = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null'); } catch (e) { }
@@ -82,6 +84,7 @@
     c.auth.onAuthStateChange((event, session) => {
       const uid = session && session.user && session.user.id;
       // arriving from the email link, or signing in on this page: restart on the cloud wallet
+      if (event === 'PASSWORD_RECOVERY') { try { sessionStorage.setItem('ol-set-pw', '1'); } catch (e) { } }
       if (event === 'SIGNED_IN' && uid && (!cloud || !user || uid !== user.id)) { location.replace(location.pathname); }
       if (event === 'SIGNED_OUT' && cloud) location.replace(location.pathname);
     });
@@ -93,6 +96,9 @@
         cloud.start();
       } else if (cloud) { cloud = null; user = null; UI.wallet.useLocal(); }
       paintButton();
+      let reset = false;
+      try { reset = sessionStorage.getItem('ol-set-pw') === '1'; } catch (e) { }
+      if (s && reset) { const dlg = dialog(); signedIn(dlg, 'Choose a new password below.'); dlg.showModal(); }
     });
   }).catch(e => UI.toast(errText(e)));
 
@@ -108,73 +114,140 @@
   paintButton();
   btn.onclick = openDialog;
 
-  function openDialog() {
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const pwErr = e => {
+    const m = (e && e.message) || '';
+    if (/invalid login credentials/i.test(m)) return "Wrong email or password. If you've only used email links so far, sign in with a link once, then set a password in your account.";
+    if (/email not confirmed/i.test(m)) return 'Please confirm your email first: open the confirmation email (on any device), then sign in here.';
+    if (/already registered|already exists/i.test(m)) return 'That email already has an account. Sign in instead, or use "Forgot password".';
+    if (/password should be|at least/i.test(m)) return 'Use a password of at least 8 characters.';
+    if (/rate limit|too many/i.test(m)) return 'Too many emails sent recently. Please wait a while and try again.';
+    return errText(e);
+  };
+  const back = location.origin + location.pathname;
+
+  function dialog() {
     let dlg = document.getElementById('acctDlg');
     if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'acctDlg'; dlg.className = 'rules acct-dlg'; document.body.appendChild(dlg); }
-    const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-    if (!user) {
-      dlg.innerHTML = `<h2>Sign in</h2>
-        <p>Sign in with your email to keep your chips on every device. We'll email you a sign-in link; no password needed.</p>
-        <form id="signinForm">
-          <label class="fld">Email<input type="email" id="signinEmail" required autocomplete="email" placeholder="you@example.com"></label>
-          <div class="acct-msg" id="signinMsg" role="status"></div>
-          <div class="rule-actions"><button type="button" class="ghostbtn" data-act="close">Not now</button><button type="submit" class="primary">Email me a sign-in link</button></div>
-        </form>
-        <form id="codeSignin" hidden>
-          <label class="fld">Code from the email<input type="text" id="otpInput" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456"></label>
-          <div class="acct-msg" id="otpMsg" role="status"></div>
-          <div class="rule-actions"><button type="submit" class="primary">Sign in with code</button></div>
-        </form>
-        <p class="sub">Chips you have as a guest stay on this device and are kept separate from your account.</p>`;
-      dlg.querySelector('#signinForm').onsubmit = e => {
-        e.preventDefault();
-        const email = dlg.querySelector('#signinEmail').value.trim(), msg = dlg.querySelector('#signinMsg');
-        msg.textContent = 'Sending…';
-        client().then(c => c.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } }))
-          .then(({ error }) => {
-            if (error) { msg.textContent = errText(error); return; }
-            msg.textContent = `Sent to ${email}. Open the email on this device and click the link (the link signs in whichever device it is opened on).`;
-            const f = dlg.querySelector('#codeSignin');
-            // the code box only helps once the email template includes the code (needs custom SMTP on Supabase)
-            f.hidden = !cfg.emailHasCode;
-            f.onsubmit = ev => {
-              ev.preventDefault();
-              const token = dlg.querySelector('#otpInput').value.replace(/\s/g, ''), om = dlg.querySelector('#otpMsg');
-              if (!token) return;
-              om.textContent = 'Checking…';
-              client().then(c => c.auth.verifyOtp({ email, token, type: 'email' }))
-                .then(({ error: err }) => { om.textContent = err ? (/expired|invalid/i.test(err.message) ? "That code didn't work or has expired. Send a new email and try again." : errText(err)) : 'Signed in!'; })
-                .catch(err2 => (om.textContent = errText(err2)));
-            };
-          })
-          .catch(err => (msg.textContent = errText(err)));
-      };
-    } else {
-      dlg.innerHTML = `<h2>Your account</h2>
-        <p>Signed in as <b>${esc(user.email || '')}</b>. Your chips sync across every device you sign in on.</p>
-        <form id="codeForm" class="code-form">
-          <label class="fld">Secret code<input type="text" id="codeInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Enter a code"></label>
-          <button type="submit" class="primary">Redeem</button>
-        </form>
-        <div class="acct-msg" id="codeMsg" role="status"></div>
-        <div class="rule-actions"><button type="button" class="ghostbtn" data-act="signout">Sign out</button><button type="button" class="primary" data-act="close">Done</button></div>`;
-      dlg.querySelector('#codeForm').onsubmit = e => {
-        e.preventDefault();
-        const code = dlg.querySelector('#codeInput').value.trim(), msg = dlg.querySelector('#codeMsg');
-        if (!code) return;
-        msg.textContent = 'Checking…';
-        cloud.redeem(code).then(r => {
-          if (r && r.ok) { msg.textContent = `Code accepted: +${Number(r.amount).toLocaleString('en-US')} chips.`; UI.sfx('win'); dlg.querySelector('#codeInput').value = ''; }
-          else msg.textContent = (r && r.error) || 'That code isn\'t valid.';
-        }).catch(err => (msg.textContent = errText(err)));
-      };
-    }
     dlg.onclick = e => {
+      const m = e.target.closest('[data-mode]');
+      if (m) { signedOut(dlg, m.dataset.mode); return; }
       const a = e.target.closest('[data-act]');
       if (!a) return;
       if (a.dataset.act === 'close') dlg.close();
       if (a.dataset.act === 'signout') client().then(c => c.auth.signOut()).then(() => location.replace(location.pathname));
     };
-    dlg.showModal();
+    return dlg;
+  }
+  function openDialog() {
+    const dlg = dialog();
+    if (!user) signedOut(dlg, 'password'); else signedIn(dlg);
+    if (!dlg.open) dlg.showModal();
+  }
+
+  // signed out: password (default), create account, email link, forgot password
+  function signedOut(dlg, mode) {
+    const tabs = `<div class="seg acct-tabs"><button type="button" data-mode="password" class="${mode === 'password' || mode === 'signup' ? 'on' : ''}">Password</button><button type="button" data-mode="link" class="${mode === 'link' ? 'on' : ''}">Email link</button></div>`;
+    const foot = '<p class="sub">Chips you have as a guest stay on this device and are kept separate from your account.</p>';
+    if (mode === 'password' || mode === 'signup') {
+      const up = mode === 'signup';
+      dlg.innerHTML = `<h2>${up ? 'Create an account' : 'Sign in'}</h2>${tabs}
+        <form id="pwForm">
+          <label class="fld">Email<input type="email" id="pwEmail" required autocomplete="email" placeholder="you@example.com"></label>
+          <label class="fld">Password<input type="password" id="pwPass" required minlength="8" autocomplete="${up ? 'new-password' : 'current-password'}" placeholder="${up ? 'At least 8 characters' : 'Your password'}"></label>
+          <div class="acct-msg" id="pwMsg" role="status"></div>
+          <div class="rule-actions acct-row">
+            ${up ? '<button type="button" class="linkbtn" data-mode="password">I already have an account</button>' : '<button type="button" class="linkbtn" data-mode="reset">Forgot password?</button><button type="button" class="linkbtn" data-mode="signup">Create an account</button>'}
+            <button type="submit" class="primary">${up ? 'Create account' : 'Sign in'}</button>
+          </div>
+        </form>${foot}`;
+      dlg.querySelector('#pwForm').onsubmit = e => {
+        e.preventDefault();
+        const email = dlg.querySelector('#pwEmail').value.trim(), password = dlg.querySelector('#pwPass').value, msg = dlg.querySelector('#pwMsg');
+        if (password.length < 8) { msg.textContent = 'Use a password of at least 8 characters.'; return; }
+        msg.textContent = up ? 'Creating your account…' : 'Signing in…';
+        client().then(c => up ? c.auth.signUp({ email, password, options: { emailRedirectTo: back } }) : c.auth.signInWithPassword({ email, password }))
+          .then(({ data, error }) => {
+            if (error) { msg.textContent = pwErr(error); return; }
+            if (up && !(data && data.session)) msg.textContent = `Almost done: we sent a confirmation email to ${email}. Click the link in it on any device, then come back here and sign in with your password.`;
+            else msg.textContent = 'Signed in!';
+          }).catch(err => (msg.textContent = pwErr(err)));
+      };
+    } else if (mode === 'link') {
+      dlg.innerHTML = `<h2>Sign in with an email link</h2>${tabs}
+        <p>We'll email you a link. Open it on the device you want to sign in on.</p>
+        <form id="linkForm">
+          <label class="fld">Email<input type="email" id="linkEmail" required autocomplete="email" placeholder="you@example.com"></label>
+          <div class="acct-msg" id="linkMsg" role="status"></div>
+          <div class="rule-actions"><button type="button" class="ghostbtn" data-act="close">Not now</button><button type="submit" class="primary">Email me a link</button></div>
+        </form>${foot}`;
+      dlg.querySelector('#linkForm').onsubmit = e => {
+        e.preventDefault();
+        const email = dlg.querySelector('#linkEmail').value.trim(), msg = dlg.querySelector('#linkMsg');
+        msg.textContent = 'Sending…';
+        client().then(c => c.auth.signInWithOtp({ email, options: { emailRedirectTo: back } }))
+          .then(({ error }) => { msg.textContent = error ? pwErr(error) : `Sent to ${email}. Open the email on this device and click the link.`; })
+          .catch(err => (msg.textContent = pwErr(err)));
+      };
+    } else if (mode === 'reset') {
+      dlg.innerHTML = `<h2>Reset your password</h2>
+        <p>We'll email you a link. Open it on the device you want to use, and you'll be asked for a new password.</p>
+        <form id="resetForm">
+          <label class="fld">Email<input type="email" id="resetEmail" required autocomplete="email" placeholder="you@example.com"></label>
+          <div class="acct-msg" id="resetMsg" role="status"></div>
+          <div class="rule-actions"><button type="button" class="ghostbtn" data-mode="password">Back</button><button type="submit" class="primary">Email me a reset link</button></div>
+        </form>`;
+      dlg.querySelector('#resetForm').onsubmit = e => {
+        e.preventDefault();
+        const email = dlg.querySelector('#resetEmail').value.trim(), msg = dlg.querySelector('#resetMsg');
+        msg.textContent = 'Sending…';
+        client().then(c => c.auth.resetPasswordForEmail(email, { redirectTo: back }))
+          .then(({ error }) => { msg.textContent = error ? pwErr(error) : `If ${email} has an account, a reset link is on its way.`; })
+          .catch(err => (msg.textContent = pwErr(err)));
+      };
+    }
+    const first = dlg.querySelector('input'); if (first) setTimeout(() => first.focus(), 30);
+  }
+
+  // signed in: secret code, password, sign out
+  function signedIn(dlg, note) {
+    dlg.innerHTML = `<h2>Your account</h2>
+      ${note ? `<p class="acct-note">${note}</p>` : ''}
+      <p>Signed in as <b>${esc(user.email || '')}</b>. Your chips sync across every device you sign in on.</p>
+      <form id="codeForm" class="code-form">
+        <label class="fld">Secret code<input type="text" id="codeInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Enter a code"></label>
+        <button type="submit" class="primary">Redeem</button>
+      </form>
+      <div class="acct-msg" id="codeMsg" role="status"></div>
+      <form id="setPwForm" class="code-form">
+        <input type="email" autocomplete="username" value="${esc(user.email || '')}" hidden>
+        <label class="fld">${note ? 'New password' : 'Password (to sign in on other devices)'}<input type="password" id="newPw" minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></label>
+        <button type="submit" class="primary">Set password</button>
+      </form>
+      <div class="acct-msg" id="pwSetMsg" role="status"></div>
+      <div class="rule-actions"><button type="button" class="ghostbtn" data-act="signout">Sign out</button><button type="button" class="primary" data-act="close">Done</button></div>`;
+    dlg.querySelector('#codeForm').onsubmit = e => {
+      e.preventDefault();
+      const code = dlg.querySelector('#codeInput').value.trim(), msg = dlg.querySelector('#codeMsg');
+      if (!code || !cloud) return;
+      msg.textContent = 'Checking…';
+      cloud.redeem(code).then(r => {
+        if (r && r.ok) { msg.textContent = `Code accepted: +${Number(r.amount).toLocaleString('en-US')} chips.`; UI.sfx('win'); dlg.querySelector('#codeInput').value = ''; }
+        else msg.textContent = (r && r.error) || "That code isn't valid.";
+      }).catch(err => (msg.textContent = errText(err)));
+    };
+    dlg.querySelector('#setPwForm').onsubmit = e => {
+      e.preventDefault();
+      const password = dlg.querySelector('#newPw').value, msg = dlg.querySelector('#pwSetMsg');
+      if (password.length < 8) { msg.textContent = 'Use a password of at least 8 characters.'; return; }
+      msg.textContent = 'Saving…';
+      client().then(c => c.auth.updateUser({ password }))
+        .then(({ error }) => {
+          if (error) { msg.textContent = pwErr(error); return; }
+          msg.textContent = 'Password saved. On any other device, choose Sign in → Password and use your email and this password.';
+          dlg.querySelector('#newPw').value = '';
+          try { sessionStorage.removeItem('ol-set-pw'); } catch (er) { }
+        }).catch(err => (msg.textContent = pwErr(err)));
+    };
   }
 })();
