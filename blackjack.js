@@ -224,6 +224,22 @@
   }
 
   // ---------- render ----------
+  // a plain description of the table for the 3D view (casino3d.js / bj3d.js)
+  function publish3D() {
+    const st = {
+      game: 'bj', phase: S.phase,
+      dealer: S.dealer.map((c, i) => (i === 1 && !S.holeShown ? -1 : c)),
+      dealerLabel: $('#dealerLabel').textContent,
+      hands: S.hands.map((h, k) => {
+        const s = B.handState(h.cards);
+        return { cards: h.cards.slice(), bet: h.bet, active: S.phase === 'play' && k === S.cur && S.hands.length > 1, doubled: !!h.doubled,
+          total: h.bj ? 'Blackjack' : s.total > 21 ? `Bust (${s.total})` : (s.soft ? 'soft ' : '') + s.total, res: h.res || '', net: h.net || 0 };
+      }),
+      pendingBet: S.bet, shoeLeft: S.shoe.length, count: S.rc, msg: $('#msg').innerHTML,
+    };
+    window.OL_TABLE = st;
+    window.dispatchEvent(new CustomEvent('table-state', { detail: st }));
+  }
   function renderTable() {
     // dealer
     const dc = S.dealer.map((c, i) => {
@@ -260,6 +276,7 @@
     $('#shoeBox').innerHTML = `<div class="shoe-body"><i style="height:${(left / total) * 100}%"></i></div><div class="shoe-txt">Shoe<br><b>${left}</b> cards<br>Count <b>${S.rc >= 0 ? '+' : ''}${S.rc}</b></div>`;
 
     $('#msg').innerHTML = tableMsg();
+    publish3D();
   }
   function tableMsg() {
     if (S.phase === 'bet') return S.justShuffled === undefined ? 'Place your bet and press <b>Deal</b>' : 'Place your bet and press <b>Deal</b>';

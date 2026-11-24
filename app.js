@@ -463,6 +463,32 @@
     $('#msg').innerHTML = tableMsg();
     if (S.slots.some((c, i) => c != null && S.prev[i] !== c)) sfx('card');
     S.prev = S.slots.slice();
+    publish3D();
+  }
+  // a plain description of the table for the 3D view (casino3d.js / holdem3d.js)
+  function publish3D() {
+    const R = S.result, g = inGame();
+    const seats = [];
+    for (let i = 0; i < S.opp; i++) {
+      const j = i + 1, o = S.opps[i], p = g ? G.players[j] : null, st = p ? p.style : S.styles[i];
+      let cards = null;
+      if (S.mode === 'random' && S.revealed && o) cards = (p && p.folded) ? null : [o[0], o[1]];
+      else if (p && !p.folded) cards = [-1, -1];
+      const won = !!(R && S.revealed && R.winners && R.winners.includes(j));
+      seats.push({ j, name: 'Opp ' + j, style: st ? st.name : '', styleKey: st ? st.key : '', stack: p ? p.stack : null, bet: p && !G.over ? p.bet : 0,
+        folded: !!(p && p.folded), last: p && !S.revealed ? p.last || '' : '', acting: !!(g && !G.over && G.toAct === j), cards,
+        hand: R && S.revealed && R.scores && p && !p.folded ? handName(R.scores[j]) : '', won });
+    }
+    const hp = g ? G.players[0] : null;
+    const st = {
+      game: 'holdem', mode: S.mode, inGame: g, n: S.opp, seats,
+      hero: [S.slots[0], S.slots[1]], board: S.slots.slice(2), heroFolded: !!(hp && hp.folded),
+      heroStack: hp ? hp.stack : null, heroBet: hp && !G.over ? hp.bet : 0, heroLast: hp ? hp.last || '' : '', heroActing: !!(g && !G.over && G.toAct === 0),
+      pot: g ? (G.over ? (R ? R.pot : 0) : G.pot) : 0, over: !!(g && G.over), winners: g && G.over && R ? R.winners : [],
+      button: g ? S.button : null, sb: g ? G.sb : null, bb: g ? G.bb : null, msg: $('#msg').innerHTML,
+    };
+    window.OL_TABLE = st;
+    window.dispatchEvent(new CustomEvent('table-state', { detail: st }));
   }
   function renderSeats() {
     const n = S.opp, R = S.result;
