@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=76';
+import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=77';
 
 const FLOOR = -0.76;                       // the floor, with the table top at y = 0 (metres)
 const CW = 0.102, CH = 0.143;              // card size (a little larger than life so it reads on screen)

@@ -599,6 +599,7 @@ body.t3d-on #fx { z-index: 4; }
 .t3-label.small { font-size: 11px; padding: 1px 7px; background: rgba(14,5,8,.6); }
 .t3-label.muted { color: rgba(255,240,215,.7); }
 .t3-label.dealer { font-size: 13px; }
+.t3-label.bet { font-size: 13.5px; }
 .t3-label.good, .t3-label .good { color: #7dffa0; } .t3-label.good { border-color: rgba(125,255,160,.6); }
 .t3-label .bad { color: #ff8a8a; }
 .t3-msg { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3; max-width: 86%; background: rgba(14,5,8,.8); border: 1px solid rgba(201,154,46,.55); color: #fff6e0; padding: 7px 14px; border-radius: 12px; text-align: center; font-size: 14px; line-height: 1.35; pointer-events: none; }

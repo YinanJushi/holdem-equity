@@ -12,7 +12,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=76';
+import { headerChrome, onQuality } from './chrome3d.js?v=77';
 
 const COIN = 5, GOLD = 5, $ = s => document.querySelector(s);
 const host = $('#pzHost');

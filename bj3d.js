@@ -1,5 +1,5 @@
 // Blackjack in 3D: turns the table description from blackjack.js into cards, chips and labels on a 3D table.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=76';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=77';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'bj') : null;
@@ -64,7 +64,8 @@ if (C) {
       L.push({ key: 'hand' + k, x: hx, y: 0.1, z: 0.3, html: `${n > 1 ? `Hand ${k + 1} · ` : ''}${h.total}${h.doubled ? ' · doubled' : ''}${res}`, cls: h.active ? 'active' : '' });
     });
     const betShown = n ? st.hands.reduce((a, h) => a + (h.res && h.net < 0 ? 0 : h.bet), 0) : st.pendingBet;
-    if (betShown > 0) L.push({ key: 'bet', x: 0, y: 0, z: 0.74, html: `Bet ${betShown}`, cls: 'small' });
+    // float the bet above your chips (in front of the circle it would sit under the buttons)
+    if (betShown > 0) L.push({ key: 'bet', x: 0, y: 0.11, z: 0.62, html: `Bet <span class="num">${betShown}</span>`, cls: 'plate bet' });
     L.push({ key: 'shoe', x: 0.85, y: 0.16, z: -0.32, html: `Shoe ${st.shoeLeft} · Count ${st.count >= 0 ? '+' : ''}${st.count}`, cls: 'small muted' });
     C.setLabels(L);
   }
