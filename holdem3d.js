@@ -1,9 +1,10 @@
 // Texas Hold'em in 3D: turns the table description from app.js into seated opponents, cards, chips and labels.
 // "Pick cards" mode needs the flat table (you click card spots), so the 3D view steps aside there.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=53';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=56';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'holdem') : null;
+document.documentElement.classList.remove('t3d-wait');
 if (C) {
   window.OL_CASINO = C;
   barButton(C.wrap, C);
@@ -83,7 +84,7 @@ if (C) {
       if (s.bet > 0) stacks.push({ key: `${R}bet${s.j}`, n: s.bet, x: bp.x, z: bp.z, fromX: sp.x, fromZ: sp.z, toX: POT.x, toZ: POT.z });
       if (s.stack > 0) stacks.push({ key: 'stack' + s.j, n: s.stack, x: sp.x, z: sp.z });
       const badge = st.button === s.j ? '' : st.sb === s.j && st.n > 1 ? '<i>SB</i>' : st.bb === s.j ? '<i>BB</i>' : '';
-      L.push({ key: 'name' + s.j, x: hp.x, y: 0.64, z: hp.z, html: `${badge}<b>${s.name}</b>${s.style ? ` · ${s.style}` : ''}${s.stack != null ? `<br><span class="num">${s.stack}</span>` : ''}`, cls: 'plate' + (s.acting ? ' active' : '') + (s.folded ? ' dim' : '') });
+      L.push({ key: 'name' + s.j, x: hp.x, y: 0.3, z: hp.z, html: `${badge}<b>${s.name}</b>${s.style && st.n <= 4 ? ` · ${s.style}` : ''}${s.stack != null ? `<br><span class="num">${s.stack}</span>` : ''}`, cls: 'plate' + (s.acting ? ' active' : '') + (s.folded ? ' dim' : '') });
       if (s.last) L.push({ key: 'act' + s.j, x: cp.x, y: 0.09, z: cp.z, html: s.last, cls: 'act' });
       if (s.hand || s.won) L.push({ key: 'res' + s.j, x: cp.x, y: 0.12, z: cp.z, html: s.hand || 'Wins the pot', cls: s.won ? 'good' : '' });
       if (s.bet > 0) L.push({ key: 'betl' + s.j, x: bp.x, y: 0.0, z: bp.z + 0.05, html: String(s.bet), cls: 'small' });

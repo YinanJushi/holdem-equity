@@ -664,3 +664,8 @@ body.t3d-on .layout { padding-top: 10px; }
 body.t3d-on .t3-msg { top: 54px; }
 @media (max-width: 640px) { .t3-chips .claim-wait { display: none; } .t3-topl { left: 6px; top: 6px; } .t3-chips { right: 6px; top: 6px; } body.t3d-on .t3-msg { top: 48px; } }
 .t3-rail { top: calc(50% + 22px); }
+
+/* the original table message stays available to screen readers while the 3D view shows its own copy */
+body.t3d-on #table #msg { visibility: visible !important; position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* until the 3D view is ready, don't flash the flat table */
+html.t3d-wait #table > :not(.t3-host) { visibility: hidden; }

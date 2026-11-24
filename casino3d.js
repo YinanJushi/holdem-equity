@@ -216,7 +216,7 @@ export function createCasino(host, kind) {
     });
     faceCache.set(c, t); return t;
   }
-  const backTex = (() => {
+  const makeBackTex = () => {
     let id = 'classic'; try { id = (JSON.parse(localStorage.getItem('ol-deck') || '{}').back) || 'classic'; } catch (e) { }
     const base = DECK_COL[id] || '#6e1824';
     return canvasTex(256, 360, (g, w, h) => {
@@ -224,9 +224,12 @@ export function createCasino(host, kind) {
       rr(g, 16, 16, w - 32, h - 32, 14); g.fillStyle = base; g.fill();
       if (id === 'classic') { g.save(); rr(g, 16, 16, w - 32, h - 32, 14); g.clip(); g.strokeStyle = 'rgba(244,226,200,.22)'; g.lineWidth = 6; for (let i = -h; i < w + h; i += 22) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); g.beginPath(); g.moveTo(i + h, 0); g.lineTo(i, h); g.stroke(); } g.restore(); g.strokeStyle = 'rgba(210,178,116,.9)'; g.lineWidth = 3; rr(g, 24, 24, w - 48, h - 48, 10); g.stroke(); }
     });
-  })();
+  };
+  const backTex = makeBackTex();
   const cardGeo = new THREE.PlaneGeometry(CW, CH);
   const backMat = new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.5 });
+  new MutationObserver(() => { const t = makeBackTex(); backMat.map.dispose(); backMat.map = t; backMat.needsUpdate = true; })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-deck'] });
   const edgeGeo = new THREE.BoxGeometry(CW * 0.985, CH * 0.985, 0.0012);
   const edgeMat = new THREE.MeshStandardMaterial({ color: '#efe9dc', roughness: 0.6 });
   function makeCard() {
@@ -241,6 +244,7 @@ export function createCasino(host, kind) {
     return g;
   }
   const cards = new Map();   // key -> { obj, c, pos, ... }
+  let started = false;   // set once everything below exists
   const DEAL_FROM = { get x() { return T.dealFrom.x; }, get z() { return T.dealFrom.z; } }, MUCK = { get x() { return T.muck.x; }, get z() { return T.muck.z; } };
   function setCardFace(rec, c) { if (c >= 0) { rec.obj.userData.front.material.map = faceTex(c); rec.obj.userData.front.material.needsUpdate = true; } rec.c = c; }
   // desc: [{ key, c (-1 = face down), x, z, yaw, tilt, y }]
@@ -456,6 +460,7 @@ export function createCasino(host, kind) {
     // keep the table across the view on tall phone screens too
     camera.fov = w / h < 1 ? Math.min(72, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(44) / 2) * 1.2 / (w / h)) * 180 / Math.PI) : 47;
     camera.updateProjectionMatrix();
+    if (started) { aim(); composer.render(); }
   }
 
   // ---------- your drink: brought to your elbow by a server, sipped when you click it ----------
@@ -667,7 +672,7 @@ export function createCasino(host, kind) {
       if (view.idle > 3.5) { view.yaw *= 1 - Math.min(1, dt * 1.5); view.pitch *= 1 - Math.min(1, dt * 1.5); }
     }
     aim();
-    animated.forEach(f => f(tAll, dt));
+    for (let i = animated.length - 1; i >= 0; i--) if (animated[i](tAll, dt) === false) animated.splice(i, 1);
     stepCards(dt); stepStacks(dt); stepDrink(dt);
     composer.render();
     stepLabels();
@@ -679,6 +684,7 @@ export function createCasino(host, kind) {
     return { x: x + dx, z: z - c * du + sn * layer * 0.0022, y: sn * du + c * layer * 0.0022, tilt };
   }
   const api = { camera, debugCam: null, onPlane, SKINS, setCards, setStacks, setLabels, setPuck, chair: T.chair, order, sip, T, person, scene, wrap, hasDrink: () => !!drink, onDrink: null };
+  started = true;
   return api;
 
   // =====================================================================
@@ -926,6 +932,7 @@ export function createCasino(host, kind) {
     const rail = new THREE.Mesh(new THREE.TubeGeometry(railCurve, 200, 0.055, 14, railCurve.closed), M.leather);
     rail.position.y = 0.025; rail.castShadow = true; rail.receiveShadow = true; scene.add(rail);
     const leg = new THREE.Mesh(new THREE.CylinderGeometry(legR * 0.5, legR, -FLOOR - 0.1, 24), M.darkwood); leg.position.y = (FLOOR - 0.1) / 2; scene.add(leg);
+    return top;
   }
   function chair(x, z, face) {
     const c = new THREE.Group(); c.position.set(x, FLOOR, z); c.rotation.y = face; scene.add(c);
@@ -943,10 +950,13 @@ export function createCasino(host, kind) {
     const pts = []; for (let i = 0; i <= 80; i++) { const a = -Math.PI * (i / 80); pts.push(new THREE.Vector3(Math.cos(a) * (R + 0.04), 0, -(D + Math.sin(a) * (R + 0.49)))); }
     const railCurve = new THREE.CatmullRomCurve3(pts);
     const W = 2 * R, H = R + 0.45 + D, minY = D - (R + 0.45);
+    // the felt prints the rules you picked, and reprints when you change them
+    const makeFelt = () => {
     const rulesTxt = (document.getElementById('rulesText') || {}).textContent || '';
     const pays = /6:5/.test(rulesTxt) ? 'BLACKJACK PAYS 6 TO 5' : 'BLACKJACK PAYS 3 TO 2';
     const h17 = /H17|hits soft/i.test(rulesTxt) ? 'DEALER HITS SOFT 17' : 'DEALER STANDS ON ALL 17s';
-    const tex = feltTexture(W, H, (g, w, h) => {
+    const decks = (rulesTxt.match(/(\d+)\s*deck/i) || [])[1];
+    return feltTexture(W, H, (g, w, h) => {
       const sx = w / W, sy = h / H, cx = w / 2, cy = (D - minY) * sy * 0 + (h - (D - minY) * sy); // centre of the straight edge, in canvas pixels
       const ycen = h - (D - minY) * sy; // canvas y of shape y = D (top edge sits at canvas top)
       const toC = (x, y) => [cx + x * sx, h - (y - minY) * sy];
@@ -955,7 +965,7 @@ export function createCasino(host, kind) {
       g.beginPath(); g.ellipse(ox, oy, 0.9 * sx, 1.3 * sy, 0, 0, Math.PI); g.stroke();
       g.beginPath(); g.ellipse(ox, oy, 0.62 * sx, 0.92 * sy, 0, 0, Math.PI); g.stroke();
       arcText(g, pays, ox, oy, 0.76 * sx, Math.PI / 2, 44, 'rgba(255,228,170,.92)');
-      arcText(g, h17 + ' · INSURANCE PAYS 2 TO 1', ox, oy, 1.08 * sx, Math.PI / 2, 30, 'rgba(255,228,170,.75)', 'Arial, sans-serif', '700');
+      arcText(g, h17 + (decks ? ` · ${decks} DECK SHOE` : ''), ox, oy, 1.08 * sx, Math.PI / 2, 30, 'rgba(255,228,170,.75)', 'Arial, sans-serif', '700');
       // your betting circle
       const [bx, by] = toC(0, -0.62);
       g.strokeStyle = 'rgba(255,236,190,.85)'; g.lineWidth = 5; g.beginPath(); g.arc(bx, by, 0.1 * sx, 0, Math.PI * 2); g.stroke();
@@ -963,7 +973,13 @@ export function createCasino(host, kind) {
       g.font = 'italic 600 54px Georgia, serif'; g.fillStyle = 'rgba(255,228,170,.4)'; g.textAlign = 'center'; g.fillText('Odds Lounge', ox, oy + 0.26 * sy);
       void ycen;
     });
-    tableFrom(shape, railCurve, -R, minY, W, H, tex, 0.5);
+    };
+    const feltTop = tableFrom(shape, railCurve, -R, minY, W, H, makeFelt(), 0.5);
+    const rulesEl = document.getElementById('rulesText');
+    if (rulesEl) new MutationObserver(() => {
+      const t = makeFelt(); t.repeat.copy(feltTop.material.map.repeat); t.offset.copy(feltTop.material.map.offset);
+      feltTop.material.map.dispose(); feltTop.material.map = t; feltTop.material.needsUpdate = true;
+    }).observe(rulesEl, { childList: true, characterData: true, subtree: true });
     // chip rack in front of the dealer, discard tray, shoe
     const rack = new THREE.Group(); rack.position.set(0, 0.012, -0.5); scene.add(rack);
     const rb = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.025, 0.12), M.darkwood); rack.add(rb);
@@ -1132,8 +1148,16 @@ export function tableChrome(casino, items) {
   // fit the table to the window: whatever height the header, the controls under the table and a margin leave
   function fit() {
     if (!document.body.classList.contains('t3d-on')) return;
+    // only one of these bars shows at a time; measure the hidden ones too (invisibly) and keep room for the tallest,
+    // so the table doesn't jump (and the canvas doesn't flash) each time the bar changes
     let below = 0;
-    for (let el = table.nextElementSibling; el; el = el.nextElementSibling) { if (el.id === 'session') break; if (el.offsetParent) below += el.offsetHeight + 12; }
+    for (let el = table.nextElementSibling; el; el = el.nextElementSibling) {
+      if (el.id === 'session' || el.id === 'manualTools') continue;
+      let h = el.offsetHeight;
+      if (el.hidden) { el.style.visibility = 'hidden'; el.hidden = false; h = el.offsetHeight; el.hidden = true; el.style.visibility = ''; }
+      below = Math.max(below, h);
+    }
+    below += 14;
     const top = table.getBoundingClientRect().top + window.scrollY;
     document.documentElement.style.setProperty('--t3-reserve', Math.round(top + below + 18) + 'px');
   }

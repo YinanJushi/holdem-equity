@@ -1,8 +1,9 @@
 // Blackjack in 3D: turns the table description from blackjack.js into cards, chips and labels on a 3D table.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=53';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=56';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'bj') : null;
+document.documentElement.classList.remove('t3d-wait');
 if (C) {
   window.OL_CASINO = C;
   document.body.classList.add('t3d-on');
