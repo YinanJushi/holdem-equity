@@ -97,6 +97,22 @@ export function createCasino(host, kind) {
   // ---------- people ----------
   // Faces are stylized on purpose: friendly, simple features that read well at a glance (no uncanny realism).
   const UP = new THREE.Vector3(0, 1, 0);
+  // the face is centred at u = 0.25 on a sphere's texture; paint soft shadows there and blur them heavily
+  let faceTexCache = null;
+  function blurFace() {
+    if (faceTexCache) return faceTexCache;
+    faceTexCache = canvasTex(512, 256, (g, w, h) => {
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+      g.filter = 'blur(10px)';
+      const cx = w * 0.25, sh = (x, y, rx, ry, a) => { g.fillStyle = `rgba(110,60,50,${a})`; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+      sh(cx - 22, h * 0.45, 16, 9, 0.32); sh(cx + 22, h * 0.45, 16, 9, 0.32);   // eye sockets
+      sh(cx, h * 0.56, 7, 12, 0.18);                                          // nose
+      sh(cx, h * 0.67, 16, 5, 0.22);                                          // mouth
+      g.fillStyle = 'rgba(255,170,150,.18)'; g.beginPath(); g.ellipse(cx - 34, h * 0.58, 16, 10, 0, 0, Math.PI * 2); g.ellipse(cx + 34, h * 0.58, 16, 10, 0, 0, Math.PI * 2); g.fill();
+      g.filter = 'none';
+    });
+    return faceTexCache;
+  }
   // place a limb (a capsule of known length) between two points
   function limb(mesh, a, b) { const d = new THREE.Vector3().subVectors(b, a), L = d.length(); mesh.position.copy(a).addScaledVector(d, 0.5); mesh.quaternion.setFromUnitVectors(UP, d.normalize()); mesh.scale.set(1, L / mesh.userData.len, 1); }
   function person({ shirt = '#e8e2d6', vest = null, hair = '#2a1a12', hairStyle = 'short', skin = [1, 1, 1], bow = null, glasses = false, trousers = '#15110f', seated = true } = {}) {
@@ -121,31 +137,16 @@ export function createCasino(host, kind) {
     }
     [-1, 1].forEach(sd => { const sh = new THREE.Mesh(new THREE.SphereGeometry(0.052, 16, 12), sm); sh.scale.set(1, 0.85, 0.95); sh.position.set(sd * 0.18, 0.37, 0); g.add(sh); });
     const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.043, 0.05, 0.08, 14), km); neck.position.y = 0.47; g.add(neck);
-    // head: a soft rounded head with big friendly eyes, brows, a small nose and a smile
+    // head: a soft rounded head with the face left blurred
     const headG = new THREE.Group(); headG.position.y = 0.5; g.add(headG);
     const look = new THREE.Group(); look.rotation.x = 0.1; headG.add(look);   // eyes a little down, on the table
     const hc = new THREE.Vector3(0, 0.1, 0);   // centre of the head
     const hg = new THREE.SphereGeometry(0.095, 40, 30), hp = hg.attributes.position;
     for (let i = 0; i < hp.count; i++) { const y = hp.getY(i); if (y < 0) { const k = 1 - Math.min(1, -y / 0.095) * 0.22; hp.setX(i, hp.getX(i) * k); hp.setZ(i, hp.getZ(i) * (k + 0.06)); } }
     hg.computeVertexNormals();
-    const skull = new THREE.Mesh(hg, km); skull.scale.set(0.94, 1.08, 0.98); skull.position.copy(hc); look.add(skull);
+    // no drawn features: just soft, blurred shading where eyes, nose and mouth would be
+    const skull = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ map: blurFace(), color: km.color, roughness: 0.62 })); skull.scale.set(0.94, 1.08, 0.98); skull.position.copy(hc); look.add(skull);
     [-1, 1].forEach(sd => { const ear = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 10), km); ear.scale.set(0.5, 1, 0.75); ear.position.set(sd * 0.09, hc.y, -0.005); look.add(ear); });
-    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.013, 12, 10), new THREE.MeshStandardMaterial({ color: new THREE.Color('#dcae94').multiply(tint), roughness: 0.6 })); nose.scale.set(0.8, 0.95, 0.85); nose.position.set(0, hc.y - 0.008, 0.095); look.add(nose);
-    const eyeW = new THREE.MeshStandardMaterial({ color: '#fbfaf6', roughness: 0.25 });
-    const irisM = new THREE.MeshStandardMaterial({ color: ['#3a2414', '#2a3a5a', '#2a4a2a', '#4a2a14'][Math.floor(Math.random() * 4)], roughness: 0.2 });
-    const shine = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-    const eyes = [];
-    [-1, 1].forEach(sd => {
-      const e = new THREE.Group(); e.position.set(sd * 0.032, hc.y + 0.014, 0.08); look.add(e);
-      const white = new THREE.Mesh(new THREE.SphereGeometry(0.016, 16, 12), eyeW); white.scale.set(1, 1.12, 0.55); e.add(white);
-      const iris = new THREE.Mesh(new THREE.SphereGeometry(0.0095, 14, 10), irisM); iris.scale.set(1, 1.05, 0.5); iris.position.set(0, -0.002, 0.0075); e.add(iris);
-      const hl = new THREE.Mesh(new THREE.SphereGeometry(0.0028, 8, 6), shine); hl.position.set(sd * -0.003 + 0.003, 0.003, 0.012); e.add(hl);
-      eyes.push(e);
-      const brow = new THREE.Mesh(new THREE.CapsuleGeometry(0.0036, 0.022, 4, 8), new THREE.MeshStandardMaterial({ color: hair, roughness: 0.8 }));
-      brow.rotation.z = Math.PI / 2 + sd * 0.12; brow.position.set(sd * 0.032, hc.y + 0.042, 0.086); look.add(brow);
-    });
-    const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.017, 0.0032, 8, 16, Math.PI * 0.75), new THREE.MeshStandardMaterial({ color: '#9a4a46', roughness: 0.5 }));
-    mouth.rotation.z = Math.PI + Math.PI * 0.125; mouth.position.set(0, hc.y - 0.026, 0.088); mouth.scale.y = 0.7; look.add(mouth);
     // hair
     const hairM = new THREE.MeshStandardMaterial({ color: hair, roughness: 0.75 });
     if (hairStyle !== 'none') {
@@ -156,20 +157,6 @@ export function createCasino(host, kind) {
     }
     if (hairStyle === 'long') { const back = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.11, 6, 16), hairM); back.scale.z = 0.6; back.position.set(0, hc.y - 0.055, -0.05); look.add(back); }
     if (hairStyle === 'bun') { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.036, 16, 12), hairM); bun.position.set(0, hc.y + 0.085, -0.06); look.add(bun); }
-    if (glasses) {
-      const gm = new THREE.MeshStandardMaterial({ color: '#1a1a1a', metalness: 0.5, roughness: 0.3 });
-      [-1, 1].forEach(sd => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.0024, 6, 24), gm); r.position.set(sd * 0.032, hc.y + 0.013, 0.093); look.add(r); });
-      const br = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.003, 0.003), gm); br.position.set(0, hc.y + 0.018, 0.096); look.add(br);
-    }
-    // blink every few seconds
-    let nextBlink = 1 + Math.random() * 4;
-    animated.push((t) => {
-      if (!g.parent) return;
-      const ph = t - nextBlink;
-      const k = ph > 0 && ph < 0.14 ? 0.12 : 1;
-      eyes.forEach(e => (e.scale.y = k));
-      if (ph > 0.14) nextBlink = t + 2.5 + Math.random() * 4;
-    });
     // arms: placed by a two-bone reach, so hands land exactly where they are put (on the table, not through it)
     const capsule = (r, len, mat) => { const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 12), mat); m.userData.len = len + r * 2; return m; };
     const arms = {};
