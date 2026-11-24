@@ -727,3 +727,17 @@ body.t3d-on .t3-toast { bottom: calc(var(--t3-hud, 70px) + 60px); }
   body.t3d-on .bb-main button, body.t3d-on .bb-foot button { padding: 10px 8px; font-size: 13.5px; }
   body.t3d-on #betTools .bigchip { width: 40px; height: 40px; }
 }
+
+/* the control row: buttons float on their own over the table (no band behind them); bet sizes are direct buttons */
+body.t3d-on .left > #table ~ :not(#session):not(#manualTools) { background: none; pointer-events: none; }
+body.t3d-on .left > #table ~ :not(#session):not(#manualTools) > * { pointer-events: auto; }
+body.t3d-on .left > #table ~ * button { box-shadow: 0 6px 18px rgba(0,0,0,.55); }
+body.t3d-on .bb-main button.b-fold, body.t3d-on .bb-foot .ghostbtn, body.t3d-on .bb-foot .b-adv { background: rgba(14,5,8,.82); }
+body.t3d-on #raiseWrap, body.t3d-on .size-toggle { display: none !important; }
+.t3-sizes { display: none; }
+body.t3d-on .t3-sizes { display: flex; gap: 6px; }
+body.t3d-on .t3-sizes[hidden] { display: none; }
+body.t3d-on .t3-sizes button { display: grid; place-items: center; line-height: 1.1; padding: 6px 12px; border-radius: 12px; border: 1px solid rgba(201,154,46,.55); background: rgba(40,12,18,.9); color: #ffe6b0; font: 600 13px var(--sans); cursor: pointer; white-space: nowrap; }
+body.t3d-on .t3-sizes button small { font: 500 11px "Share Tech Mono", ui-monospace, monospace; color: rgba(255,240,215,.75); }
+body.t3d-on .t3-sizes button:hover { background: rgba(70,22,30,.95); }
+@media (max-width: 640px) { body.t3d-on .t3-sizes { flex: 1 1 100%; justify-content: center; } body.t3d-on .t3-sizes button { flex: 1; padding: 5px 4px; font-size: 12px; } }

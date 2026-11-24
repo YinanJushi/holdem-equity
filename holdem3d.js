@@ -1,6 +1,6 @@
 // Texas Hold'em in 3D: turns the table description from app.js into seated opponents, cards, chips and labels.
 // "Pick cards" mode needs the flat table (you click card spots), so the 3D view steps aside there.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=65';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=66';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'holdem') : null;
@@ -9,13 +9,25 @@ if (C) {
   window.OL_CASINO = C;
   barButton(C.wrap, C);
   const press = id => () => { const el = document.getElementById(id); if (el) el.click(); };
-  // phones: keep the bet bar short; the bet sizes and slider open from a toggle
-  const foot = document.querySelector('#betBar .bb-foot');
-  if (foot && !document.getElementById('sizeToggle')) {
-    const t = document.createElement('button'); t.type = 'button'; t.id = 'sizeToggle'; t.className = 'ghostbtn size-toggle';
-    const paintT = () => { const open = document.body.classList.contains('t3-sizes'); t.textContent = open ? 'Sizes ▴' : 'Sizes ▾'; t.setAttribute('aria-expanded', String(open)); };
-    t.onclick = () => { document.body.classList.toggle('t3-sizes'); paintT(); };
-    foot.prepend(t); paintT();
+  // bet sizes as one-tap buttons in the row: each one raises straight to that amount (no pop-up, no slider)
+  const bar = document.getElementById('betBar'), src = document.getElementById('sizes'), wrapR = document.getElementById('raiseWrap');
+  if (bar && src && !document.getElementById('t3Sizes')) {
+    const box = document.createElement('div'); box.id = 't3Sizes'; box.className = 't3-sizes';
+    bar.querySelector('.bb-main').after(box);
+    const paintSizes = () => {
+      const can = wrapR && !wrapR.hidden;
+      box.hidden = !can;
+      box.innerHTML = can ? [...src.querySelectorAll('[data-to]')].map(b => `<button type="button" data-to="${b.dataset.to}">${b.firstChild.textContent.trim()}<small>${b.dataset.to}</small></button>`).join('') : '';
+    };
+    new MutationObserver(paintSizes).observe(src, { childList: true, subtree: true });
+    if (wrapR) new MutationObserver(paintSizes).observe(wrapR, { attributes: true, attributeFilter: ['hidden'] });
+    box.onclick = e => {
+      const b = e.target.closest('[data-to]'); if (!b) return;
+      const pick = src.querySelector(`[data-to="${b.dataset.to}"]`), go = document.getElementById('raiseBtn');
+      if (pick) pick.click();
+      if (go && !go.disabled) go.click();
+    };
+    paintSizes();
   }
   tableChrome(C, [
     { icon: 'rules', label: 'Rules', onClick: press('rulesBtn') },
