@@ -74,11 +74,11 @@
   let R3 = null;
   function use3D() {
     if (R3 || !window.Reels3D || reduced()) return;
-    const frame = document.querySelector('.reel-frame'), host = $('#r3Host');
+    const host = $('#cab3d');
+    document.body.classList.add('cab3d-on');      // show the 3D machine; the HTML one stays for keyboards and screen readers
     R3 = window.Reels3D.create(host);
-    if (!R3) return;
-    frame.classList.add('is3d');
-    R3.setTheme(theme.id, theme.symbols).then(() => R3.setGrid(st.grid));
+    if (!R3) { document.body.classList.remove('cab3d-on'); return; }
+    R3.setTheme(theme.id, theme.symbols, theme.title).then(() => R3.setGrid(st.grid));
   }
   window.addEventListener('reels3d-ready', use3D);
 
@@ -127,12 +127,7 @@
   // ---------- paylines ----------
   const linesEl = $('#lines');
   function drawLines(wins) {
-    if (R3) {
-      const w = linesEl.clientWidth || 500, h = linesEl.clientHeight || 300;
-      linesEl.setAttribute('viewBox', `0 0 ${w} ${h}`);
-      linesEl.innerHTML = wins.map((x, k) => `<polyline class="pl" style="animation-delay:${k * 0.12}s" points="${E.LINES[x.line].map((row, r) => { const p = R3.project(r, row); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' ')}"/>`).join('');
-      return;
-    }
+    if (R3) { R3.lines(wins.map(x => E.LINES[x.line])); return; }
     linesEl.setAttribute('viewBox', '0 0 500 300');
     linesEl.setAttribute('preserveAspectRatio', 'none');
     linesEl.innerHTML = wins.map((w, k) => `<polyline class="pl" style="animation-delay:${k * 0.12}s" points="${E.LINES[w.line].map((row, r) => `${r * 100 + 50},${row * 100 + 50}`).join(' ')}"/>`).join('');
@@ -174,7 +169,7 @@
     $('#cabTitle').innerHTML = `${theme.title[0]} <em>${theme.title[1]}</em>`;
     $('#themePick').innerHTML = Object.values(TH).map(t => `<button type="button" role="radio" aria-checked="${t.id === theme.id}" class="tp ${t.id === theme.id ? 'on' : ''}" data-theme="${t.id}"><span class="tp-ic">${t.symbols[5]}</span>${t.name}</button>`).join('');
     if (st.grid) drawReels();
-    if (R3) R3.setTheme(theme.id, theme.symbols).then(() => R3.setGrid(st.grid));
+    if (R3) R3.setTheme(theme.id, theme.symbols, theme.title).then(() => R3.setGrid(st.grid));
   }
   $('#themePick').onclick = e => {
     const b = e.target.closest('[data-theme]');
@@ -200,6 +195,7 @@
     document.body.appendChild(fly);
     setTimeout(() => fly.remove(), 600);
     snd.coin();
+    if (R3) R3.coinIn(n);
     $('#credits').parentElement.classList.add('bump');
     setTimeout(() => $('#credits').parentElement.classList.remove('bump'), 300);
     ticker(`Inserted ${fmt(n)}. Credits ${fmt(st.credits)}.`);
@@ -211,6 +207,7 @@
     UI.wallet.add(n);
     st.credits = 0; saveCredits();
     snd.cash();
+    if (R3) R3.cashOut(n);
     ticker(`Cashed out ${fmt(n)} chips to your wallet.`);
     paint();
   };
@@ -272,7 +269,7 @@
       if (st.free > 0 || st.auto) setTimeout(spin, st.free ? 700 : 450);
     }
   }
-  function lever() { const l = $('#lever'); l.classList.remove('pull'); l.offsetWidth; l.classList.add('pull'); }
+  function lever() { if (R3) R3.pullLever(); const l = $('#lever'); l.classList.remove('pull'); l.offsetWidth; l.classList.add('pull'); }
 
   // ---------- the wheel (used by the bonus wheel and the prize wheel) ----------
   // segments: [{ label, sub, w, fill, ink }] — slice size follows w (the real odds)
