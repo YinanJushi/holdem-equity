@@ -695,3 +695,35 @@ html.t3d-wait body { background: #12070a; }
 html.t3d-wait body > * { visibility: hidden !important; }
 html.t3d-wait body::after { content: "Odds Lounge"; visibility: visible; position: fixed; inset: 0; display: grid; place-items: center; font: italic 600 30px var(--serif); color: #d9a843; letter-spacing: .02em; animation: t3load 1.2s ease-in-out infinite alternate; z-index: 100; }
 @keyframes t3load { from { opacity: .35; } to { opacity: 1; } }
+
+/* ---------- first-person full screen: the 3D view fills the whole window; the controls float over it as one slim row ---------- */
+html body.t3d-on #table { height: 100dvh; }
+body.t3d-on::before { display: none; }
+body.t3d-on .left > #table ~ :not(#session):not(#manualTools) {
+  width: min(980px, 100vw); min-height: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(10,3,5,0), rgba(10,3,5,.78) 38%); border: 0 !important; border-radius: 0 !important;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+}
+body.t3d-on .left > #table ~ [hidden] { display: none !important; }
+body.t3d-on .left > #table ~ * .hint { display: none !important; }
+body.t3d-on .bb-main { display: flex; gap: 8px; flex: 1 1 auto; min-width: 0; }
+body.t3d-on .bb-main button { flex: 1 1 0; padding: 11px 12px; min-width: 0; white-space: nowrap; }
+body.t3d-on .bb-foot { margin: 0; gap: 8px; flex-wrap: nowrap; }
+body.t3d-on .bb-foot .b-adv, body.t3d-on .bb-foot .ghostbtn, body.t3d-on .bb-foot .primary { padding: 11px 14px; white-space: nowrap; }
+/* bet sizes: a pop-up above the row, opened by the Sizes button */
+body.t3d-on .size-toggle { display: inline-flex !important; padding: 11px 14px; font-size: 14px; }
+body.t3d-on #raiseWrap { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); width: min(620px, 94vw); margin: 0; padding: 12px; box-sizing: border-box; background: rgba(20,8,10,.96); border: 1px solid rgba(201,154,46,.45); border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+body.t3d-on:not(.t3-sizes) #raiseWrap { display: none !important; }
+/* Blackjack betting row: small chips, then Clear and Deal; the bet shows on the table */
+body.t3d-on #betTools .bank-row { display: none; }
+body.t3d-on #betTools .chip-row { display: flex; gap: 6px; margin: 0; }
+body.t3d-on #betTools .bigchip { width: 46px; height: 46px; font-size: 12px; }
+/* keep the table's own corner items clear of the row */
+body.t3d-on .t3-barbtn, body.t3d-on .t3-hero { bottom: calc(var(--t3-hud, 70px) + 12px); }
+body.t3d-on .t3-toast { bottom: calc(var(--t3-hud, 70px) + 60px); }
+@media (max-width: 640px) {
+  body.t3d-on .left > #table ~ :not(#session):not(#manualTools) { padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); gap: 6px; }
+  body.t3d-on .bb-main { flex-basis: 100%; }
+  body.t3d-on .bb-main button, body.t3d-on .bb-foot button { padding: 10px 8px; font-size: 13.5px; }
+  body.t3d-on #betTools .bigchip { width: 40px; height: 40px; }
+}

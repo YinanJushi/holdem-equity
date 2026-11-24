@@ -1,6 +1,6 @@
 // Texas Hold'em in 3D: turns the table description from app.js into seated opponents, cards, chips and labels.
 // "Pick cards" mode needs the flat table (you click card spots), so the 3D view steps aside there.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=64';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=65';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'holdem') : null;
@@ -13,7 +13,7 @@ if (C) {
   const foot = document.querySelector('#betBar .bb-foot');
   if (foot && !document.getElementById('sizeToggle')) {
     const t = document.createElement('button'); t.type = 'button'; t.id = 'sizeToggle'; t.className = 'ghostbtn size-toggle';
-    const paintT = () => { const open = document.body.classList.contains('t3-sizes'); t.textContent = open ? 'Hide bet sizes' : 'Bet sizes'; t.setAttribute('aria-expanded', String(open)); };
+    const paintT = () => { const open = document.body.classList.contains('t3-sizes'); t.textContent = open ? 'Sizes ▴' : 'Sizes ▾'; t.setAttribute('aria-expanded', String(open)); };
     t.onclick = () => { document.body.classList.toggle('t3-sizes'); paintT(); };
     foot.prepend(t); paintT();
   }

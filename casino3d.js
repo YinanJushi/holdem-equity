@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=64';
+import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=65';
 
 const FLOOR = -0.76;                       // the floor, with the table top at y = 0 (metres)
 const CW = 0.102, CH = 0.143;              // card size (a little larger than life so it reads on screen)
@@ -486,13 +486,16 @@ export function createCasino(host, kind) {
   function resize() {
     const w = wrap.clientWidth, h = wrap.clientHeight; if (!w || !h) return;
     renderer.setSize(w, h, false); composer.setSize(w, h);
-    camera.aspect = w / h;
+    const hud = document.body.classList.contains('t3d-on') ? (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--t3-hud')) || 0) : 0;
+    const eh = hud > 0 && hud < h * 0.45 ? h - hud : h;   // the visible height above the floating controls
+    camera.aspect = w / eh;
+    if (eh < h) camera.setViewOffset(w, eh, 0, 0, w, h); else camera.clearViewOffset();
     // tall screens: sit back a little and look up so the dealer and the other players stay in view
-    const tall = w / h < 1;
+    const tall = w / eh < 1;
     seat.pos.copy(T.seat.pos); seat.target.copy(T.seat.target);
     if (tall) { seat.pos.y += 0.08; seat.pos.z += 0.14; }
     // keep the table across the view on tall phone screens too
-    camera.fov = w / h < 1 ? Math.min(72, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(44) / 2) * 1.2 / (w / h)) * 180 / Math.PI) : 47;
+    camera.fov = w / eh < 1 ? Math.min(72, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(44) / 2) * 1.2 / (w / eh)) * 180 / Math.PI) : 47;
     camera.updateProjectionMatrix();
     if (started) { aim(); composer.render(); }
   }
@@ -725,7 +728,7 @@ export function createCasino(host, kind) {
     const c = Math.cos(tilt), sn = Math.sin(tilt);
     return { x: x + dx, z: z - c * du + sn * layer * 0.0022, y: sn * du + c * layer * 0.0022, tilt };
   }
-  const api = { cards, camera, debugCam: null, onPlane, SKINS, setCards, setStacks, setLabels, setPuck, chair: T.chair, order, sip, T, person, scene, wrap, hasDrink: () => !!drink, onDrink: null };
+  const api = { refit: () => resize(), cards, camera, debugCam: null, onPlane, SKINS, setCards, setStacks, setLabels, setPuck, chair: T.chair, order, sip, T, person, scene, wrap, hasDrink: () => !!drink, onDrink: null };
   started = true;
   return api;
 
@@ -1184,7 +1187,9 @@ export function tableChrome(casino, items) {
       el.style.minHeight = ms;
       hud = Math.max(hud, h);
     }
+    const was = document.documentElement.style.getPropertyValue('--t3-hud');
     document.documentElement.style.setProperty('--t3-hud', Math.round(hud) + 'px');
+    if (was !== Math.round(hud) + 'px' && casino.refit) casino.refit();
   }
   const ro = new ResizeObserver(fit);
   for (let el = table.nextElementSibling; el; el = el.nextElementSibling) ro.observe(el);
