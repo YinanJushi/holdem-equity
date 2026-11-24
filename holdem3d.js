@@ -1,16 +1,25 @@
 // Texas Hold'em in 3D: turns the table description from app.js into seated opponents, cards, chips and labels.
 // "Pick cards" mode needs the flat table (you click card spots), so the 3D view steps aside there.
-import { createCasino, barButton } from './casino3d.js?v=49';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=51';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'holdem') : null;
 if (C) {
   window.OL_CASINO = C;
   barButton(C.wrap, C);
+  const press = id => () => { const el = document.getElementById(id); if (el) el.click(); };
+  tableChrome(C, [
+    { icon: 'rules', label: 'Rules', onClick: press('rulesBtn') },
+    { icon: 'cards', label: 'Card backs', onClick: press('deckBtn') },
+    { icon: 'analysis', label: 'Analysis', onClick: analysisToggle, pressed: () => document.body.classList.contains('t3-ana') },
+    { icon: 'guess', label: 'Guess first', onClick: press('guessToggle'), pressed: () => !!(document.getElementById('guessToggle') || {}).checked },
+    { icon: 'pick', label: 'Pick cards (flat table)', onClick: () => { const b = document.querySelector('#modeSeg [data-mode="manual"]'); if (b) b.click(); } },
+    { icon: 'full', label: 'Full screen', onClick: press('fsBtn'), pressed: () => document.documentElement.dataset.immersive === '1' },
+  ]);
   const msg = document.createElement('div'); msg.className = 't3-msg'; msg.setAttribute('aria-hidden', 'true'); C.wrap.appendChild(msg);
   const heroTag = document.createElement('div'); heroTag.className = 't3-hero'; heroTag.setAttribute('aria-hidden', 'true'); C.wrap.appendChild(heroTag);
 
-  const POT = { x: 0, z: 0.17 }, HERO = { x: 0, z: 0.72 };
+  const POT = { x: 0, z: -0.17 }, HERO = { x: 0, z: 0.72 };
   const SHIRT = { rock: '#2a3a5a', tag: '#5a1a2a', lag: '#7a4a12', fish: '#2a6a5a', station: '#4a2a6a', maniac: '#8a1a1a' };
   const HAIR = ['#1a1208', '#5a3a1a', '#0a0a0a', '#7a7a7a', '#3a2a1a', '#8a6a3a', '#1a1208', '#2a1a12'];
   const STYLE = ['short', 'long', 'short', 'none', 'bun', 'short', 'long', 'short'];
@@ -62,7 +71,7 @@ if (C) {
     // your hole cards, tipped up toward you
     if (!st.heroFolded) st.hero.forEach((c, i) => { if (c != null) cards.push({ key: R + 'hero' + i, c, ...C.onPlane((i - 0.5) * 0.105, 0.44, 0.55, i * 0.012, 0, i), yaw: (i - 0.5) * -0.1 }); });
     // the board
-    st.board.forEach((c, i) => { if (c != null) cards.push({ key: R + 'b' + i, c, x: (i - 2) * 0.115, z: -0.06 }); });
+    st.board.forEach((c, i) => { if (c != null) cards.push({ key: R + 'b' + i, c, x: (i - 2) * 0.112, z: 0.11, tilt: 0.3 }); });
     // opponents
     st.seats.forEach((s, i) => {
       const th = angle(i, st.n), cp = ring(th, 0.98, 0.5), bp = ring(th, 0.62, 0.32), sp = ring(th, 1.17, 0.64), hp = ring(th, 1.62, 1.02);
@@ -87,7 +96,7 @@ if (C) {
       let px = POT.x, pz = POT.z;
       if (st.over && st.winners.length === 1) { const w = st.winners[0]; if (w === 0) { px = -0.2; pz = 0.5; } else { const th = angle(w - 1, st.n), p = ring(th, 1.0, 0.56); px = p.x; pz = p.z; } }
       stacks.push({ key: R + 'pot', n: st.pot, x: px, z: pz });
-      L.push({ key: 'pot', x: POT.x, y: 0.0, z: POT.z + 0.07, html: `Pot ${st.pot}`, cls: 'small' });
+      L.push({ key: 'pot', x: POT.x, y: 0.0, z: POT.z - 0.07, html: `Pot ${st.pot}`, cls: 'small' });
     }
     // dealer button in front of whoever has it
     if (st.button != null) { if (st.button === 0) C.setPuck(0.17, 0.36); else { const p = ring(angle(st.button - 1, st.n), 0.78, 0.4); C.setPuck(p.x + 0.08, p.z + 0.04); } }

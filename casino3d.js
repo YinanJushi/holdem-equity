@@ -44,7 +44,7 @@ const snd = {
 
 // ---------- the drinks menu ----------
 export const DRINKS = [
-  { id: 'oldfashioned', name: 'Old Fashioned', note: 'Bourbon, bitters, orange peel', price: 15, glass: 'rocks', col: '#b8651b', clear: 0.55, garnish: ['peel', 'cherry'], ice: 'cube' },
+  { id: 'oldfashioned', name: 'Old Fashioned', note: 'Bourbon, bitters, orange peel', price: 15, glass: 'rocks', col: '#b8651b', clear: 0.4, garnish: ['peel', 'cherry'], ice: 'cube' },
   { id: 'martini', name: 'Dry Martini', note: 'Gin, dry vermouth, olive', price: 15, glass: 'martini', col: '#eef2dc', clear: 0.9, garnish: ['olive'] },
   { id: 'mojito', name: 'Mojito', note: 'Rum, lime, mint, soda', price: 12, glass: 'highball', col: '#d6ecb0', clear: 0.75, garnish: ['mint', 'lime'], ice: 'cubes', straw: '#1d1d1d' },
   { id: 'cosmo', name: 'Cosmopolitan', note: 'Vodka, cranberry, lime', price: 12, glass: 'martini', col: '#e0446a', clear: 0.6, garnish: ['lime'] },
@@ -575,11 +575,11 @@ export function createCasino(host, kind) {
   const server = new THREE.Group(); server.visible = false; scene.add(server);
   {
     const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.42, 6, 14), new THREE.MeshStandardMaterial({ color: '#141014', roughness: 0.6 }));
-    sleeve.rotation.z = Math.PI / 2; sleeve.position.set(0.3, -0.03, 0); server.add(sleeve);
+    sleeve.rotation.z = Math.PI / 2 - 0.45; sleeve.position.set(0.27, 0.07, 0); server.add(sleeve);
     const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.03, 16), new THREE.MeshStandardMaterial({ color: '#f4f1ea', roughness: 0.6 })); cuff.rotation.z = Math.PI / 2; cuff.position.set(0.075, -0.03, 0); server.add(cuff);
     const glove = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 12), new THREE.MeshStandardMaterial({ color: '#fbfaf6', roughness: 0.7 })); glove.scale.set(1.2, 0.45, 1); glove.position.set(0.03, -0.02, 0); server.add(glove);
-    const tray = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.008, 40), new THREE.MeshStandardMaterial({ color: '#d8d8de', metalness: 1, roughness: 0.2 })); tray.position.set(0, -0.004, 0); server.add(tray);
-    const lip = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.004, 6, 48), M.gold); lip.rotation.x = Math.PI / 2; server.add(lip);
+    const tray = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.008, 40), new THREE.MeshStandardMaterial({ color: '#d8d8de', metalness: 1, roughness: 0.2 })); tray.position.set(0, -0.004, 0); server.add(tray);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(0.095, 0.004, 6, 48), M.gold); lip.rotation.x = Math.PI / 2; server.add(lip);
     server.traverse(o => { if (o.isMesh) o.castShadow = true; });
   }
   function order(D) {
@@ -593,7 +593,7 @@ export function createCasino(host, kind) {
     if (!drink || drink.state !== 'ready') return;
     drink.state = 'sip'; drink.t = 0; drink.drank = false; snd.sip();
   }
-  const SIPS = 4;
+  const SIPS = 4, CARRY = 0.2;   // the tray travels this high: above the rail, chips and cards
   function stepDrink(dt) {
     if (!drink) return;
     const d = drink; d.t += dt;
@@ -601,19 +601,20 @@ export function createCasino(host, kind) {
     if (d.state === 'coming') {           // the tray slides in from the right, a little above the table
       if (d.t > 1.4 && !d.obj.parent) { server.add(d.obj); d.obj.position.set(0, 0.004, 0); server.visible = true; }
       const p = Math.min(1, Math.max(0, (d.t - 1.4) / 1.0)), e = easeOut(p);
-      server.position.set(lerp(sx + 0.9, sx, e), 0.09, lerp(sz - 0.25, sz, e));
+      server.position.set(lerp(sx + 0.9, sx, e), CARRY, lerp(sz - 0.25, sz, e));
       if (p >= 1) { d.state = 'place'; d.t = 0; }
     }
     if (d.state === 'place') {            // set the glass down on the table, then the tray leaves
-      const p = Math.min(1, d.t / 0.5);
+      const p = Math.min(1, d.t / 0.7);
       if (d.obj.parent === server) { const wpos = new THREE.Vector3(); d.obj.getWorldPosition(wpos); scene.add(d.obj); d.obj.position.copy(wpos); }
-      d.obj.position.set(sx, lerp(0.093, 0, easeOut(p)), sz);
+      d.obj.position.set(sx, lerp(CARRY + 0.004, 0, ease(p)), sz);
+      server.position.y = CARRY + p * 0.04;   // the tray lifts clear as the glass goes down
       if (p >= 1) { snd.clink(); d.state = 'ready'; d.t = 0; d.leaving = 0; api.onDrink && api.onDrink('ready', d.D); }
     }
     if (server.visible && (d.state === 'ready' || d.state === 'sip')) {
       d.leaving = (d.leaving || 0) + dt;
       const p = Math.min(1, d.leaving / 0.8);
-      server.position.set(lerp(sx, sx + 0.95, ease(p)), 0.09 + p * 0.05, lerp(sz, sz - 0.2, p));
+      server.position.set(lerp(sx, sx + 0.95, ease(p)), CARRY + 0.04 + p * 0.05, lerp(sz, sz - 0.2, p));
       if (p >= 1) server.visible = false;
     }
     if (d.state === 'sip') {               // lift it toward you, tip, put it back
@@ -1058,3 +1059,51 @@ export function barButton(host, casino) {
   };
   return btn;
 }
+
+// ---------- full-screen table: the 3D view fills the height left over by the action buttons; the page's
+// tool links become small icon buttons on the table's left edge; the analysis opens as a drawer ----------
+const ICONS = {
+  rules: '<path d="M6 4h9a3 3 0 0 1 3 3v13H9a3 3 0 0 1-3-3z"/><path d="M6 17a3 3 0 0 1 3-3h9"/>',
+  cards: '<rect x="4" y="6" width="10" height="14" rx="1.6" transform="rotate(-10 9 13)"/><rect x="10" y="4" width="10" height="14" rx="1.6" transform="rotate(8 15 11)"/>',
+  analysis: '<path d="M4 20h16"/><path d="M7 17v-5"/><path d="M12 17V7"/><path d="M17 17v-8"/>',
+  full: '<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',
+  guess: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.5a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.4"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>',
+  pick: '<rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><rect x="13" y="13" width="7" height="7" rx="1.2"/>',
+};
+export function tableChrome(casino, items) {
+  const wrap = casino.wrap, table = wrap.parentElement;
+  const rail = document.createElement('div'); rail.className = 't3-rail'; wrap.appendChild(rail);
+  const btns = items.map(it => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 't3-ico';
+    b.setAttribute('aria-label', it.label); b.dataset.tip = it.label;
+    b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[it.icon]}</svg>`;
+    b.onclick = () => { it.onClick(); paint(); };
+    rail.appendChild(b);
+    return [b, it];
+  });
+  function paint() { btns.forEach(([b, it]) => { if (it.pressed) b.setAttribute('aria-pressed', it.pressed() ? 'true' : 'false'); }); }
+  paint();
+  // the analysis drawer
+  const right = document.querySelector('.right');
+  if (right && !right.querySelector('.t3-close')) {
+    const x = document.createElement('button'); x.type = 'button'; x.className = 't3-close'; x.setAttribute('aria-label', 'Close analysis'); x.textContent = '×';
+    x.onclick = () => { document.body.classList.remove('t3-ana'); paint(); };
+    right.prepend(x);
+  }
+  // fit the table to the window: whatever height the header, the controls under the table and a margin leave
+  function fit() {
+    if (!document.body.classList.contains('t3d-on')) return;
+    let below = 0;
+    for (let el = table.nextElementSibling; el; el = el.nextElementSibling) { if (el.id === 'session') break; if (el.offsetParent) below += el.offsetHeight + 12; }
+    const top = table.getBoundingClientRect().top + window.scrollY;
+    document.documentElement.style.setProperty('--t3-reserve', Math.round(top + below + 18) + 'px');
+  }
+  const ro = new ResizeObserver(fit);
+  for (let el = table.nextElementSibling; el; el = el.nextElementSibling) ro.observe(el);
+  ro.observe(document.body);
+  window.addEventListener('resize', fit);
+  window.addEventListener('table-state', () => requestAnimationFrame(fit));
+  fit();
+  return { paint, fit };
+}
+export function analysisToggle() { document.body.classList.toggle('t3-ana'); }

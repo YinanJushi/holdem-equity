@@ -1,5 +1,5 @@
 // Blackjack in 3D: turns the table description from blackjack.js into cards, chips and labels on a 3D table.
-import { createCasino, barButton } from './casino3d.js?v=49';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=51';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'bj') : null;
@@ -7,6 +7,14 @@ if (C) {
   window.OL_CASINO = C;
   document.body.classList.add('t3d-on');
   barButton(C.wrap, C);
+  const press = id => () => { const el = document.getElementById(id); if (el) el.click(); };
+  tableChrome(C, [
+    { icon: 'rules', label: 'Rules', onClick: press('rulesBtn') },
+    { icon: 'cards', label: 'Card backs', onClick: press('deckBtn') },
+    { icon: 'analysis', label: 'Analysis', onClick: analysisToggle, pressed: () => document.body.classList.contains('t3-ana') },
+    { icon: 'guess', label: 'Guess first', onClick: press('guessToggle'), pressed: () => !!(document.getElementById('guessToggle') || {}).checked },
+    { icon: 'full', label: 'Full screen', onClick: press('fsBtn'), pressed: () => document.documentElement.dataset.immersive === '1' },
+  ]);
   const msg = document.createElement('div'); msg.className = 't3-msg'; msg.setAttribute('aria-hidden', 'true'); C.wrap.appendChild(msg);
 
   const RACK = { x: 0, z: -0.5 }, YOU = { x: 0, z: 1.05 };
@@ -42,7 +50,7 @@ if (C) {
       // a lost bet slides over to the dealer's rack; otherwise it sits in your circle
       stacks.push(lost ? { key: R + 'bet' + k, n: h.bet, x: RACK.x + (k - (n - 1) / 2) * 0.09, z: RACK.z + 0.08, toX: RACK.x, toZ: RACK.z }
         : { key: R + 'bet' + k, n: h.bet, x: hx, z: 0.62, fromX: YOU.x, fromZ: YOU.z, toX: YOU.x, toZ: YOU.z });
-      if (h.res && h.net > 0) stacks.push({ key: R + 'pay' + k, n: h.net, x: hx + 0.065, z: 0.6, fromX: RACK.x, fromZ: RACK.z, toX: YOU.x, toZ: YOU.z });
+      if (h.res && h.net > 0) stacks.push({ key: R + 'pay' + k, n: h.net, x: hx - 0.07, z: 0.6, fromX: RACK.x, fromZ: RACK.z, toX: YOU.x, toZ: YOU.z });
     });
     C.setStacks(stacks);
 

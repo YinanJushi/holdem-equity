@@ -623,3 +623,25 @@ body.t3d-on #fx { z-index: 4; }
 .bar-dlg .drink .pr { flex: none; font-family: "Share Tech Mono", ui-monospace, monospace; font-weight: 700; font-size: 13px; padding: 3px 8px; border-radius: 999px; background: #221915; color: #f2c14e; }
 .bar-dlg .drink .pr::before { content: "◉ "; font-size: 10px; }
 .bar-dlg .drink:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+/* ---------- full-screen 3D tables ---------- */
+body.t3d-on .layout { display: block; max-width: none; }
+body.t3d-on .left { max-width: min(100%, calc((100dvh - var(--t3-reserve, 300px)) * 2)); margin: 0 auto; }
+body.t3d-on .left > .toolbar { display: none; }
+body.t3d-on #table { aspect-ratio: auto; height: max(320px, calc(100dvh - var(--t3-reserve, 300px))); margin: 6px 0 12px; }
+@media (max-width: 640px) { body.t3d-on #table { aspect-ratio: auto; height: max(360px, calc(100dvh - var(--t3-reserve, 300px))); } }
+/* the analysis becomes a drawer */
+html body.t3d-on .right, html[data-focus="1"] body.t3d-on .right { display: block !important; position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 92vw); z-index: 60; overflow-y: auto; padding: 46px 14px 20px; background: #1a0b0d; box-shadow: -14px 0 40px rgba(0,0,0,.5); transform: translateX(105%); transition: transform .3s ease; }
+body.t3d-on.t3-ana .right { transform: none; }
+html[data-focus="1"] body.t3d-on #adviceBtn { display: inline-flex !important; }
+.t3-close { display: none; }
+body.t3d-on .right .t3-close { display: grid; place-items: center; position: absolute; top: 8px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(201,154,46,.5); background: rgba(14,5,8,.8); color: #ffe6b0; font-size: 20px; line-height: 1; cursor: pointer; }
+.t3-rail { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 3; display: flex; flex-direction: column; gap: 8px; }
+.t3-ico { position: relative; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(14,5,8,.78); color: #ffe6b0; border: 1px solid rgba(201,154,46,.55); cursor: pointer; padding: 0; transition: background .15s, transform .15s; }
+.t3-ico:hover { background: rgba(60,20,24,.92); transform: scale(1.06); }
+.t3-ico[aria-pressed="true"] { background: #c99a2e; color: #1b0a06; border-color: #f2c14e; }
+.t3-ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.t3-ico::after { content: attr(data-tip); position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); white-space: nowrap; background: rgba(14,5,8,.9); color: #fff6e0; font: 600 12px var(--sans); padding: 4px 8px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.t3-ico:hover::after, .t3-ico:focus-visible::after { opacity: 1; }
+@media (max-width: 640px) { .t3-rail { left: 6px; gap: 6px; } .t3-ico { width: 32px; height: 32px; } .t3-ico svg { width: 16px; height: 16px; } }
+html body.t3d-on #table { min-height: 0; }
