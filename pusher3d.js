@@ -1,187 +1,401 @@
-// A 3D coin pusher (three.js). Coins slide on the deck when the pusher or other coins push them; coins that land
-// on the pile sit on top and drop down when what holds them up is pushed away. Light enough for phones.
-// Each coin costs 5 chips. Coins pushed over the middle of the front edge pay out; the two corners go to the house.
-// Every 20th coin is gold and worth five. Over time the machine pays back about 90%.
+// A 3D coin pusher (three.js + Rapier physics).
+// Two decks: coins drop onto the upper deck, its pusher shoves them down onto the big lower pusher and the
+// deck in front of it; the lower pusher shoves the pile toward the front edge. Coins that fall over the
+// middle of the front edge pay out; the two corners go to the house. Every 20th coin is gold (worth 5).
+// Drop a coin through the moving Lucky Gate to roll the bonus lamp: coin shower, gold rush, funnel walls
+// (guide corner coins to the middle for a while) or the jackpot. The pile is kept between visits.
 import * as THREE from 'three';
+import RAPIER from '@dimforge/rapier3d-compat';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=75';
+import { headerChrome, onQuality } from './chrome3d.js?v=76';
 
 const COIN = 5, GOLD = 5, $ = s => document.querySelector(s);
 const host = $('#pzHost');
 let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
-document.documentElement.classList.remove('t3d-wait');
-if (renderer && host) start();
+if (renderer && host) RAPIER.init().then(start).catch(e => { console.error(e); document.documentElement.classList.remove('t3d-wait'); });
+else document.documentElement.classList.remove('t3d-wait');
 
 function start() {
   document.body.classList.add('pz-on');
   renderer.toneMapping = THREE.NeutralToneMapping; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.domElement.className = 'pz-canvas'; host.appendChild(renderer.domElement);
   headerChrome(host, 'pz-on');
-  const scene = new THREE.Scene(); scene.background = new THREE.Color('#12070a');
-  const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.45;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color('#0d0508');
+  const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.55;
   const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 20);
   scene.add(new THREE.HemisphereLight('#ffe6c8', '#2a0a10', 0.7));
-  const key = new THREE.SpotLight('#fff1dc', 3.5, 3, 0.75, 0.7, 1.2); key.position.set(0, 0.9, 0.15); key.target.position.set(0, 0, -0.1); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); scene.add(key, key.target);
+  const key = new THREE.SpotLight('#fff1dc', 1.9, 3, 0.9, 1, 1.2); key.position.set(0.1, 1.0, 0.25); key.target.position.set(0, 0, -0.15); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0005; scene.add(key, key.target);
 
-  // ---------- the deck (metres) ----------
-  const W = 0.36, FRONT = 0.3, BACK = -0.55, WIN = 0.27, R = 0.03, TH = 0.008;   // half width, front edge, back wall, payout half width, coin radius, thickness
-  const PD = 0.28;
-  const pushZ = t => -0.25 + Math.sin(t * 1.3) * 0.11;   // pusher centre; its front face travels between about -0.22 and 0.0
+  // ---------- the machine's layout (metres; z points toward you) ----------
+  const W = 0.36, FRONT = 0.3, BACK = -0.72, WIN = 0.18;
+  const R = 0.03, TH = 0.01;                                   // coin radius and thickness
+  const P1 = { h: 0.06, d: 0.4 }, SLAB = { y0: 0.064, y1: 0.15, z1: -0.3 };   // lower pusher; the upper deck slab above its back half
+  const P2 = { h: 0.04, d: 0.22 }, SCRAPER = { y0: 0.194, z1: -0.5 };        // upper pusher; the scraper above its back half
+  const DROP = { y: 0.44, z: -0.4 }, GATE_Y = 0.37;
+  const fz1 = t => -0.11 + Math.sin(t * 1.2) * 0.11;                 // front face of the lower pusher
+  const fz2 = t => -0.42 + Math.sin(t * 1.2 + Math.PI) * 0.07;       // front face of the upper pusher (opposite phase)
+  const gateX = t => Math.sin(t * 1.9) * 0.25;
 
-  // ---------- the cabinet ----------
-  const gold = new THREE.MeshStandardMaterial({ color: '#b8862e', metalness: 0.9, roughness: 0.4, envMapIntensity: 0.6 });
-  const deckM = new THREE.MeshStandardMaterial({ color: '#2a0a14', roughness: 0.5, metalness: 0.2 });
+  // ---------- physics ----------
+  const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  world.lengthUnit = 0.05; world.timestep = 1 / 60; world.numSolverIterations = 6;
+  const fixed = (hx, hy, hz, x, y, z, fr = 0.3) => world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(fr).setRestitution(0.05));
+  fixed(W, 0.05, (FRONT - BACK) / 2, 0, -0.05, (FRONT + BACK) / 2);                                    // lower deck
+  [-1, 1].forEach(sd => fixed(0.02, 0.4, (FRONT - BACK) / 2 + 0.05, sd * (W + 0.02), 0.35, (FRONT + BACK) / 2, 0.1));   // side walls
+  fixed(W, 0.4, 0.02, 0, 0.35, BACK - 0.02);                                                           // back wall
+  fixed(W, (SLAB.y1 - SLAB.y0) / 2, (SLAB.z1 - BACK) / 2, 0, (SLAB.y0 + SLAB.y1) / 2, (SLAB.z1 + BACK) / 2);   // upper deck
+  fixed(W, 0.06, (SCRAPER.z1 - BACK) / 2, 0, SCRAPER.y0 + 0.06, (SCRAPER.z1 + BACK) / 2);              // scraper over the upper pusher
+  const kin = (hx, hy, hz, rot) => { const d = RAPIER.RigidBodyDesc.kinematicPositionBased(); if (rot) d.setRotation(rot); const b = world.createRigidBody(d); world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setFriction(0.3), b); return b; };
+  const pusher1 = kin(W - 0.003, P1.h / 2, P1.d / 2), pusher2 = kin(W - 0.003, P2.h / 2, P2.d / 2);
+  const pos1 = t => ({ x: 0, y: P1.h / 2, z: fz1(t) - P1.d / 2 }), pos2 = t => ({ x: 0, y: SLAB.y1 + P2.h / 2, z: fz2(t) - P2.d / 2 });
+  pusher1.setTranslation(pos1(0), true); pusher2.setTranslation(pos2(0), true);
+  // funnel walls: rise out of the deck at the front corners and steer corner coins toward the paying middle
+  const FW = (() => { const dx = W - WIN, dz = 0.14, len = Math.hypot(dx, dz); return { len, dz, list: [-1, 1].map(sd => { const th = Math.atan2(-dx * sd, dz), q = { x: 0, y: Math.sin(th / 2), z: 0, w: Math.cos(th / 2) }; const b = kin(0.006, 0.03, len / 2, q); const x = sd * (W + WIN) / 2, z = FRONT - dz / 2; b.setTranslation({ x, y: -0.04, z }, true); return { b, x, z, th, sd }; }) }; })();
+  let wallUp = 0, wallH = 0;   // seconds left; current height 0..1
+
+  // ---------- coins ----------
+  const coins = [];   // { body, gold, gate, vy, paid }
+  const MAXC = 520;
+  function addCoin(x, y, z, gold, opts = {}) {
+    if (coins.length >= MAXC) return null;
+    const q = opts.q || new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * (opts.tumble || 0.3), Math.random() * 6, (Math.random() - 0.5) * (opts.tumble || 0.3)));
+    const d = RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setLinearDamping(0.4).setAngularDamping(0.9).setCcdEnabled(true);
+    if (opts.vy) d.setLinvel(opts.vx || 0, opts.vy, opts.vz || 0);
+    const body = world.createRigidBody(d);
+    world.createCollider(RAPIER.ColliderDesc.roundCylinder(TH / 2 - 0.002, R - 0.002, 0.002).setDensity(gold ? 9 : 8).setFriction(0.32).setRestitution(0.08), body);
+    const c = { body, gold, gate: !!opts.gate, vy: 0, paid: false };
+    coins.push(c); return c;
+  }
+  const removeCoin = i => { world.removeRigidBody(coins[i].body); coins.splice(i, 1); };
+
+  // ---------- the cabinet (looks) ----------
+  const goldM = new THREE.MeshStandardMaterial({ color: '#c8963a', metalness: 1, roughness: 0.3, envMapIntensity: 0.8 });
+  const chromeM = new THREE.MeshPhysicalMaterial({ color: '#d8dbe6', metalness: 1, roughness: 0.18, clearcoat: 1, envMapIntensity: 0.9 });
+  const deckTex = (() => {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 768; const g = c.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 0, 768); gr.addColorStop(0, '#2a0618'); gr.addColorStop(1, '#4a0a28'); g.fillStyle = gr; g.fillRect(0, 0, 512, 768);
+    g.strokeStyle = 'rgba(255,200,90,.16)'; g.lineWidth = 2;
+    for (let i = -8; i <= 8; i++) { g.beginPath(); g.moveTo(256, -200); g.lineTo(256 + i * 70, 800); g.stroke(); }
+    g.fillStyle = 'rgba(255,214,120,.55)'; g.font = 'italic 700 46px Georgia, serif'; g.textAlign = 'center'; g.fillText('Odds Lounge', 256, 560);
+    g.fillStyle = 'rgba(255,214,120,.35)';
+    for (let k = 0; k < 3; k++) { const y = 640 + k * 34; g.beginPath(); g.moveTo(226, y); g.lineTo(256, y + 22); g.lineTo(286, y); g.lineTo(276, y); g.lineTo(256, y + 12); g.lineTo(236, y); g.fill(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  })();
+  const deckM = new THREE.MeshPhysicalMaterial({ map: deckTex, roughness: 0.25, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.15 });
   const deck = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.04, FRONT - BACK), deckM); deck.position.set(0, -0.02, (FRONT + BACK) / 2); deck.receiveShadow = true; scene.add(deck);
-  const lip = new THREE.Mesh(new THREE.BoxGeometry(WIN * 2, 0.012, 0.02), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.2, 0.4) })); lip.position.set(0, 0.0, FRONT - 0.01); scene.add(lip);
-  [-1, 1].forEach(sd => { const c = new THREE.Mesh(new THREE.BoxGeometry(W - WIN, 0.012, 0.02), new THREE.MeshBasicMaterial({ color: '#5a0a14' })); c.position.set(sd * (WIN + (W - WIN) / 2), 0.0, FRONT - 0.01); scene.add(c); });
-  const sideM = new THREE.MeshPhysicalMaterial({ color: '#7a1030', metalness: 0.4, roughness: 0.3, clearcoat: 1 });
-  [-1, 1].forEach(sd => { const s = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.62, FRONT - BACK + 0.1, 3, 0.02), sideM); s.position.set(sd * (W + 0.03), 0.2, (FRONT + BACK) / 2); s.castShadow = true; scene.add(s); });
-  const backPanel = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, 0.6), new THREE.MeshStandardMaterial({ color: '#3a0a18', roughness: 0.6 })); backPanel.position.set(0, 0.28, BACK - 0.04); scene.add(backPanel);
-  const signTex = (() => { const c = document.createElement('canvas'); c.width = 1024; c.height = 256; const g = c.getContext('2d'); g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'italic 700 120px Georgia, serif'; const gr = g.createLinearGradient(0, 60, 0, 200); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#c99a2e'); g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.7)'; g.shadowBlur = 24; g.fillText('Coin Pusher', 512, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.15), new THREE.MeshBasicMaterial({ map: signTex, transparent: true })); sign.position.set(0, 0.48, BACK - 0.03); scene.add(sign);
-  const bulbs = []; for (let i = 0; i < 18; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.01, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' })); b.position.set(-W + 0.02 + i * ((W * 2 - 0.04) / 17), 0.57, BACK - 0.03); scene.add(b); bulbs.push(b); }
-  const pusherMesh = new THREE.Mesh(new RoundedBoxGeometry((W - 0.005) * 2, 0.06, PD, 3, 0.01), new THREE.MeshPhysicalMaterial({ color: '#9a9aa6', metalness: 0.9, roughness: 0.4, envMapIntensity: 0.5 }));
-  pusherMesh.castShadow = true; pusherMesh.receiveShadow = true; scene.add(pusherMesh);
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, 0.3), new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.06, roughness: 0.05, clearcoat: 1, depthWrite: false }));
-  glass.position.set(0, 0.32, FRONT - 0.02); glass.rotation.x = -0.35; scene.add(glass);
-  const tray = new THREE.Mesh(new RoundedBoxGeometry(W * 2 + 0.06, 0.06, 0.16, 3, 0.02), gold); tray.position.set(0, -0.16, FRONT + 0.1); scene.add(tray);
-  const room = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), new THREE.MeshStandardMaterial({ color: '#1a0a0c', side: THREE.BackSide })); room.position.y = 1; scene.add(room);
-  const chute = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 24, 1, true), gold); chute.position.set(0, 0.36, 0.04); scene.add(chute);
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(WIN * 2, 0.006, 0.012), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.6, 0.5) })); lip.position.set(0, 0.001, FRONT - 0.006); scene.add(lip);
+  [-1, 1].forEach(sd => { const c = new THREE.Mesh(new THREE.BoxGeometry(W - WIN, 0.006, 0.012), new THREE.MeshBasicMaterial({ color: '#6a0a1a' })); c.position.set(sd * (WIN + (W - WIN) / 2), 0.001, FRONT - 0.006); scene.add(c); });
+  const sideM = new THREE.MeshPhysicalMaterial({ color: '#5a0a26', metalness: 0.4, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3 });
+  [-1, 1].forEach(sd => {
+    const s = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.78, FRONT - BACK + 0.12, 3, 0.02), sideM); s.position.set(sd * (W + 0.03), 0.28, (FRONT + BACK) / 2); s.castShadow = true; scene.add(s);
+    const neon = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.008, FRONT - BACK), new THREE.MeshBasicMaterial({ color: sd < 0 ? new THREE.Color(1.6, 0.25, 0.8) : new THREE.Color(0.25, 1, 1.6) }));
+    neon.position.set(sd * (W + 0.001), 0.1, (FRONT + BACK) / 2); scene.add(neon);
+  });
+  const backPanel = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, 0.8), new THREE.MeshStandardMaterial({ color: '#25060f', roughness: 0.55, metalness: 0.3 })); backPanel.position.set(0, 0.38, BACK - 0.001); scene.add(backPanel);
+  const slabM = new THREE.MeshPhysicalMaterial({ color: '#3a0a1c', roughness: 0.3, metalness: 0.4, clearcoat: 1 });
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(W * 2, SLAB.y1 - SLAB.y0, SLAB.z1 - BACK), slabM); slab.position.set(0, (SLAB.y0 + SLAB.y1) / 2, (SLAB.z1 + BACK) / 2); slab.castShadow = slab.receiveShadow = true; scene.add(slab);
+  const slabTop = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, SLAB.z1 - BACK), deckM); slabTop.rotation.x = -Math.PI / 2; slabTop.position.set(0, SLAB.y1 + 0.0005, (SLAB.z1 + BACK) / 2); slabTop.receiveShadow = true; scene.add(slabTop);
+  const ledM = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.7, 0.6) });
+  const led = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.008, 0.004), ledM); led.position.set(0, SLAB.y0 + 0.03, SLAB.z1 + 0.002); scene.add(led);
+  const scraper = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.12, SCRAPER.z1 - BACK), slabM); scraper.position.set(0, SCRAPER.y0 + 0.06, (SCRAPER.z1 + BACK) / 2); scraper.castShadow = true; scene.add(scraper);
+  const led2 = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.008, 0.004), ledM); led2.position.set(0, SCRAPER.y0 + 0.02, SCRAPER.z1 + 0.002); scene.add(led2);
+  const p1Mesh = new THREE.Mesh(new RoundedBoxGeometry((W - 0.003) * 2, P1.h, P1.d, 3, 0.008), chromeM); p1Mesh.castShadow = p1Mesh.receiveShadow = true; scene.add(p1Mesh);
+  const p2Mesh = new THREE.Mesh(new RoundedBoxGeometry((W - 0.003) * 2, P2.h, P2.d, 3, 0.008), chromeM); p2Mesh.castShadow = p2Mesh.receiveShadow = true; scene.add(p2Mesh);
+  const fwMeshes = FW.list.map(f => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.06, FW.len), new THREE.MeshPhysicalMaterial({ color: '#7fe8ff', emissive: '#1aa8ff', emissiveIntensity: 1.2, transparent: true, opacity: 0.75, roughness: 0.1 })); m.rotation.y = f.th; scene.add(m); return m; });
+  // the tray in front catches the winnings
+  const tray = new THREE.Mesh(new RoundedBoxGeometry(WIN * 2 + 0.04, 0.05, 0.16, 3, 0.02), goldM); tray.position.set(0, -0.17, FRONT + 0.09); tray.receiveShadow = true; scene.add(tray);
+  const room = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), new THREE.MeshStandardMaterial({ color: '#140709', side: THREE.BackSide })); room.position.y = 1; scene.add(room);
+  // sign, marquee bulbs and the bonus lamp
+  const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const redraw = (...a) => { g.clearRect(0, 0, w, h); draw(g, w, h, ...a); t.needsUpdate = true; }; redraw(); return { t, redraw }; };
+  const sign = canvasTex(1024, 200, (g, w, h) => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'italic 700 112px Georgia, serif'; const gr = g.createLinearGradient(0, 40, 0, 160); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#c99a2e'); g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.8)'; g.shadowBlur = 26; g.fillText('Coin Pusher', w / 2, h / 2); });
+  const signM = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.12), new THREE.MeshBasicMaterial({ map: sign.t, transparent: true })); signM.position.set(0, 0.72, BACK + 0.005); scene.add(signM);
+  const bulbs = []; for (let i = 0; i < 22; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' })); b.position.set(-W + 0.02 + i * ((W * 2 - 0.04) / 21), 0.8, BACK + 0.01); scene.add(b); bulbs.push(b); }
+  const lamp = canvasTex(768, 220, (g, w, h, big = 'LUCKY GATE', small = 'drop a coin through the ring', col = '#ffd36a') => {
+    g.fillStyle = '#12040a'; g.fillRect(0, 0, w, h); g.strokeStyle = col; g.lineWidth = 8; g.strokeRect(8, 8, w - 16, h - 16);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 22;
+    g.font = '700 86px "Share Tech Mono", ui-monospace, monospace'; g.fillText(big, w / 2, h * 0.42);
+    g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.75)'; g.font = '600 34px "Libre Franklin", sans-serif'; g.fillText(small, w / 2, h * 0.78);
+  });
+  const lampM = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.115), new THREE.MeshBasicMaterial({ map: lamp.t, toneMapped: false })); lampM.position.set(0, 0.56, BACK + 0.005); scene.add(lampM);
+  // the lucky gate: a glowing ring that slides across under the coin chute
+  const ringM = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.6, 0.4) });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.005, 10, 40), ringM); ring.rotation.x = -Math.PI / 2; ring.position.set(0, GATE_Y, DROP.z); scene.add(ring);
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.62, 8), goldM); rail.rotation.z = Math.PI / 2; rail.position.set(0, GATE_Y, DROP.z - 0.04); scene.add(rail);
+  const chute = new THREE.Group();
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.05, 28, 1, true), goldM); chute.add(tube);
+  const tubeRim = new THREE.Mesh(new THREE.TorusGeometry(0.038, 0.004, 8, 28), goldM); tubeRim.rotation.x = Math.PI / 2; tubeRim.position.y = -0.025; chute.add(tubeRim);
+  chute.position.set(0, DROP.y + 0.03, DROP.z); scene.add(chute);
+  const aimDot = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.026, 32), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.6, depthWrite: false })); aimDot.rotation.x = -Math.PI / 2; scene.add(aimDot);
   let aimX = 0;
 
-  // ---------- coins: one instanced batch for silver, one for gold ----------
-  const MAXC = 400;
-  const coinGeo = new THREE.CylinderGeometry(R, R, TH, 28);
-  const silverM = new THREE.MeshStandardMaterial({ color: '#c8c8d0', metalness: 0.9, roughness: 0.35, envMapIntensity: 0.7 });
-  const goldM = new THREE.MeshStandardMaterial({ color: '#f2c14e', metalness: 1, roughness: 0.22, emissive: '#7a4a10', emissiveIntensity: 0.3 });
-  const silverI = new THREE.InstancedMesh(coinGeo, silverM, MAXC), goldI = new THREE.InstancedMesh(coinGeo, goldM, MAXC);
+  // ---------- coin looks: reeded edge, embossed faces ----------
+  const faceTex = (base, hi, lo, mark) => canvasTex(256, 256, g => {
+    const gr = g.createRadialGradient(110, 100, 10, 128, 128, 130); gr.addColorStop(0, hi); gr.addColorStop(1, base); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = lo; g.lineWidth = 10; g.beginPath(); g.arc(128, 128, 112, 0, 7); g.stroke();
+    g.strokeStyle = hi; g.lineWidth = 3; g.beginPath(); g.arc(128, 128, 96, 0, 7); g.stroke();
+    for (let i = 0; i < 40; i++) { const a = i / 40 * Math.PI * 2; g.fillStyle = lo; g.beginPath(); g.arc(128 + Math.cos(a) * 104, 128 + Math.sin(a) * 104, 2.5, 0, 7); g.fill(); }
+    g.fillStyle = lo; g.font = '700 120px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 130, 136);
+    g.fillStyle = hi; g.fillText(mark, 126, 130);
+  }).t;
+  const edgeTex = canvasTex(256, 8, g => { for (let i = 0; i < 64; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#555555'; g.fillRect(i * 4, 0, 4, 8); } }).t; edgeTex.colorSpace = THREE.NoColorSpace;
+  const coinMats = (base, hi, lo, mark, metal, emis) => {
+    const f = faceTex(base, hi, lo, mark);
+    const face = new THREE.MeshStandardMaterial({ map: f, bumpMap: f, bumpScale: 2, metalness: metal, roughness: 0.32, envMapIntensity: 0.55, emissive: emis || '#000000', emissiveIntensity: emis ? 0.25 : 0 });
+    const edge = new THREE.MeshStandardMaterial({ color: hi, bumpMap: edgeTex, bumpScale: 1.5, metalness: metal, roughness: 0.36, envMapIntensity: 0.55, emissive: emis || '#000000', emissiveIntensity: emis ? 0.25 : 0 });
+    return [edge, face, face];
+  };
+  const coinGeo = new THREE.CylinderGeometry(R, R, TH, 32);
+  const silverI = new THREE.InstancedMesh(coinGeo, coinMats('#9a9ca8', '#eef0f6', '#6a6c78', '♠', 0.95), MAXC);
+  const goldI = new THREE.InstancedMesh(coinGeo, coinMats('#c8902a', '#ffe08a', '#8a5a12', '★', 1, '#8a5a10'), MAXC);
   [silverI, goldI].forEach(m => { m.castShadow = true; m.receiveShadow = true; m.count = 0; m.frustumCulled = false; scene.add(m); });
-  const coins = [];   // { x, y, z, vy, vz, st: 'drop' | 'deck' | 'fall', gold, yaw, tilt, dx, dz }
-  const newCoin = (x, y, z, gold, st) => ({ x, y, z, vy: st === 'drop' ? -0.3 : 0, vz: 0, st, gold, yaw: Math.random() * 6, tilt: 0, dx: 0, dz: 0 });
-  // the height of the pile under a coin: the top of the highest coin it would rest on
-  function restHeight(c) {
-    let h = 0;
-    for (const o of coins) if (o !== c && o.st === 'deck' && o.y < c.y + 0.001 && (o.x - c.x) ** 2 + (o.z - c.z) ** 2 < (R * 1.6) ** 2) h = Math.max(h, o.y + TH);
-    return h;
-  }
-  // the machine starts with a pile on the deck
-  for (let i = 0; i < 70; i++) { const c = newCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.3, Math.random() * 0.27, Math.random() < 0.04, 'deck'); c.y = restHeight(c); coins.push(c); }
 
-  // ---------- money: each drop costs a coin; wins are paid in batches so the wallet isn't hit for every coin ----------
-  let pending = 0, dropped = 0, won = 0, drops = 0;
+  // ---------- sparkles ----------
+  const NP = 600, pPos = new Float32Array(NP * 3), pCol = new Float32Array(NP * 3), parts = [];
+  const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+  const sparkTex = canvasTex(64, 64, g => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,230,160,.8)'); gr.addColorStop(1, 'rgba(255,200,80,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }).t;
+  const sparks = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 0.018, map: sparkTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); sparks.frustumCulled = false; scene.add(sparks);
+  function burst(x, y, z, n, spread = 0.6, color = [1, 0.8, 0.35]) {
+    for (let i = 0; i < n && parts.length < NP; i++) {
+      const a = Math.random() * Math.PI * 2, s = spread * (0.3 + Math.random());
+      parts.push({ x, y, z, vx: Math.cos(a) * s * 0.5, vy: Math.random() * s + 0.2, vz: Math.sin(a) * s * 0.5, life: 0.6 + Math.random() * 0.6, c: color });
+    }
+  }
+  function stepSparks(dt) {
+    for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy -= 2.5 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; }
+    for (let i = 0; i < NP; i++) {
+      const p = parts[i];
+      if (p) { pPos[i * 3] = p.x; pPos[i * 3 + 1] = p.y; pPos[i * 3 + 2] = p.z; const f = Math.min(1, p.life / 0.5) * (0.7 + Math.random() * 0.6); pCol[i * 3] = p.c[0] * f; pCol[i * 3 + 1] = p.c[1] * f; pCol[i * 3 + 2] = p.c[2] * f; }
+      else { pPos[i * 3 + 1] = -9; }
+    }
+    pGeo.attributes.position.needsUpdate = true; pGeo.attributes.color.needsUpdate = true;
+  }
+
+  // ---------- sound: coin clinks by how hard they land ----------
+  let actx = null, clinkBudget = 0;
+  const audio = () => { if (!UI.soundOn()) return null; try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) { return null; } return actx; };
+  function clink(strength, low) {
+    const a = audio(); if (!a || clinkBudget < 1) return; clinkBudget--;
+    const t = a.currentTime, vol = Math.min(0.12, 0.02 + strength * 0.04), f0 = (low ? 1500 : 2600) + Math.random() * 1600;
+    [1, 1.47, 2.09].forEach((m, i) => { const o = a.createOscillator(), gn = a.createGain(); o.type = 'sine'; o.frequency.value = f0 * m; gn.gain.setValueAtTime(vol / (i + 1), t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.09 + Math.random() * 0.08 + (low ? 0.15 : 0)); o.connect(gn).connect(a.destination); o.start(t); o.stop(t + 0.35); });
+  }
+  function fanfare(big) {
+    const a = audio(); if (!a) return; const t = a.currentTime;
+    (big ? [523, 659, 784, 1047, 1319, 1568] : [659, 784, 1047]).forEach((f, i) => { const o = a.createOscillator(), gn = a.createGain(); o.type = 'triangle'; o.frequency.value = f; gn.gain.setValueAtTime(0.0001, t + i * 0.08); gn.gain.exponentialRampToValueAtTime(0.09, t + i * 0.08 + 0.02); gn.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.08 + 0.4); o.connect(gn).connect(a.destination); o.start(t + i * 0.08); o.stop(t + i * 0.08 + 0.45); });
+  }
+  function beep(f) { const a = audio(); if (!a) return; const t = a.currentTime, o = a.createOscillator(), gn = a.createGain(); o.type = 'square'; o.frequency.value = f; gn.gain.setValueAtTime(0.03, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.05); o.connect(gn).connect(a.destination); o.start(t); o.stop(t + 0.06); }
+
+  // ---------- money and the on-screen counters ----------
+  let pending = 0, dropped = 0, won = 0, drops = 0, shown = 0, sim = null;
   const flush = () => { if (pending) { UI.wallet.add(pending); pending = 0; } };
   setInterval(flush, 1500); window.addEventListener('pagehide', flush);
-  const info = () => { $('#pzInfo').innerHTML = `Dropped <b>${dropped}</b> · Won <b>${won}</b> chips`; };
-  function drop() {
-    if (UI.wallet.chips + pending < COIN) { $('#pzInfo').textContent = 'Not enough chips. Claim your daily chips at the top.'; auto = false; paintAuto(); return; }
-    if (coins.length >= MAXC) return;
-    pending -= COIN; dropped += COIN; drops++;
-    coins.push(newCoin(aimX + (Math.random() - 0.5) * 0.01, 0.34, 0.04 + (Math.random() - 0.5) * 0.02, drops % 20 === 0, 'drop'));
-    UI.sfx('chip'); info();
+  const info = () => { $('#pzInfo').innerHTML = `Dropped <b>${dropped}</b> · Won <b>${Math.round(shown)}</b>`; };
+  const popWrap = document.createElement('div'); popWrap.className = 'pz-pops'; host.appendChild(popWrap);
+  function pop(text, cls = '') { const p = document.createElement('div'); p.className = 'pz-pop ' + cls; p.textContent = text; popWrap.appendChild(p); setTimeout(() => p.remove(), 1600); }
+  const banner = document.createElement('div'); banner.className = 'pz-banner'; banner.hidden = true; banner.setAttribute('role', 'status'); host.appendChild(banner);
+  let bannerT = 0;
+  function showBanner(big, small) { banner.innerHTML = `<b>${big}</b>${small ? `<span>${small}</span>` : ''}`; banner.hidden = false; banner.classList.remove('go'); void banner.offsetWidth; banner.classList.add('go'); clearTimeout(bannerT); bannerT = setTimeout(() => { banner.hidden = true; }, 2200); }
+  let shake = 0;
+  function payout(c, x, z) {
+    const v = COIN * (c.gold ? GOLD : 1);
+    if (sim) { sim.won += v; sim.mid = (sim.mid || 0) + 1; if (c.gold) sim.goldOut = (sim.goldOut || 0) + 1; return; }
+    pending += v; won += v;
+    burst(x, -0.02, z, c.gold ? 40 : 10, c.gold ? 0.9 : 0.5, c.gold ? [1.2, 0.85, 0.3] : [0.9, 0.9, 1]);
+    clink(1, true);
+    if (c.gold) { pop('+' + v, 'gold'); fanfare(false); shake = Math.max(shake, 0.6); } else pop('+' + v);
   }
 
-  // ---------- the simulation ----------
-  function step(dt, fz) {
-    for (const c of coins) { c.dx = 0; c.dz = 0; }
-    // falling coins drop and land on the pile
-    for (const c of coins) if (c.st === 'drop') {
-      c.vy -= 9.8 * dt; c.y += c.vy * dt; c.tilt += dt * 6;
-      const h = restHeight(c);
-      if (c.y <= h) { c.y = h; c.st = 'deck'; c.tilt = 0; }
+  let last = 0;
+  function drop(free) {
+    if (!free) {
+      if (UI.wallet.chips + pending < COIN) { $('#pzInfo').textContent = 'Not enough chips. Claim your daily chips at the top.'; auto = false; paintAuto(); return; }
+      if (performance.now() - last < 220 || coins.length >= MAXC) return;
+      last = performance.now();
+      pending -= COIN; dropped += COIN; drops++;
     }
-    const deck = coins.filter(c => c.st === 'deck');
-    // the pusher shoves coins lying on the deck in front of it
-    for (const c of deck) if (c.y < TH * 0.6 && c.z - R < fz) { const d = fz + R - c.z; c.z += d; c.dz += d; }
-    // coins on the same layer can't overlap: they push each other apart
-    for (let it = 0; it < 3; it++) {
-      for (let i = 0; i < deck.length; i++) for (let j = i + 1; j < deck.length; j++) {
-        const a = deck[i], b = deck[j];
-        if (Math.abs(a.y - b.y) > TH * 0.6) continue;
-        let nx = b.x - a.x, nz = b.z - a.z; const d2 = nx * nx + nz * nz;
-        if (d2 >= 4 * R * R || d2 < 1e-10) continue;
-        const d = Math.sqrt(d2), push = (2 * R - d) / 2; nx /= d; nz /= d;
-        // a coin pressed against the pusher can't move back into it, so the other one takes the whole push
-        const aStuck = a.y < TH * 0.6 && a.z - R < fz + 0.002 && nz > 0, bStuck = b.y < TH * 0.6 && b.z - R < fz + 0.002 && nz < 0;
-        const ka = aStuck ? 0 : bStuck ? 2 : 1, kb = bStuck ? 0 : aStuck ? 2 : 1;
-        a.x -= nx * push * ka; a.z -= nz * push * ka; a.dx -= nx * push * ka; a.dz -= nz * push * ka;
-        b.x += nx * push * kb; b.z += nz * push * kb; b.dx += nx * push * kb; b.dz += nz * push * kb;
-      }
-    }
-    // coins resting on a moved coin ride along; coins whose support slid away drop down
-    deck.sort((p, q) => p.y - q.y);
-    for (const c of deck) if (c.y > TH * 0.6) {
-      let sup = null, best = 1e9;
-      for (const o of deck) { if (o === c || Math.abs(o.y + TH - c.y) > TH * 0.6) continue; const d = (o.x - c.x) ** 2 + (o.z - c.z) ** 2; if (d < (R * 1.6) ** 2 && d < best) { best = d; sup = o; } }
-      if (sup) { c.x += sup.dx * 0.9; c.z += sup.dz * 0.9; c.dx += sup.dx * 0.9; c.dz += sup.dz * 0.9; }
-      else { c.st = 'drop'; c.vy = 0; }
-    }
-    // walls, the front edge, and coins going over it
-    for (const c of coins) {
-      c.x = Math.max(-W + R, Math.min(W - R, c.x));
-      if (c.st === 'deck' && c.z > FRONT) { c.st = 'fall'; c.vy = 0; c.vz = 0.15; }
-      if (c.st === 'fall') {
-        c.vy -= 9.8 * dt; c.y += c.vy * dt; c.z += c.vz * dt; c.tilt += dt * 9;
-        if (!c.paid && c.y < -0.05) {
-          c.paid = true;
-          if (Math.abs(c.x) < WIN) { const v = COIN * (c.gold ? GOLD : 1); pending += v; won += v; UI.sfx(c.gold ? 'win' : 'chip'); info(); }
-        }
-      }
-    }
-    for (let i = coins.length - 1; i >= 0; i--) if (coins[i].st === 'fall' && coins[i].y < -0.3) coins.splice(i, 1);
+    const c = addCoin(aimX + (Math.random() - 0.5) * 0.006, DROP.y, DROP.z + (Math.random() - 0.5) * 0.01, drops % 20 === 0, { gate: true, vy: -0.4 });
+    if (c && !sim) { beep(1800); info(); }
   }
-  const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), e3 = new THREE.Euler(), v3 = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
-  function draw() {
+
+  // ---------- the bonus lamp ----------
+  const BONUS = [
+    { k: 'shower', p: 0.24, big: 'COIN SHOWER', small: '8 free coins' },
+    { k: 'gold', p: 0.16, big: 'GOLD RUSH', small: '2 gold coins' },
+    { k: 'walls', p: 0.15, big: 'FUNNEL WALLS', small: 'walls guide the corners in for 15 seconds' },
+    { k: 'jackpot', p: 0.025, big: 'JACKPOT!', small: '20 coins + 3 gold' },
+    { k: 'none', p: 1, big: 'SO CLOSE', small: 'try the gate again' },
+  ];
+  let rolling = 0, rollOut = null;
+  const rainQ = [];
+  function pickBonus() { let r = Math.random(); for (const b of BONUS) { if (r < b.p) return b; r -= b.p; } return BONUS[BONUS.length - 1]; }
+  function applyBonus(b) {
+    const rain = (n, gold) => { const base = rainQ.length ? rainQ[rainQ.length - 1].at : 0; for (let i = 0; i < n; i++) rainQ.push({ at: base + (i + 1) * 0.09, gold }); };
+    if (b.k === 'shower') rain(8, false);
+    else if (b.k === 'gold') rain(2, true);
+    else if (b.k === 'walls') wallUp = 15;
+    else if (b.k === 'jackpot') { rain(20, false); rain(3, true); wallUp = 15; }
+    if (sim) return;
+    lamp.redraw(b.big, b.small, b.k === 'none' ? '#9a8a7a' : b.k === 'jackpot' ? '#ff5ab0' : '#ffd36a');
+    if (b.k !== 'none') { showBanner(b.big, b.small); fanfare(b.k === 'jackpot' || b.k === 'shower'); shake = b.k === 'jackpot' ? 1.4 : 0.8; burst(0, 0.56, BACK + 0.05, b.k === 'jackpot' ? 120 : 50, 1.2); }
+    setTimeout(() => { if (!rolling) lamp.redraw(); }, 3500);
+  }
+  function gateHit(x) {
+    if (sim) { const o = pickBonus(); sim.hits = (sim.hits || 0) + 1; sim[o.k] = (sim[o.k] || 0) + 1; applyBonus(o); return; }
+    if (rolling > 0 || rollOut) return;
+    rollOut = pickBonus();
+    rolling = 1.6; burst(x, GATE_Y, DROP.z, 30, 0.7); fanfare(false); pop('LUCKY GATE!', 'gate');
+  }
+
+  // ---------- one physics step (also used by the fast test run) ----------
+  let tp = 0, rainT = 0;
+  function physStep() {
+    const dt = world.timestep; tp += dt;
+    pusher1.setNextKinematicTranslation(pos1(tp)); pusher2.setNextKinematicTranslation(pos2(tp));
+    // funnel walls rise and sink
+    if (wallUp > 0) wallUp -= dt;
+    wallH += ((wallUp > 0 ? 1 : 0) - wallH) * Math.min(1, dt * 6);
+    FW.list.forEach(f => f.b.setNextKinematicTranslation({ x: f.x, y: -0.04 + wallH * 0.07, z: f.z }));
+    // coin rain from a bonus
+    if (rainQ.length) {
+      rainT += dt;
+      while (rainQ.length && rainQ[0].at <= rainT) { const r = rainQ.shift(); addCoin((Math.random() - 0.5) * (W * 2 - 0.1), 0.42 + Math.random() * 0.05, -0.2 + Math.random() * 0.4, r.gold, { tumble: 3, vy: -0.2 }); if (!sim) burst(0, 0.4, 0, 3, 0.3); }
+      if (!rainQ.length) rainT = 0;
+    }
+    world.step();
+    const gx = gateX(tp);
+    for (let i = coins.length - 1; i >= 0; i--) {
+      const c = coins[i], p = c.body.translation();
+      if (c.gate && p.y < GATE_Y) { c.gate = false; if (Math.abs(p.x - gx) < 0.018) gateHit(p.x); }
+      if (!sim && !c.body.isSleeping()) {
+        const vy = c.body.linvel().y;
+        if (c.vy < -0.35 && vy > c.vy * 0.4) clink(Math.min(2, -c.vy));
+        c.vy = vy;
+      }
+      if (!c.paid && p.y < -0.03 && p.z > FRONT - 0.02) { c.paid = true; if (Math.abs(p.x) < WIN) payout(c, p.x, p.z); else if (sim) sim.house = (sim.house || 0) + 1; else clink(0.3, true); }
+      if (p.y < -0.14 || Math.abs(p.x) > W + 0.2 || p.z > FRONT + 0.5) removeCoin(i);
+    }
+  }
+
+  // ---------- the pile: kept between visits, or built fresh ----------
+  const BOARD = 'ol-pz-board'; let jammed = false;
+  function savePile() {
+    if (jammed) return;
+    try {
+      const list = coins.filter(c => !c.paid).map(c => { const p = c.body.translation(), q = c.body.rotation(); return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, c.gold ? 1 : 0].map(v => Math.round(v * 1e4) / 1e4); });
+      localStorage.setItem(BOARD, JSON.stringify({ t: tp, list }));
+    } catch (e) { /* private mode: the pile just won't be kept */ }
+  }
+  let saved = null; try { saved = JSON.parse(localStorage.getItem(BOARD) || 'null'); } catch (e) { saved = null; }
+  sim = { won: 0 };   // set up quietly
+  if (saved && Array.isArray(saved.list) && saved.list.length > 30) {
+    tp = saved.t || 0;
+    pusher1.setTranslation(pos1(tp), true); pusher2.setTranslation(pos2(tp), true);
+    saved.list.forEach(a => { if (Array.isArray(a) && a.length === 8 && a.every(Number.isFinite)) addCoin(a[0], a[1] + 0.0005, a[2], !!a[7], { q: new THREE.Quaternion(a[3], a[4], a[5], a[6]) }); });
+    for (let i = 0; i < 20; i++) physStep();
+  } else {
+    for (let i = 0; i < 95; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.01 + (i % 4) * 0.012, 0.02 + Math.random() * (FRONT - 0.1), Math.random() < 0.05);
+    for (let i = 0; i < 14; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.075, -0.28 + Math.random() * 0.05, false);
+    for (let i = 0; i < 22; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.165 + (i % 2) * 0.012, -0.33 - Math.random() * 0.07, Math.random() < 0.05);
+    for (let i = 0; i < 240; i++) physStep();
+  }
+  sim = null;
+  setInterval(savePile, 8000); window.addEventListener('pagehide', savePile);
+  document.documentElement.classList.remove('t3d-wait');
+
+  // ---------- aim and drop ----------
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -SLAB.y1), hit = new THREE.Vector3();
+  const cv = renderer.domElement;
+  const aim = e => { const r = cv.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); if (ray.ray.intersectPlane(aimPlane, hit)) aimX = Math.max(-W + 0.04, Math.min(W - 0.04, hit.x)); };
+  cv.addEventListener('pointermove', aim);
+  cv.addEventListener('pointerdown', e => { aim(e); audio(); drop(); });
+  $('#pzDrop').onclick = () => { audio(); drop(); };
+  let auto = false, autoT = 0;
+  const paintAuto = () => { $('#pzAuto').setAttribute('aria-pressed', String(auto)); $('#pzAuto').classList.toggle('on', auto); $('#pzAuto').textContent = auto ? 'Auto on' : 'Auto'; };
+  $('#pzAuto').onclick = () => { audio(); auto = !auto; paintAuto(); };
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target.tagName !== 'BUTTON') { e.preventDefault(); drop(); }
+    if (e.code === 'ArrowLeft') aimX = Math.max(-W + 0.04, aimX - 0.03);
+    if (e.code === 'ArrowRight') aimX = Math.min(W - 0.04, aimX + 0.03);
+  });
+
+  // ---------- drawing ----------
+  const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), v3 = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+  function drawCoins() {
     let ns = 0, ng = 0;
     for (const c of coins) {
-      qt.setFromEuler(e3.set(c.tilt, c.yaw, c.tilt * 0.4)); m4.compose(v3.set(c.x, c.y + TH / 2, c.z), qt, one);
+      const p = c.body.translation(), q = c.body.rotation();
+      m4.compose(v3.set(p.x, p.y, p.z), qt.set(q.x, q.y, q.z, q.w), one);
       if (c.gold) goldI.setMatrixAt(ng++, m4); else silverI.setMatrixAt(ns++, m4);
     }
     silverI.count = ns; goldI.count = ng; silverI.instanceMatrix.needsUpdate = true; goldI.instanceMatrix.needsUpdate = true;
   }
-
-  // ---------- aim and drop ----------
-  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
-  const cv = renderer.domElement;
-  const aim = e => { const r = cv.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); if (ray.ray.intersectPlane(aimPlane, hit)) aimX = Math.max(-W + 0.05, Math.min(W - 0.05, hit.x)); };
-  cv.addEventListener('pointermove', aim);
-  cv.addEventListener('pointerdown', e => { aim(e); drop(); });
-  $('#pzDrop').onclick = drop;
-  let auto = false, autoT = 0;
-  const paintAuto = () => { $('#pzAuto').setAttribute('aria-pressed', String(auto)); $('#pzAuto').classList.toggle('on', auto); $('#pzAuto').textContent = auto ? 'Auto on' : 'Auto'; };
-  $('#pzAuto').onclick = () => { auto = !auto; paintAuto(); };
-  document.addEventListener('keydown', e => { if (e.code === 'Space' && e.target.tagName !== 'BUTTON') { e.preventDefault(); drop(); } });
-
-  // ---------- render loop ----------
   const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.4, 0.4, 1.7); composer.addPass(bloom); composer.addPass(new OutputPass());
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.28, 0.2, 1.45); composer.addPass(bloom); composer.addPass(new OutputPass());
+  const camBase = new THREE.Vector3(), camLook = new THREE.Vector3(0, 0.08, -0.2);
   function resize() {
     const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return;
     renderer.setSize(w, h, false); composer.setSize(w, h); camera.aspect = w / h;
-    camera.fov = w / h < 1 ? 56 : 40; camera.updateProjectionMatrix();
-    const back = w / h < 1 ? 1.15 : 0.75;
-    camera.position.set(0, 0.62 * back / 0.75, 0.42 + back * 0.55); camera.lookAt(0, 0, -0.06);
+    const tall = w / h < 1;
+    camera.fov = tall ? Math.min(70, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(40) / 2) * 1.15 / (w / h)) * 180 / Math.PI) : 40;
+    camera.updateProjectionMatrix();
+    camBase.set(0, tall ? 1.1 : 0.82, tall ? 1.12 : 1.0); camLook.set(0, tall ? 0.13 : 0.2, tall ? -0.2 : -0.22);
   }
   new ResizeObserver(resize).observe(host); resize();
   onQuality(q => { const hi = q === 'high'; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; resize(); });
-  const clock = new THREE.Clock(); let t = 0;
+  const clock = new THREE.Clock(); let acc = 0, t = 0, rollTick = 0;
   renderer.setAnimationLoop(() => {
-    const dt = Math.min(0.05, clock.getDelta()); t += dt;
-    const fz = pushZ(t) + PD / 2;          // the pusher's front face
-    pusherMesh.position.set(0, 0.03, fz - PD / 2);
-    step(dt, fz);
-    draw();
-    if (auto) { autoT += dt; if (autoT > 0.7) { autoT = 0; drop(); } }
-    chute.position.x += (aimX - chute.position.x) * Math.min(1, dt * 12);
-    bulbs.forEach((b, i) => { const on = (i + Math.floor(t * 6)) % 3 === 0; b.material.color.setRGB(on ? 2.4 : 0.6, on ? 1.9 : 0.4, on ? 0.8 : 0.15); });
+    const dt = Math.min(0.1, clock.getDelta()); t += dt; acc += dt;
+    clinkBudget = Math.min(4, clinkBudget + dt * 25);
+    if (!jammed) {
+      try { let n = 0; while (acc >= world.timestep && n < 4) { physStep(); acc -= world.timestep; n++; } if (n === 4) acc = 0; }
+      catch (e) { jammed = true; auto = false; paintAuto(); console.error(e); try { localStorage.removeItem(BOARD); } catch (e2) { /* ignore */ } $('#pzInfo').textContent = 'The machine jammed. Reload the page to reset it.'; }
+    }
+    if (jammed) { composer.render(); return; }
+    p1Mesh.position.copy(pusher1.translation()); p2Mesh.position.copy(pusher2.translation());
+    FW.list.forEach((f, i) => { fwMeshes[i].position.copy(f.b.translation()); fwMeshes[i].visible = wallH > 0.02; fwMeshes[i].material.opacity = 0.35 + 0.45 * wallH; });
+    drawCoins();
+    // the gate, the chute and the aim marker
+    ring.position.x = gateX(tp); ringM.color.setRGB(2.2 + Math.sin(t * 12) * 0.6, 1.6, 0.4);
+    chute.position.x += (aimX - chute.position.x) * Math.min(1, dt * 14);
+    aimDot.position.set(chute.position.x, SLAB.y1 + 0.002, DROP.z); aimDot.material.opacity = 0.35 + Math.sin(t * 5) * 0.2;
+    // the bonus lamp rolling
+    if (rolling > 0) {
+      rolling -= dt; rollTick -= dt;
+      if (rollTick <= 0) { rollTick = 0.07 + (1.6 - rolling) * 0.05; const b = BONUS[Math.floor(Math.random() * BONUS.length)]; lamp.redraw(b.big, '', '#ffffff'); beep(1200 + Math.random() * 600); }
+      if (rolling <= 0) { rolling = 0; const b = rollOut; rollOut = null; applyBonus(b); }
+    }
+    // lights: chase normally, flash during a bonus
+    const party = rolling > 0 || rainQ.length > 0 || shake > 0.3;
+    bulbs.forEach((b, i) => { const on = party ? (Math.floor(t * 14) + i) % 2 === 0 : (i + Math.floor(t * 6)) % 3 === 0; const hue = party ? ((i * 0.09 + t) % 1) : 0.12; if (on) b.material.color.setHSL(hue, 1, 0.75).multiplyScalar(2.6); else b.material.color.setRGB(0.5, 0.35, 0.12); });
+    ledM.color.setRGB(2.4 + Math.sin(t * 3) * 0.4, 1.7, 0.6);
+    // the win counter rolls up
+    if (shown < won) { shown = Math.min(won, shown + Math.max(1, (won - shown) * dt * 6)); info(); }
+    if (auto) { autoT += dt; if (autoT > 0.65) { autoT = 0; drop(); } }
+    stepSparks(dt);
+    // camera, with a little shake on wins
+    shake = Math.max(0, shake - dt * 1.6);
+    const s = shake * shake * 0.006;
+    camera.position.set(camBase.x + (Math.random() - 0.5) * s, camBase.y + (Math.random() - 0.5) * s, camBase.z);
+    camera.lookAt(camLook);
     composer.render();
   });
   info();
-  // for testing: run the machine fast without drawing (used to check the payback rate)
-  window.OL_PUSHER = { sim(seconds, every = 0.7) { let cost = 0, w0 = won, tt = 0, dt = 1 / 60, at = 0; const ow = UI.wallet.chips; while (tt < seconds) { tt += dt; at += dt; if (at > every) { at = 0; cost += COIN; drops++; coins.push(newCoin((Math.random() - 0.5) * 0.5, 0.34, 0.04, drops % 20 === 0, 'drop')); } step(dt, pushZ(t + tt) + PD / 2); } pending = 0; void ow; return { cost, won: won - w0, onDeck: coins.length }; } };
+
+  // for testing: run the machine fast without drawing; returns cost and winnings in chips
+  window.OL_PUSHER = {
+    sim(seconds, every = 0.65) {
+      sim = { won: 0 }; let cost = 0, at = 0;
+      const steps = Math.round(seconds / world.timestep);
+      for (let i = 0; i < steps; i++) { at += world.timestep; if (at > every) { at = 0; cost += COIN; drops++; aimX = (Math.random() - 0.5) * 0.6; drop(true); } physStep(); }
+      const r = { ...sim, cost, onDeck: coins.length }; sim = null; return r;
+    },
+    coins: () => coins.length,
+    bonus(k) { if (rolling > 0) return; rollOut = BONUS.find(b => b.k === k) || BONUS[0]; rolling = 1.6; },
+    where: () => { const r = { upper: 0, p2top: 0, p1top: 0, deck: 0, deckLayers: [0, 0, 0, 0, 0] }; coins.forEach(c => { const p = c.body.translation(); if (p.y > 0.19) r.p2top++; else if (p.y > 0.145) r.upper++; else if (p.z < fz1(tp) - 0.005 && p.y > 0.055) r.p1top++; else { r.deck++; r.deckLayers[Math.min(4, Math.floor(p.y / TH))]++; } }); return r; },
+  };
 }

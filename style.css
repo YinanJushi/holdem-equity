@@ -775,3 +775,17 @@ body.pz-on .pz-bar { display: flex; position: fixed; left: 50%; bottom: calc(14p
 .pz-bar .ghostbtn.on { background: #c99a2e; color: #1b0a06; }
 .pz-info { color: #ffe6b0; font: 600 13px var(--sans); background: rgba(14,5,8,.82); border: 1px solid rgba(201,154,46,.5); border-radius: 999px; padding: 9px 14px; box-shadow: 0 6px 18px rgba(0,0,0,.55); }
 .pz-info b { font-family: "Share Tech Mono", ui-monospace, monospace; color: #fff6e0; }
+
+/* coin pusher: win pop-ups and the bonus banner */
+.pz-pops { position: fixed; left: 50%; top: 42%; transform: translateX(-50%); z-index: 4; pointer-events: none; }
+.pz-pop { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; font: 700 26px "Share Tech Mono", ui-monospace, monospace; color: #fff6e0; text-shadow: 0 0 12px rgba(255,200,90,.9), 0 2px 4px rgba(0,0,0,.8); animation: pzPop 1.5s ease-out forwards; }
+.pz-pop.gold { font-size: 40px; color: #ffd36a; }
+.pz-pop.gate { font-size: 30px; color: #ffe9a8; letter-spacing: .06em; }
+@keyframes pzPop { 0% { opacity: 0; transform: translate(-50%, 20px) scale(.7); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.1); } 100% { opacity: 0; transform: translate(-50%, -90px) scale(1); } }
+.pz-banner { position: fixed; left: 50%; top: 22%; transform: translateX(-50%); z-index: 4; pointer-events: none; text-align: center; padding: 14px 28px; border-radius: 16px; background: radial-gradient(ellipse at center, rgba(60,10,20,.92), rgba(20,4,8,.88)); border: 2px solid #ffd36a; box-shadow: 0 0 40px rgba(255,190,80,.55), inset 0 0 20px rgba(255,190,80,.25); }
+.pz-banner b { display: block; font: 700 clamp(28px, 7vw, 46px) "Share Tech Mono", ui-monospace, monospace; color: #ffd36a; letter-spacing: .06em; text-shadow: 0 0 18px rgba(255,200,90,.9); }
+.pz-banner span { display: block; margin-top: 4px; font: 600 14px var(--sans); color: #ffe6b0; }
+.pz-banner.go { animation: pzBanner 2.2s ease-out forwards; }
+@keyframes pzBanner { 0% { opacity: 0; transform: translateX(-50%) scale(.5); } 12% { opacity: 1; transform: translateX(-50%) scale(1.12); } 22% { transform: translateX(-50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) scale(.95); } }
+.pz-tip { flex-basis: 100%; text-align: center; color: rgba(255,230,180,.7); font: 500 12px var(--sans); text-shadow: 0 1px 3px #000; }
+@media (prefers-reduced-motion: reduce) { .pz-pop, .pz-banner.go { animation-duration: .01s; } }
