@@ -114,7 +114,7 @@
     const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
     if (!user) {
       dlg.innerHTML = `<h2>Sign in</h2>
-        <p>Sign in with your email to keep your chips on every device. We'll email you a link and a code; no password needed.</p>
+        <p>Sign in with your email to keep your chips on every device. We'll email you a sign-in link; no password needed.</p>
         <form id="signinForm">
           <label class="fld">Email<input type="email" id="signinEmail" required autocomplete="email" placeholder="you@example.com"></label>
           <div class="acct-msg" id="signinMsg" role="status"></div>
@@ -133,9 +133,10 @@
         client().then(c => c.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } }))
           .then(({ error }) => {
             if (error) { msg.textContent = errText(error); return; }
-            msg.textContent = `Sent to ${email}. Open the link on this device, or type the code from the email below (handy if the email is on your phone).`;
+            msg.textContent = `Sent to ${email}. Open the email on this device and click the link (the link signs in whichever device it is opened on).`;
             const f = dlg.querySelector('#codeSignin');
-            f.hidden = false; dlg.querySelector('#otpInput').focus();
+            // the code box only helps once the email template includes the code (needs custom SMTP on Supabase)
+            f.hidden = !cfg.emailHasCode;
             f.onsubmit = ev => {
               ev.preventDefault();
               const token = dlg.querySelector('#otpInput').value.replace(/\s/g, ''), om = dlg.querySelector('#otpMsg');
