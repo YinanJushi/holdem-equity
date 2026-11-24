@@ -123,9 +123,13 @@ begin
   if (select count(*) from public.code_attempts where user_id = auth.uid() and at > now() - interval '1 hour') >= 10 then
     return json_build_object('error', 'Too many wrong tries. Try again in an hour.');
   end if;
-  -- a whole number of up to 12 digits that is prime → the shared "prime-number" code
-  if c ~ '^[0-9]{1,12}$' and public.is_prime(c::bigint) then h := 'prime-number'; end if;
+  -- the exact code first; only if that isn't a code, a whole number of up to 12 digits that is prime
+  -- counts as the shared "prime-number" code
   select amount, reusable into amt, again from public.secret_codes where code_hash = h and active;
+  if amt is null and c ~ '^[0-9]{1,12}$' and public.is_prime(c::bigint) then
+    h := 'prime-number';
+    select amount, reusable into amt, again from public.secret_codes where code_hash = h and active;
+  end if;
   if amt is null then
     insert into public.code_attempts (user_id) values (auth.uid());   -- only wrong guesses count toward the limit
     return json_build_object('error', 'That code isn''t valid.');
