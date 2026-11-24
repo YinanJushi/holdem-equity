@@ -885,3 +885,5 @@ body.pz-theme-choco .pz-jp { background: linear-gradient(90deg, rgba(74,36,20,.9
 body.pz-theme-choco .pz-stars i.on { color: #ff8fc4; text-shadow: 0 0 10px #ff2f8a, 0 0 3px #fff; }
 body.pz-theme-choco .pz-banner.hold { border-color: #ff8fc4; box-shadow: 0 0 60px rgba(255,100,180,.7), inset 0 0 20px rgba(255,180,220,.3); }
 body.pz-theme-choco .pz-banner.hold b { color: #ffe4f0; text-shadow: 0 0 22px #ff2f8a; }
+.pz-codeform input { width: 100%; font-size: 18px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.25); }
+.pz-jp { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }

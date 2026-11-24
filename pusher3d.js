@@ -12,7 +12,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=96';
+import { headerChrome, onQuality } from './chrome3d.js?v=98';
 
 
 // ---------- themes: each one dresses the whole machine and has its own way of celebrating the big wins ----------
@@ -93,9 +93,10 @@ function start() {
 
   // ---------- coins ----------
   const coins = [];   // { body, gold, gate, vy, paid }
-  const MAXC = 680;
+  const MAXC = 680, INST = 1300;   // coins in play normally; drawing room for a coin flood
+  let capNow = MAXC;
   function addCoin(x, y, z, gold, opts = {}) {
-    if (coins.length >= MAXC) return null;
+    if (coins.length >= capNow) return null;
     const q = opts.q || new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * (opts.tumble || 0.3), Math.random() * 6, (Math.random() - 0.5) * (opts.tumble || 0.3)));
     const d = RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setLinearDamping(0.4).setAngularDamping(0.9);
     const falling = !opts.q && !opts.sleep;
@@ -116,6 +117,27 @@ function start() {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.4, Math.random() * 6, (Math.random() - 0.5) * 0.4));
     trayVis.push({ x: tx, y: Math.min(y, -0.145 + TH * 6), z: tz, q, gold }); if (trayVis.length > 70) trayVis.shift();
   }
+  // the flood's extra coins: they pour in from above, slide over the pile and the front edge into the tray
+  // without taking part in the physics (a thousand real coins at once would stall the machine)
+  const ghosts = []; let ghostLeft = 0;
+  function stepGhosts(dt) {
+    for (let k = 0; k < 3 && ghostLeft > 0; k++) {
+      ghostLeft--;
+      ghosts.push({ x: (Math.random() - 0.5) * WIN * 1.8, y: 0.65 + Math.random() * 0.2, z: -0.15 + Math.random() * 0.3, vy: -0.4 - Math.random() * 0.4, vz: 0.2 + Math.random() * 0.25, q: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * 6, Math.random() * 6, 0)), w: (Math.random() - 0.5) * 12, gold: ghostLeft % 40 === 0 });
+    }
+    for (let i = ghosts.length - 1; i >= 0; i--) {
+      const g = ghosts[i];
+      g.vy -= 6 * dt; g.y += g.vy * dt; g.z += g.vz * dt;
+      if (g.z < FRONT && g.y < 0.055) { g.y = 0.055; g.vy = 0; g.vz = Math.max(g.vz, 0.35); }   // slide over the pile
+      g.q.multiply(tq.setFromEuler(e3.set(g.w * dt, 0, 0)));
+      if (g.y < -0.13) {
+        ghosts.splice(i, 1);
+        const v = COIN * (g.gold ? GOLD : 1);
+        if (sim) sim.won += v; else { pending += v; won += v; toTray(g.x, g.gold); if (Math.random() < 0.15) clink(0.6, true); }
+      }
+    }
+  }
+  const e3 = new THREE.Euler();
   const removeCoin = i => { world.removeRigidBody(coins[i].body); coins.splice(i, 1); };
 
 
@@ -314,8 +336,8 @@ function start() {
     return [edge, face, face];
   };
   const coinGeo = new THREE.CylinderGeometry(R, R, TH, 32);
-  const silverI = new THREE.InstancedMesh(coinGeo, coinMats(...THEME.silver), MAXC);
-  const goldI = new THREE.InstancedMesh(coinGeo, coinMats(...THEME.gold), MAXC);
+  const silverI = new THREE.InstancedMesh(coinGeo, coinMats(...THEME.silver), INST);
+  const goldI = new THREE.InstancedMesh(coinGeo, coinMats(...THEME.gold), INST);
   const starI = new THREE.InstancedMesh(coinGeo, coinMats(...THEME.collect.coin), 40);
   [silverI, goldI, starI].forEach(m => { m.castShadow = true; m.receiveShadow = true; m.count = 0; m.frustumCulled = false; scene.add(m); });
 
@@ -734,7 +756,7 @@ function start() {
   }
 
   // ---------- one physics step (also used by the fast test run) ----------
-  let tp = 0, rainT = 0;
+  let tp = 0, rainT = 0, floodLeft = 0;
   function physStep() {
     const dt = world.timestep; tp += dt;
     pusher1.setNextKinematicTranslation(pos1(tp)); pusher2.setNextKinematicTranslation(pos2(tp));
@@ -756,6 +778,15 @@ function start() {
       while (T.shown < want) { T.shown++; if (!sim) { const y = T.shown * TH; burst(T.x, y, T.z, T.shown === T.n ? 25 : 3, 0.25, T.golds.has(T.shown - 1) ? [1.2, 0.85, 0.3] : [1, 1, 1]); beep(900 + (T.shown / T.n) * 1500); } }
       if (T.shown >= T.n) raiseTower(T);
     }
+    if (ghosts.length || ghostLeft) stepGhosts(dt);
+    if (floodLeft > 0) {
+      capNow = 900;
+      for (let k = 0; k < 4 && floodLeft > 0 && coins.length < capNow; k++) {
+        floodLeft--;
+        addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.5 + Math.random() * 0.25, -0.25 + Math.random() * 0.5, floodLeft % 40 === 0, { tumble: 3, vy: -0.5 - Math.random() * 0.5 });
+      }
+      if (!sim && Math.random() < 0.3) burst((Math.random() - 0.5) * 0.6, 0.55, -0.1, 2, 0.3, THEME.fx[0]);
+    } else if (capNow > MAXC && coins.length <= MAXC) capNow = MAXC;
     world.step();
     // a tower that leans too far, or slides off the edge, bursts into its coins
     for (let k = towers.length - 1; k >= 0; k--) {
@@ -819,6 +850,39 @@ function start() {
   $('#pzDrop').onclick = () => { audio(); drop(); };
   let auto = false, autoT = 0;
   const paintAuto = () => { $('#pzAuto').setAttribute('aria-pressed', String(auto)); $('#pzAuto').classList.toggle('on', auto); $('#pzAuto').textContent = auto ? 'Auto on' : 'Auto'; };
+  // ---------- the owner's code: a hidden box (long-press or double-click the jackpot bar) that, with the right
+  // code, drops 1,000 coins. Only a SHA-256 hash of the code is in the site (OL_CONFIG.pusherCodeHash), never the code.
+  const codeHash = ((window.OL_CONFIG || {}).pusherCodeHash || '').trim().toLowerCase();
+  let codeTries = 0, codeLockUntil = 0, pressT = 0;
+  async function sha256(text) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+  function openCodeBox() {
+    let d = document.getElementById('pzCode');
+    if (!d) { d = document.createElement('dialog'); d.id = 'pzCode'; d.className = 'rules'; document.body.appendChild(d); }
+    d.innerHTML = `<h2>${tr('Enter code')}</h2><form method="dialog" class="pz-codeform"><input type="password" id="pzCodeIn" autocomplete="off" aria-label="${tr('Code')}"><p class="sub" id="pzCodeMsg" role="status"></p>
+      <div class="rule-actions"><button type="button" class="ghostbtn" data-close>${tr('Cancel')}</button><button type="submit" class="primary">${tr('OK')}</button></div></form>`;
+    const msgEl = d.querySelector('#pzCodeMsg'), input = d.querySelector('#pzCodeIn');
+    d.querySelector('[data-close]').onclick = () => d.close();
+    d.querySelector('form').onsubmit = async e => {
+      e.preventDefault();
+      if (!codeHash) { msgEl.textContent = tr('No code has been set up for this machine yet.'); return; }
+      if (Date.now() < codeLockUntil) { msgEl.textContent = tr('Too many tries. Wait a minute.'); return; }
+      const ok = (await sha256(input.value.trim())) === codeHash;
+      if (!ok) { codeTries++; if (codeTries >= 5) { codeTries = 0; codeLockUntil = Date.now() + 60000; } msgEl.textContent = tr('That code is not right.'); input.select(); return; }
+      d.close(); startFlood();
+    };
+    d.showModal(); setTimeout(() => input.focus(), 50);
+  }
+  function startFlood() {
+    floodLeft += 200; ghostLeft += 800; wallUp = Math.max(wallUp, 30);
+    showBanner(tr('COIN AVALANCHE!'), `1,000 ${tr('coins')}`); bannerHold(5000);
+    lamp.redraw(tr('COIN AVALANCHE!'), `1,000 ${tr('coins')}`, '#ffd24a');
+    fanfare(true); shake = 1.5; voice(...(THEME.voice.flood || ['Coin avalanche!', '金币雪崩！']));
+    if (THEME.superFx === 'dragon') fxDragon(); else fxWaterfall();
+    setTimeout(() => { if (!slot.active && !wheel.active) lamp.redraw(); }, 9000);
+  }
+  meter.addEventListener('dblclick', openCodeBox);
+  meter.addEventListener('pointerdown', () => { clearTimeout(pressT); pressT = setTimeout(openCodeBox, 1200); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => meter.addEventListener(ev, () => clearTimeout(pressT)));
   // switching theme reloads the page with the other theme (the pile and the jackpots are kept)
   const themeIds = Object.keys(THEMES);
   $('#pzTheme').textContent = `${tr('Theme')}: ${tr(THEME.name)}`;
@@ -837,14 +901,15 @@ function start() {
     for (const c of coins) {
       const p = c.body.translation(), q = c.body.rotation();
       m4.compose(v3.set(p.x, p.y, p.z), qt.set(q.x, q.y, q.z, q.w), one);
-      if (c.star && nst < 40) starI.setMatrixAt(nst++, m4); else if (c.gold) goldI.setMatrixAt(ng++, m4); else silverI.setMatrixAt(ns++, m4);
+      if (c.star && nst < 40) starI.setMatrixAt(nst++, m4); else if (c.gold) { if (ng < INST) goldI.setMatrixAt(ng++, m4); } else if (ns < INST) silverI.setMatrixAt(ns++, m4);
     }
-    for (const c of trayVis) { m4.compose(v3.set(c.x, c.y, c.z), c.q, one); if (c.gold) { if (ng < MAXC) goldI.setMatrixAt(ng++, m4); } else if (ns < MAXC) silverI.setMatrixAt(ns++, m4); }
+    for (const g of ghosts) { m4.compose(v3.set(g.x, g.y, g.z), g.q, one); if (g.gold) { if (ng < INST) goldI.setMatrixAt(ng++, m4); } else if (ns < INST) silverI.setMatrixAt(ns++, m4); }
+    for (const c of trayVis) { m4.compose(v3.set(c.x, c.y, c.z), c.q, one); if (c.gold) { if (ng < INST) goldI.setMatrixAt(ng++, m4); } else if (ns < INST) silverI.setMatrixAt(ns++, m4); }
     for (const T of towers) {
       const shown = T.body ? T.n : T.shown;
       for (let i = 0; i < shown; i++) {
         towerCoinPose(T, i, v3, qt); m4.compose(v3, qt, one);
-        if (T.golds.has(i)) { if (ng < MAXC) goldI.setMatrixAt(ng++, m4); } else if (ns < MAXC) silverI.setMatrixAt(ns++, m4);
+        if (T.golds.has(i)) { if (ng < INST) goldI.setMatrixAt(ng++, m4); } else if (ns < INST) silverI.setMatrixAt(ns++, m4);
       }
     }
     silverI.count = ns; goldI.count = ng; starI.count = nst;
@@ -954,6 +1019,7 @@ function start() {
     column(x = 0, z = 0.08) { return coins.map(c => c.body.translation()).filter(p => (p.x - x) ** 2 + (p.z - z) ** 2 < 0.0004).map(p => +p.y.toFixed(3)).sort((a, b) => a - b); },
     bonus(k) { if (slot.active || wheel.active) return; spinSlot(BONUS.find(b => b.k === k) || BONUS[0]); },
     jp() { jpChance(); },
+    flood: () => ({ real: floodLeft, ghost: ghostLeft, flying: ghosts.length }),
     fx(kind, sec = 1.6) { if (kind === 'waterfall') fxWaterfall(); else if (kind === 'dragon') fxDragon(); else if (kind === 'sprinkles') fxSprinkles(); else fxFirecrackers(); for (let i = 0; i < Math.round(sec * 60); i++) { stepFx(1 / 60, i / 60); stepSparks(1 / 60); } },
     jpPocket(pk) { jpResult(pk); },
     advance(sec) { const n = Math.round(sec * 60); for (let i = 0; i < n; i++) { stepSlot(1 / 60); stepWheel(1 / 60); physStep(); } return this.slotState(); },
