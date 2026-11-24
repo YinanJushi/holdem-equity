@@ -689,3 +689,9 @@ body.t3d-on .left > #table ~ :not(#session):not(#manualTools) {
 body.t3d-on .left > #table ~ [hidden] { display: none !important; }
 @media (min-width: 861px) { body.t3d-on .left > #table ~ :not(#session):not(#manualTools) { border: 1px solid rgba(201,154,46,.4); border-bottom: 0; border-radius: 16px 16px 0 0; } }
 body.t3d-on::before { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: var(--t3-hud, 180px); background: #12070a; z-index: 4; }
+
+/* while the 3D view loads, show a quiet loading screen instead of the flat page underneath */
+html.t3d-wait body { background: #12070a; }
+html.t3d-wait body > * { visibility: hidden !important; }
+html.t3d-wait body::after { content: "Odds Lounge"; visibility: visible; position: fixed; inset: 0; display: grid; place-items: center; font: italic 600 30px var(--serif); color: #d9a843; letter-spacing: .02em; animation: t3load 1.2s ease-in-out infinite alternate; z-index: 100; }
+@keyframes t3load { from { opacity: .35; } to { opacity: 1; } }

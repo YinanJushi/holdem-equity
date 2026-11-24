@@ -10,7 +10,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=59';
+import { headerChrome, onQuality } from './chrome3d.js?v=60';
 
 const REELS = 5, N = 12, ALPHA = (Math.PI * 2) / N;                 // faces per drum, angle per face
 const FACE = 1, GAP = 0.09, AP = FACE / (2 * Math.tan(ALPHA / 2));   // face height, gap between reels, drum apothem
@@ -512,6 +512,23 @@ function create(host) {
   new ResizeObserver(resize).observe(host);
   // the site header folds into the machine view; graphics quality follows the shared setting
   headerChrome(host, 'cab3d-on');
+  // full screen: the prize wheel and the session panel live in a drawer, opened from a button at the bottom right
+  const side = document.querySelector('.slots-side');
+  if (side && !document.getElementById('wheelOpen')) {
+    const open = document.createElement('button'); open.type = 'button'; open.id = 'wheelOpen'; open.className = 't3-barbtn s3-wheelbtn';
+    open.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M3.5 12h17M6 6l12 12M18 6L6 18"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>Prize wheel<i class="dot" hidden></i>';
+    host.appendChild(open);
+    const x = document.createElement('button'); x.type = 'button'; x.className = 't3-close s3-close'; x.setAttribute('aria-label', 'Close'); x.textContent = '×';
+    side.prepend(x);
+    const toggle = v => document.body.classList.toggle('s3-side', v);
+    open.onclick = () => toggle(); x.onclick = () => toggle(false);
+    // a dot on the button while today's free spin is waiting
+    const wb = document.getElementById('wheelBtn'), dot = open.querySelector('.dot');
+    const paintDot = () => { dot.hidden = !(wb && /free/i.test(wb.textContent)); };
+    if (wb) new MutationObserver(paintDot).observe(wb, { childList: true, characterData: true, subtree: true });
+    paintDot();
+    setTimeout(() => document.body.classList.add('s3-ready'), 600);
+  }
   onQuality(q => { const hi = q === 'high'; renderer.setPixelRatio(hi ? Math.min(2, window.devicePixelRatio || 1) : 1); bloom.enabled = hi; resize(); });
   resize();
 

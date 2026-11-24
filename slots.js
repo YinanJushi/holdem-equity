@@ -73,10 +73,11 @@
   // ---------- 3D reels (slots3d.js); the flat reels stay as the fallback ----------
   let R3 = null;
   function use3D() {
-    if (R3 || !window.Reels3D || reduced()) return;
+    if (R3 || !window.Reels3D || reduced()) { if (!R3 && window.Reels3D) document.documentElement.classList.remove('t3d-wait'); return; }
     const host = $('#cab3d');
     document.body.classList.add('cab3d-on');      // show the 3D machine; the HTML one stays for keyboards and screen readers
     R3 = window.Reels3D.create(host);
+    document.documentElement.classList.remove('t3d-wait');
     if (!R3) { document.body.classList.remove('cab3d-on'); return; }
     R3.setTheme(theme.id, theme.symbols, theme.title).then(() => R3.setGrid(st.grid));
   }
@@ -167,7 +168,7 @@
     $('#cabinet').dataset.theme = theme.id;
     document.body.dataset.slotTheme = theme.id;
     $('#cabTitle').innerHTML = `${theme.title[0]} <em>${theme.title[1]}</em>`;
-    $('#themePick').innerHTML = Object.values(TH).map(t => `<button type="button" role="radio" aria-checked="${t.id === theme.id}" class="tp ${t.id === theme.id ? 'on' : ''}" data-theme="${t.id}"><span class="tp-ic">${t.symbols[5]}</span>${t.name}</button>`).join('');
+    $('#themePick').innerHTML = Object.values(TH).map(t => `<button type="button" role="radio" aria-checked="${t.id === theme.id}" class="tp ${t.id === theme.id ? 'on' : ''}" data-theme="${t.id}" aria-label="${t.name}"><span class="tp-ic">${t.symbols[5]}</span>${t.name}</button>`).join('');
     if (st.grid) drawReels();
     if (R3) R3.setTheme(theme.id, theme.symbols, theme.title).then(() => R3.setGrid(st.grid));
   }

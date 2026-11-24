@@ -79,7 +79,7 @@
     const save = () => UI.store.save(KEY, data);
     const trim = a => { while (a.length > MAX) a.shift(); return a; };
     let warned = false;
-    const send = (fn, args) => { q = q.then(() => ready).then(() => rpc(fn, args)).catch(e => { if (!warned) { warned = true; UI.toast('Could not save stats to your account: ' + errText(e)); } }); };
+    const send = (fn, args) => { q = q.then(() => ready).then(() => (s.offline ? null : rpc(fn, args))).catch(e => { if (!warned) { warned = true; UI.toast('Could not save stats to your account: ' + errText(e)); } }); };
     const s = {
       loading: true,
       get: g => (data[g] || []).slice(),
@@ -111,7 +111,12 @@
             next[g] = trim((cleared.has(g) ? [] : (srv[g] || [])).concat(mine));
           });
           data = next; pending = []; s.loading = false; save(); readyRes(); UI.stats.changed();
-        }).catch(e => { s.loading = false; readyRes(); UI.stats.changed(); UI.toast('Could not load your stats: ' + errText(e)); });
+        }).catch(e => {
+          s.loading = false; readyRes();
+          // the account-stats tables aren't set up in the database yet: quietly keep stats on this device instead
+          if (/get_stats|schema cache|does not exist|PGRST/i.test((e && (e.message || e.code)) || '')) { s.offline = true; UI.stats.useBackend(null); return; }
+          UI.stats.changed(); UI.toast('Could not load your stats: ' + errText(e));
+        });
       },
     };
     return s;
