@@ -1,6 +1,6 @@
 // Texas Hold'em in 3D: turns the table description from app.js into seated opponents, cards, chips and labels.
 // "Pick cards" mode needs the flat table (you click card spots), so the 3D view steps aside there.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=60';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=64';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'holdem') : null;
@@ -91,7 +91,12 @@ if (C) {
     st.seats.forEach((s, i) => {
       const th = angle(i, st.n), cp = ring(th, 0.98, 0.5), bp = ring(th, 0.62, 0.32), sp = ring(th, 1.17, 0.64), hp = ring(th, 1.62, 1.02);
       if (people[i]) people[i].userData.seat = s;
-      if (s.cards) s.cards.forEach((c, k) => {
+      const shown = s.cards && s.cards[0] >= 0;
+      if (shown) {
+        // showdown: the two cards fly up off the felt and hang in the air in front of their owner, facing you
+        const sp2 = ring(th, 0.8, 0.4);
+        s.cards.forEach((c, k) => cards.push({ key: `${R}o${s.j}-${k}`, c, x: sp2.x + (k - 0.5) * 0.19, z: sp2.z + k * 0.006, y: 0.17, tilt: 1.3, yaw: (k - 0.5) * -0.12, float: true, scale: 1.7 }));
+      } else if (s.cards) s.cards.forEach((c, k) => {
         const off = (k - 0.5) * 0.06;
         cards.push({ key: `${R}o${s.j}-${k}`, c, x: cp.x + Math.sin(th) * off, z: cp.z + Math.cos(th) * off, yaw: th - Math.PI / 2 + (k - 0.5) * 0.12, y: k * 0.0025 });
       });
@@ -100,7 +105,7 @@ if (C) {
       const badge = st.button === s.j ? '' : st.sb === s.j && st.n > 1 ? '<i>SB</i>' : st.bb === s.j ? '<i>BB</i>' : '';
       L.push({ key: 'name' + s.j, x: hp.x, y: 0.3, z: hp.z, html: `${badge}<b>${s.name}</b>${s.style && st.n <= 4 ? ` · ${s.style}` : ''}${s.stack != null ? `<br><span class="num">${s.stack}</span>` : ''}`, cls: 'plate' + (s.acting ? ' active' : '') + (s.folded ? ' dim' : '') });
       if (s.last) L.push({ key: 'act' + s.j, x: cp.x, y: 0.09, z: cp.z, html: s.last, cls: 'act' });
-      if (s.hand || s.won) L.push({ key: 'res' + s.j, x: cp.x, y: 0.12, z: cp.z, html: s.hand || 'Wins the pot', cls: s.won ? 'good' : '' });
+      if (s.hand || s.won) { const rp = ring(th, 0.8, 0.4); L.push({ key: 'res' + s.j, x: rp.x, y: 0.5, z: rp.z, html: s.hand || 'Wins the pot', cls: s.won ? 'good' : '' }); }
       if (s.bet > 0) L.push({ key: 'betl' + s.j, x: bp.x, y: 0.0, z: bp.z + 0.05, html: String(s.bet), cls: 'small' });
     });
     // your chips

@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=60';
+import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=64';
 
 const FLOOR = -0.76;                       // the floor, with the table top at y = 0 (metres)
 const CW = 0.102, CH = 0.143;              // card size (a little larger than life so it reads on screen)
@@ -279,7 +279,7 @@ export function createCasino(host, kind) {
     list.forEach(d => {
       seen.add(d.key);
       let rec = cards.get(d.key);
-      const target = { x: d.x, z: d.z, y: d.y || 0, yaw: d.yaw || 0, tilt: d.tilt || 0, up: d.c >= 0 };
+      const target = { x: d.x, z: d.z, y: d.y || 0, yaw: d.yaw || 0, tilt: d.tilt || 0, up: d.c >= 0, float: !!d.float, scale: d.scale || 1 };
       if (!rec) {
         rec = { obj: makeCard(), c: null, t: -stagger * 0.13, dur: 0.42, from: { x: DEAL_FROM.x, z: DEAL_FROM.z, y: 0.05, yaw: 0.6, tilt: 0, up: false }, to: target, flipT: 1 };
         if (T.dealer) setTimeout(() => T.dealer.userData.dealTo(d.x, d.z), Math.max(0, -rec.t) * 1000);
@@ -290,7 +290,8 @@ export function createCasino(host, kind) {
       } else {
         const moved = Math.abs(rec.to.x - target.x) + Math.abs(rec.to.z - target.z) > 0.002 || Math.abs(rec.to.tilt - target.tilt) > 0.01;
         const turned = (rec.c >= 0) !== (d.c >= 0) || (d.c >= 0 && rec.c !== d.c);
-        if (moved || turned) { rec.from = cur(rec); rec.t = 0; rec.dur = turned ? 0.5 : 0.35; rec.to = target; }
+        const lifting = Math.abs((rec.to.y || 0) - target.y) > 0.01;
+        if (moved || turned || lifting) { rec.from = cur(rec); rec.t = 0; rec.dur = lifting ? 0.9 : turned ? 0.5 : 0.35; rec.to = target; }
         if (turned && d.c >= 0) setCardFace(rec, d.c);
         else if (!turned) rec.to = target;
       }
@@ -309,9 +310,15 @@ export function createCasino(host, kind) {
     o.rotation.set(-Math.PI / 2 + p.tilt, 0, 0); o.rotateZ(p.yaw || 0);
     o.userData.flip.rotation.y = p.up ? 0 : Math.PI;
   }
+  let floatT = 0;
   function stepCards(dt) {
+    floatT += dt;
     cards.forEach((rec, key) => {
-      if (rec.t >= rec.dur && !rec.gone) return;
+      if (rec.t >= rec.dur && !rec.gone) {
+        // cards hanging in the air drift up and down a little, each at its own pace
+        if (rec.to.float) { const b = Math.sin(floatT * 1.6 + rec.to.x * 9) * 0.008; rec.obj.position.y = rec.to.y + 0.0016 + Math.sin(Math.abs(rec.to.tilt)) * CH / 2 + b; }
+        return;
+      }
       rec.t += dt;
       if (rec.t < 0) return;
       const p = Math.min(1, rec.t / rec.dur), e = ease(p), a = rec.from, b = rec.to;
@@ -321,8 +328,9 @@ export function createCasino(host, kind) {
       const tl = lerp(a.tilt, b.tilt, e);
       o.position.set(x, y + 0.0016 + Math.sin(Math.abs(tl)) * CH / 2, z);
       o.rotation.set(-Math.PI / 2 + lerp(a.tilt, b.tilt, e), 0, 0); o.rotateZ(lerp(a.yaw, b.yaw, e));
+      o.scale.setScalar(lerp(a.scale || 1, b.scale || 1, e));
       o.userData.flip.rotation.y = flipNow ? (a.up ? 0 : Math.PI) + (a.up ? 1 : -1) * Math.PI * e : (b.up ? 0 : Math.PI);
-      rec.now = { x, z, y: lerp(a.y, b.y, e), yaw: lerp(a.yaw, b.yaw, e), tilt: lerp(a.tilt, b.tilt, e), up: p >= 0.5 ? b.up : a.up };
+      rec.now = { x, z, y: lerp(a.y, b.y, e), yaw: lerp(a.yaw, b.yaw, e), tilt: lerp(a.tilt, b.tilt, e), up: p >= 0.5 ? b.up : a.up, scale: lerp(a.scale || 1, b.scale || 1, e) };
       if (p >= 1) {
         rec.now.up = b.up;
         if (rec.gone) { scene.remove(o); o.userData.front.material.dispose(); cards.delete(key); }
@@ -717,7 +725,7 @@ export function createCasino(host, kind) {
     const c = Math.cos(tilt), sn = Math.sin(tilt);
     return { x: x + dx, z: z - c * du + sn * layer * 0.0022, y: sn * du + c * layer * 0.0022, tilt };
   }
-  const api = { camera, debugCam: null, onPlane, SKINS, setCards, setStacks, setLabels, setPuck, chair: T.chair, order, sip, T, person, scene, wrap, hasDrink: () => !!drink, onDrink: null };
+  const api = { cards, camera, debugCam: null, onPlane, SKINS, setCards, setStacks, setLabels, setPuck, chair: T.chair, order, sip, T, person, scene, wrap, hasDrink: () => !!drink, onDrink: null };
   started = true;
   return api;
 
