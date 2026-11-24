@@ -788,5 +788,6 @@ body.pz-on .pz-bar { display: flex; position: fixed; left: 50%; bottom: calc(14p
 .pz-banner span { display: block; margin-top: 4px; font: 600 14px var(--sans); color: #ffe6b0; }
 .pz-banner.go { animation: pzBanner 2.2s ease-out forwards; }
 @keyframes pzBanner { 0% { opacity: 0; transform: translateX(-50%) scale(.5); } 12% { opacity: 1; transform: translateX(-50%) scale(1.12); } 22% { transform: translateX(-50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) scale(.95); } }
-.pz-tip { flex-basis: 100%; text-align: center; color: rgba(255,230,180,.7); font: 500 12px var(--sans); text-shadow: 0 1px 3px #000; }
+.pz-tip { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); text-align: center; color: rgba(255,230,180,.85); font: 500 12px var(--sans); text-shadow: 0 1px 3px #000; transition: opacity .4s; }
+body.pz-played .pz-tip { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .pz-pop, .pz-banner.go { animation-duration: .01s; } }

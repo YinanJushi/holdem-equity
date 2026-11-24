@@ -12,7 +12,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=77';
+import { headerChrome, onQuality } from './chrome3d.js?v=78';
 
 const COIN = 5, GOLD = 5, $ = s => document.querySelector(s);
 const host = $('#pzHost');
@@ -33,7 +33,7 @@ function start() {
   const key = new THREE.SpotLight('#fff1dc', 1.9, 3, 0.9, 1, 1.2); key.position.set(0.1, 1.0, 0.25); key.target.position.set(0, 0, -0.15); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0005; scene.add(key, key.target);
 
   // ---------- the machine's layout (metres; z points toward you) ----------
-  const W = 0.36, FRONT = 0.3, BACK = -0.72, WIN = 0.18;
+  const W = 0.36, FRONT = 0.3, BACK = -0.72, WIN = 0.16;
   const R = 0.03, TH = 0.01;                                   // coin radius and thickness
   const P1 = { h: 0.06, d: 0.4 }, SLAB = { y0: 0.064, y1: 0.15, z1: -0.3 };   // lower pusher; the upper deck slab above its back half
   const P2 = { h: 0.04, d: 0.22 }, SCRAPER = { y0: 0.194, z1: -0.5 };        // upper pusher; the scraper above its back half
@@ -219,7 +219,7 @@ function start() {
       pending -= COIN; dropped += COIN; drops++;
     }
     const c = addCoin(aimX + (Math.random() - 0.5) * 0.006, DROP.y, DROP.z + (Math.random() - 0.5) * 0.01, drops % 20 === 0, { gate: true, vy: -0.4 });
-    if (c && !sim) { beep(1800); info(); }
+    if (c && !sim) { beep(1800); info(); document.body.classList.add('pz-played'); }
   }
 
   // ---------- the bonus lamp ----------
@@ -230,7 +230,8 @@ function start() {
     { k: 'jackpot', p: 0.025, big: 'JACKPOT!', small: '20 coins + 3 gold' },
     { k: 'none', p: 1, big: 'SO CLOSE', small: 'try the gate again' },
   ];
-  let rolling = 0, rollOut = null;
+  let rolling = 0, rollOut = null, gateReady = 0;
+  const GATE_CD = 14;   // seconds the gate needs to recharge after a bonus
   const rainQ = [];
   function pickBonus() { let r = Math.random(); for (const b of BONUS) { if (r < b.p) return b; r -= b.p; } return BONUS[BONUS.length - 1]; }
   function applyBonus(b) {
@@ -245,8 +246,10 @@ function start() {
     setTimeout(() => { if (!rolling) lamp.redraw(); }, 3500);
   }
   function gateHit(x) {
-    if (sim) { const o = pickBonus(); sim.hits = (sim.hits || 0) + 1; sim[o.k] = (sim[o.k] || 0) + 1; applyBonus(o); return; }
+    if (tp < gateReady) return;
+    if (sim) { const o = pickBonus(); sim.hits = (sim.hits || 0) + 1; sim[o.k] = (sim[o.k] || 0) + 1; applyBonus(o); gateReady = tp + GATE_CD; return; }
     if (rolling > 0 || rollOut) return;
+    gateReady = tp + 1.6 + GATE_CD;
     rollOut = pickBonus();
     rolling = 1.6; burst(x, GATE_Y, DROP.z, 30, 0.7); fanfare(false); pop('LUCKY GATE!', 'gate');
   }
@@ -336,16 +339,32 @@ function start() {
   }
   const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.28, 0.2, 1.45); composer.addPass(bloom); composer.addPass(new OutputPass());
-  const camBase = new THREE.Vector3(), camLook = new THREE.Vector3(0, 0.08, -0.2);
+  // camera: back away until the whole machine (sign at the top, payout tray at the bottom) fits between the
+  // header icons and the buttons, then slide the picture so it sits centred in that space
+  const camBase = new THREE.Vector3(), camLook = new THREE.Vector3(0, 0.22, -0.18);
+  const FIT = [[-W - 0.06, 0.64, BACK], [W + 0.06, 0.64, BACK], [-W - 0.06, 0, FRONT], [W + 0.06, 0, FRONT], [-WIN - 0.02, -0.2, FRONT + 0.17], [WIN + 0.02, -0.2, FRONT + 0.17]].map(a => new THREE.Vector3(...a));
+  const pv = new THREE.Vector3();
   function resize() {
     const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return;
     renderer.setSize(w, h, false); composer.setSize(w, h); camera.aspect = w / h;
     const tall = w / h < 1;
-    camera.fov = tall ? Math.min(70, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(40) / 2) * 1.15 / (w / h)) * 180 / Math.PI) : 40;
-    camera.updateProjectionMatrix();
-    camBase.set(0, tall ? 1.1 : 0.82, tall ? 1.12 : 1.0); camLook.set(0, tall ? 0.13 : 0.2, tall ? -0.2 : -0.22);
+    camera.fov = tall ? 55 : 38; camera.clearViewOffset(); camera.updateProjectionMatrix();
+    const bar = $('#pzBar').getBoundingClientRect(), hr = host.getBoundingClientRect();
+    const botN = 1 - 2 * Math.min(h - 10, Math.max(h * 0.55, bar.top - hr.top - 8)) / h, topN = 1 - 2 * Math.min(h * 0.12, 58) / h;
+    const el = THREE.MathUtils.degToRad(tall ? 50 : 40), dir = new THREE.Vector3(0, Math.sin(el), Math.cos(el));
+    let ymin = 0, ymax = 0;
+    for (let d = 0.6; d < 6; d += 0.02) {
+      camera.position.copy(camLook).addScaledVector(dir, d); camera.lookAt(camLook); camera.updateMatrixWorld();
+      let xr = 0; ymin = 9; ymax = -9;
+      FIT.forEach(p => { pv.copy(p).project(camera); xr = Math.max(xr, Math.abs(pv.x)); ymin = Math.min(ymin, pv.y); ymax = Math.max(ymax, pv.y); });
+      if (xr < 0.95 && ymax - ymin < (topN - botN) * 0.96) break;
+    }
+    camBase.copy(camera.position);
+    const shift = ((topN + botN) - (ymax + ymin)) / 2;   // in NDC: how far the picture should move up
+    camera.setViewOffset(w, h, 0, -shift * h / 2, w, h); camera.updateProjectionMatrix();
   }
   new ResizeObserver(resize).observe(host); resize();
+  new ResizeObserver(resize).observe($('#pzBar'));
   onQuality(q => { const hi = q === 'high'; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; resize(); });
   const clock = new THREE.Clock(); let acc = 0, t = 0, rollTick = 0;
   renderer.setAnimationLoop(() => {
@@ -360,7 +379,8 @@ function start() {
     FW.list.forEach((f, i) => { fwMeshes[i].position.copy(f.b.translation()); fwMeshes[i].visible = wallH > 0.02; fwMeshes[i].material.opacity = 0.35 + 0.45 * wallH; });
     drawCoins();
     // the gate, the chute and the aim marker
-    ring.position.x = gateX(tp); ringM.color.setRGB(2.2 + Math.sin(t * 12) * 0.6, 1.6, 0.4);
+    ring.position.x = gateX(tp);
+    if (tp >= gateReady) ringM.color.setRGB(2.2 + Math.sin(t * 12) * 0.6, 1.6, 0.4); else { const k = 1 - (gateReady - tp) / (GATE_CD + 1.6); ringM.color.setRGB(0.25 + k * 0.5, 0.18 + k * 0.35, 0.1); }
     chute.position.x += (aimX - chute.position.x) * Math.min(1, dt * 14);
     aimDot.position.set(chute.position.x, SLAB.y1 + 0.002, DROP.z); aimDot.material.opacity = 0.35 + Math.sin(t * 5) * 0.2;
     // the bonus lamp rolling
@@ -388,10 +408,20 @@ function start() {
 
   // for testing: run the machine fast without drawing; returns cost and winnings in chips
   window.OL_PUSHER = {
-    sim(seconds, every = 0.65) {
+    sim(seconds, every = 0.65, mode = 'random') {
       sim = { won: 0 }; let cost = 0, at = 0;
-      const steps = Math.round(seconds / world.timestep);
-      for (let i = 0; i < steps; i++) { at += world.timestep; if (at > every) { at = 0; cost += COIN; drops++; aimX = (Math.random() - 0.5) * 0.6; drop(true); } physStep(); }
+      const steps = Math.round(seconds / world.timestep), gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) * 0.8;
+      for (let i = 0; i < steps; i++) {
+        at += world.timestep;
+        if (at > every) {
+          at = 0; cost += COIN; drops++;
+          if (mode === 'random') aimX = (Math.random() - 0.5) * 0.6;
+          else if (mode === 'center') aimX = gauss() * 0.05;
+          else aimX = tp >= gateReady ? Math.max(-0.3, Math.min(0.3, gateX(tp + 0.09) + gauss() * 0.02)) : gauss() * 0.05;   // 'skill': aims where the ring will be
+          drop(true);
+        }
+        physStep();
+      }
       const r = { ...sim, cost, onDeck: coins.length }; sim = null; return r;
     },
     coins: () => coins.length,

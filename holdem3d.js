@@ -1,6 +1,6 @@
 // Texas Hold'em in 3D: turns the table description from app.js into seated opponents, cards, chips and labels.
 // "Pick cards" mode needs the flat table (you click card spots), so the 3D view steps aside there.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=77';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=78';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'holdem') : null;
