@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=86';
+import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=87';
 
 const FLOOR = -0.76;                       // the floor, with the table top at y = 0 (metres)
 const CW = 0.102, CH = 0.143;              // card size (a little larger than life so it reads on screen)
@@ -469,7 +469,8 @@ export function createCasino(host, kind) {
   }
   let drag = null;
   const cv = renderer.domElement;
-  cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch, moved: false }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch, moved: false, slop: e.pointerType === 'mouse' ? 5 : 14 }; try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } });
+  cv.addEventListener('pointercancel', () => { drag = null; });
   cv.addEventListener('pointermove', e => {
     if (!drag) {
       const overDrink = hitDrink(e), g = !overDrink && api.onTableHover ? groundAt(e) : null;
@@ -478,7 +479,7 @@ export function createCasino(host, kind) {
       return;
     }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
+    if (Math.abs(dx) + Math.abs(dy) > drag.slop) drag.moved = true;
     if (!drag.moved || view.cine) return;
     view.yaw = Math.max(-0.32, Math.min(0.32, drag.yaw - dx * 0.003));
     view.pitch = Math.max(-0.2, Math.min(0.1, drag.pitch + dy * 0.0025));

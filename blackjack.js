@@ -299,6 +299,7 @@
     $('#actBar').hidden = S.phase !== 'play';
     $('#bankShow').innerHTML = `<span class="chip gold"></span>${money(S.bank).toLocaleString('en-US')}`;
     $('#betShow').innerHTML = `<span class="chip"></span>${S.bet}`;
+    if ($('#betPill')) $('#betPill').textContent = S.bet.toLocaleString('en-US');
     $('#dealBtn').textContent = S.bank < MIN_BET ? 'Out of chips' : S.phase === 'over' ? 'Deal again' : 'Deal';
     $('#dealBtn').disabled = S.bank < MIN_BET;
     if (S.phase === 'play') {

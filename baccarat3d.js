@@ -1,7 +1,7 @@
 // Baccarat (punto banco) at a 3D table. Bet on Player, Banker or Tie, press Deal; the cards follow the standard
 // third-card rules. Player pays 1 to 1, Banker 19 to 20 (a 5% commission), Tie 8 to 1; on a tie, Player and
 // Banker bets come back. Eight decks, reshuffled when the shoe runs low. A bead road shows the last results.
-import { createCasino, barButton, tableChrome } from './casino3d.js?v=86';
+import { createCasino, barButton, tableChrome } from './casino3d.js?v=87';
 
 const $ = s => document.querySelector(s);
 const host = document.getElementById('table');
@@ -49,13 +49,14 @@ if (C) {
 
   // ---------- betting on the felt ----------
   C.onTableHover = (x, z) => !busy && x != null && !!T.zoneAt(x, z);
-  C.onTableClick = (x, z) => {
+  C.onTableClick = (x, z) => { const q = T.zoneAt(x, z); if (q) placeBet(q); };
+  function placeBet(q) {
     if (busy) return;
-    const q = T.zoneAt(x, z); if (!q) return;
     if (staked() + chip > UI.wallet.chips) { say(UI.wallet.canClaim() ? 'Not enough chips. Claim your daily chips at the top.' : 'Not enough chips for that bet.'); return; }
     bets.set(q.key, (bets.get(q.key) || 0) + chip); undo.push([q.key, chip]);
     UI.sfx('chip'); paint();
-  };
+  }
+  $('#bcZones').onclick = e => { const b = e.target.closest('[data-zone]'); if (b) placeBet(zone(b.dataset.zone)); };
   function betStacks() { return [...bets].map(([k, n]) => { const q = zone(k); return { key: `r${round}b:${k}`, n, x: q.cx, z: q.cz, fromX: YOU.x, fromZ: YOU.z, toX: YOU.x, toZ: YOU.z }; }); }
   function paint(extraStacks = []) {
     if (!busy) C.setStacks(betStacks().concat(extraStacks));
@@ -65,10 +66,11 @@ if (C) {
     $('#bcClear').disabled = busy || !bets.size;
     $('#bcRebet').disabled = busy || !lastBets || !!bets.size;
     document.querySelectorAll('#bcChips [data-chip]').forEach(b => b.classList.toggle('on', +b.dataset.chip === chip));
+    document.querySelectorAll('#bcZones [data-zone]').forEach(b => { b.disabled = busy; const n = bets.get(b.dataset.zone); b.dataset.n = n ? fmt(n) : ''; });
     paintRoad();
     const L = [...bets].map(([k, n]) => { const q = zone(k); return { key: 'bet-' + k, x: q.cx, y: 0.01, z: q.z0 + 0.035, html: `<span class="num">${fmt(n)}</span>`, cls: 'plate bet' }; });
     if (!busy) C.setLabels(L);
-    if (!busy) say(staked() ? `Bet <b>${fmt(staked())}</b> · press Deal` : 'Tap Player, Banker or Tie on the table to bet, then Deal.');
+    if (!busy) say(staked() ? `Bet <b>${fmt(staked())}</b> · press Deal` : 'Tap Player, Banker or Tie (on the table or below) to bet, then Deal.');
   }
   // the bead road: one column per six results, newest last
   function paintRoad() {
