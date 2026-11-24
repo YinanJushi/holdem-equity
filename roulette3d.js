@@ -1,7 +1,7 @@
 // Roulette at a 3D table: click the felt to place chips, Spin, and the ball decides.
 // European single zero: straight up pays 35 to 1, dozens and columns 2 to 1, red/black, odd/even and low/high 1 to 1.
 import * as THREE from 'three';
-import { createCasino, barButton, tableChrome } from './casino3d.js?v=78';
+import { createCasino, barButton, tableChrome } from './casino3d.js?v=86';
 
 const $ = s => document.querySelector(s);
 const host = document.getElementById('table');
@@ -94,6 +94,7 @@ if (C) {
     const col = colorOf(num), net = back - stake;
     say(`<span class="win">${num} ${col === 'green' ? 'Zero' : col === 'red' ? 'Red' : 'Black'}</span><br>${back ? `You win <b class="good">${fmt(back)}</b> (net ${net >= 0 ? '+' : ''}${fmt(net)})` : `No win · <b class="bad">−${fmt(stake)}</b>`}`);
     if (back) UI.sfx('win');
+    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'roulette', num, stake, back, net, straight: win.some(k => /^n\d+$/.test(k)) } }));
     // the dolly marks the winning number; losing chips go to the croupier, winners get paid beside their bet
     const nc = cells.get('n' + num); mark.position.set(nc.cx, 0.025, nc.cz); mark.visible = true;
     const pay = win.map(k => { const c = cells.get(k); return { key: 'p:' + k, n: bets.get(k) * c.pay, x: c.cx + 0.03, z: c.cz + 0.025, fromX: DEALER.x, fromZ: DEALER.z, toX: YOU.x, toZ: YOU.z }; });

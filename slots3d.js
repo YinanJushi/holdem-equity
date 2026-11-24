@@ -10,7 +10,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=78';
+import { headerChrome, onQuality } from './chrome3d.js?v=86';
 
 const REELS = 5, N = 12, ALPHA = (Math.PI * 2) / N;                 // faces per drum, angle per face
 const FACE = 1, GAP = 0.09, AP = FACE / (2 * Math.tan(ALPHA / 2));   // face height, gap between reels, drum apothem
@@ -203,7 +203,7 @@ function create(host) {
     const T = canvasTex(w, h), g = T.g;
     if (bg) { g.fillStyle = bg; g.fillRect(0, 0, w, h); }
     g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle';
-    const L = [].concat(lines);
+    const L = [].concat(lines).map(x => (window.I18N ? I18N.t(x) : x));
     L.forEach((s, i) => { g.font = `${weight} ${i ? size * 0.55 : size}px "${font}", Arial, sans-serif`; g.fillText(s, w / 2, h / 2 + (i - (L.length - 1) / 2) * size * 0.85); });
     T.t.needsUpdate = true;
     return T;
@@ -430,7 +430,7 @@ function create(host) {
     J.forEach(([name, sel, col], i) => {
       const x = bx + i * (bw + gap), y = 318;
       roundRect(g, x, y, bw, 118, 14); g.fillStyle = '#0d0204'; g.fill(); g.lineWidth = 4; g.strokeStyle = i ? 'rgba(242,193,78,.55)' : '#f2c14e'; g.stroke();
-      g.textAlign = 'center'; g.fillStyle = col; g.font = '800 26px "Libre Franklin", Arial'; g.fillText(name, x + bw / 2, y + 38);
+      g.textAlign = 'center'; g.fillStyle = col; g.font = '800 26px "Libre Franklin", Arial'; g.fillText(window.I18N ? I18N.t(name) : name, x + bw / 2, y + 38);
       g.font = '400 52px "Share Tech Mono", monospace'; g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 12; g.fillText(txt(sel), x + bw / 2, y + 96); g.shadowBlur = 0; g.shadowColor = 'transparent';
     });
     marq.t.needsUpdate = true;
@@ -442,21 +442,21 @@ function create(host) {
     cells.forEach(([name, sel, col], i) => {
       const x = 14 + i * 336, w = 324;
       roundRect(g, x, 10, w, 104, 12); g.fillStyle = '#120305'; g.fill(); g.strokeStyle = 'rgba(201,154,46,.5)'; g.lineWidth = 3; g.stroke();
-      g.textAlign = 'center'; g.fillStyle = 'rgba(255,230,200,.75)'; g.font = '700 22px "Libre Franklin", Arial'; g.fillText(name, x + w / 2, 38);
+      g.textAlign = 'center'; g.fillStyle = 'rgba(255,230,200,.75)'; g.font = '700 22px "Libre Franklin", Arial'; g.fillText(window.I18N ? I18N.t(name) : name, x + w / 2, 38);
       g.font = '400 58px "Share Tech Mono", monospace'; g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 14; g.fillText(txt(sel), x + w / 2, 98); g.shadowBlur = 0;
     });
     const fs = $('#fsBanner') && !$('#fsBanner').hidden;
     g.textAlign = 'center'; g.font = '600 30px "Libre Franklin", Arial';
     if (fs) {
       roundRect(g, W / 2 - 230, 124, 460, 46, 23); g.fillStyle = '#8b4bd6'; g.fill(); g.strokeStyle = '#f2c14e'; g.lineWidth = 3; g.stroke();
-      g.fillStyle = '#fff'; g.fillText(`FREE SPINS ${txt('#fsLeft')} · WINS ×2`, W / 2, 158);
+      g.fillStyle = '#fff'; { const fs = `FREE SPINS ${txt('#fsLeft')} · WINS ×2`; g.fillText(window.I18N ? I18N.t(fs) : fs, W / 2, 158); }
     } else { g.fillStyle = '#ffe6b0'; let s = txt('#ticker'); if (s.length > 62) s = s.slice(0, 60) + '…'; g.fillText(s, W / 2, 158); }
     led.t.needsUpdate = true;
   }
   function drawLabels() {
     const g = betPlate.g; g.clearRect(0, 0, 512, 96);
     g.fillStyle = 'rgba(255,230,190,.85)'; g.font = '700 34px "Libre Franklin", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(`BET / LINE  ${txt('#lineBet')}`, 256, 48); betPlate.t.needsUpdate = true;
+    g.fillText(`${window.I18N ? I18N.t('BET / LINE') : 'BET / LINE'}  ${txt('#lineBet')}`, 256, 48); betPlate.t.needsUpdate = true;
     const spinTxt = /free/i.test(txt('#spinBtn')) ? ['FREE', 'SPIN'] : ['SPIN'];
     const autoTxt = txt('#autoBtn').toUpperCase().split(' ');
     redrawLabel(buttons.spin, spinTxt); redrawLabel(buttons.auto, autoTxt);

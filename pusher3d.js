@@ -12,9 +12,9 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=78';
+import { headerChrome, onQuality } from './chrome3d.js?v=86';
 
-const COIN = 5, GOLD = 5, $ = s => document.querySelector(s);
+const COIN = 5, GOLD = 5, $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#pzHost');
 let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
@@ -116,10 +116,10 @@ function start() {
   const sign = canvasTex(1024, 200, (g, w, h) => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'italic 700 112px Georgia, serif'; const gr = g.createLinearGradient(0, 40, 0, 160); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#c99a2e'); g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.8)'; g.shadowBlur = 26; g.fillText('Coin Pusher', w / 2, h / 2); });
   const signM = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.12), new THREE.MeshBasicMaterial({ map: sign.t, transparent: true })); signM.position.set(0, 0.72, BACK + 0.005); scene.add(signM);
   const bulbs = []; for (let i = 0; i < 22; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' })); b.position.set(-W + 0.02 + i * ((W * 2 - 0.04) / 21), 0.8, BACK + 0.01); scene.add(b); bulbs.push(b); }
-  const lamp = canvasTex(768, 220, (g, w, h, big = 'LUCKY GATE', small = 'drop a coin through the ring', col = '#ffd36a') => {
+  const lamp = canvasTex(768, 220, (g, w, h, big = tr('LUCKY GATE'), small = tr('drop a coin through the ring'), col = '#ffd36a') => {
     g.fillStyle = '#12040a'; g.fillRect(0, 0, w, h); g.strokeStyle = col; g.lineWidth = 8; g.strokeRect(8, 8, w - 16, h - 16);
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 22;
-    g.font = '700 86px "Share Tech Mono", ui-monospace, monospace'; g.fillText(big, w / 2, h * 0.42);
+    g.font = /[\u4e00-\u9fff]/.test(big) ? '800 78px "PingFang SC", "Microsoft YaHei", sans-serif' : '700 86px "Share Tech Mono", ui-monospace, monospace'; g.fillText(big, w / 2, h * 0.42);
     g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.75)'; g.font = '600 34px "Libre Franklin", sans-serif'; g.fillText(small, w / 2, h * 0.78);
   });
   const lampM = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.115), new THREE.MeshBasicMaterial({ map: lamp.t, toneMapped: false })); lampM.position.set(0, 0.56, BACK + 0.005); scene.add(lampM);
@@ -205,6 +205,7 @@ function start() {
     const v = COIN * (c.gold ? GOLD : 1);
     if (sim) { sim.won += v; sim.mid = (sim.mid || 0) + 1; if (c.gold) sim.goldOut = (sim.goldOut || 0) + 1; return; }
     pending += v; won += v;
+    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-win', v, gold: c.gold } }));
     burst(x, -0.02, z, c.gold ? 40 : 10, c.gold ? 0.9 : 0.5, c.gold ? [1.2, 0.85, 0.3] : [0.9, 0.9, 1]);
     clink(1, true);
     if (c.gold) { pop('+' + v, 'gold'); fanfare(false); shake = Math.max(shake, 0.6); } else pop('+' + v);
@@ -219,7 +220,7 @@ function start() {
       pending -= COIN; dropped += COIN; drops++;
     }
     const c = addCoin(aimX + (Math.random() - 0.5) * 0.006, DROP.y, DROP.z + (Math.random() - 0.5) * 0.01, drops % 20 === 0, { gate: true, vy: -0.4 });
-    if (c && !sim) { beep(1800); info(); document.body.classList.add('pz-played'); }
+    if (c && !sim) { beep(1800); info(); document.body.classList.add('pz-played'); window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-drop' } })); }
   }
 
   // ---------- the bonus lamp ----------
@@ -241,8 +242,9 @@ function start() {
     else if (b.k === 'walls') wallUp = 15;
     else if (b.k === 'jackpot') { rain(20, false); rain(3, true); wallUp = 15; }
     if (sim) return;
-    lamp.redraw(b.big, b.small, b.k === 'none' ? '#9a8a7a' : b.k === 'jackpot' ? '#ff5ab0' : '#ffd36a');
-    if (b.k !== 'none') { showBanner(b.big, b.small); fanfare(b.k === 'jackpot' || b.k === 'shower'); shake = b.k === 'jackpot' ? 1.4 : 0.8; burst(0, 0.56, BACK + 0.05, b.k === 'jackpot' ? 120 : 50, 1.2); }
+    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: b.k } }));
+    lamp.redraw(tr(b.big), tr(b.small), b.k === 'none' ? '#9a8a7a' : b.k === 'jackpot' ? '#ff5ab0' : '#ffd36a');
+    if (b.k !== 'none') { showBanner(tr(b.big), tr(b.small)); fanfare(b.k === 'jackpot' || b.k === 'shower'); shake = b.k === 'jackpot' ? 1.4 : 0.8; burst(0, 0.56, BACK + 0.05, b.k === 'jackpot' ? 120 : 50, 1.2); }
     setTimeout(() => { if (!rolling) lamp.redraw(); }, 3500);
   }
   function gateHit(x) {
@@ -251,7 +253,7 @@ function start() {
     if (rolling > 0 || rollOut) return;
     gateReady = tp + 1.6 + GATE_CD;
     rollOut = pickBonus();
-    rolling = 1.6; burst(x, GATE_Y, DROP.z, 30, 0.7); fanfare(false); pop('LUCKY GATE!', 'gate');
+    rolling = 1.6; burst(x, GATE_Y, DROP.z, 30, 0.7); fanfare(false); pop(tr('LUCKY GATE!'), 'gate');
   }
 
   // ---------- one physics step (also used by the fast test run) ----------
@@ -386,7 +388,7 @@ function start() {
     // the bonus lamp rolling
     if (rolling > 0) {
       rolling -= dt; rollTick -= dt;
-      if (rollTick <= 0) { rollTick = 0.07 + (1.6 - rolling) * 0.05; const b = BONUS[Math.floor(Math.random() * BONUS.length)]; lamp.redraw(b.big, '', '#ffffff'); beep(1200 + Math.random() * 600); }
+      if (rollTick <= 0) { rollTick = 0.07 + (1.6 - rolling) * 0.05; const b = BONUS[Math.floor(Math.random() * BONUS.length)]; lamp.redraw(tr(b.big), '', '#ffffff'); beep(1200 + Math.random() * 600); }
       if (rolling <= 0) { rolling = 0; const b = rollOut; rollOut = null; applyBonus(b); }
     }
     // lights: chase normally, flash during a bonus

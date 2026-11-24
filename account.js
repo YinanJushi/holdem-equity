@@ -162,6 +162,8 @@
   if (right) right.insertBefore(btn, document.getElementById('wallet'));
   function paintButton() {
     btn.textContent = user ? (user.email || 'Account').split('@')[0] : 'Sign in';
+    btn.dataset.user = user ? '1' : '';
+    btn.translate = !user;   // a user name is never translated
     btn.title = user ? `Signed in as ${user.email}` : 'Sign in to keep your chips on every device';
   }
   paintButton();

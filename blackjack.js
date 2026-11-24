@@ -582,7 +582,7 @@
     return `${RULES.decks} deck${RULES.decks > 1 ? 's' : ''} · Dealer ${RULES.h17 ? 'hits' : 'stands on'} soft 17 · Blackjack pays ${RULES.bjPay === 1.5 ? '3:2' : '6:5'}${RULES.das ? '' : ' · No double after split'}`;
   }
   function applyRulesText() {
-    $('#rulesText').textContent = rulesText();
+    const rt = rulesText(); $('#rulesText').textContent = rt; $('#rulesText').dataset.raw = rt;
     $('#feltText').innerHTML = `BLACKJACK PAYS ${RULES.bjPay === 1.5 ? '3 TO 2' : '6 TO 5'}<small>DEALER MUST ${RULES.h17 ? 'HIT SOFT 17' : 'STAND ON ALL 17s'} · ${RULES.decks} DECK${RULES.decks > 1 ? 'S' : ''}</small>`;
   }
   function openRules(first) {

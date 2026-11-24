@@ -8,10 +8,11 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=78';
+import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=86';
 
 const FLOOR = -0.76;                       // the floor, with the table top at y = 0 (metres)
 const CW = 0.102, CH = 0.143;              // card size (a little larger than life so it reads on screen)
+const tr = x => (typeof window !== 'undefined' && window.I18N ? window.I18N.t(x) : x);
 const RANKS = '23456789TJQKA', SUITS = ['♠', '♥', '♦', '♣'], SUIT_COL = ['#1b1a1f', '#b8222f', '#2a5bb5', '#19703f'];
 const DECK_COL = { sky: '#7fb6cc', ink: '#34496e', mint: '#5aa891', apricot: '#e3a083', brick: '#9e3530', stone: '#979c9d', pine: '#23402f', pumpkin: '#e07b2e', pink: '#e58aab', lime: '#8cc63f', charcoal: '#2b2b2e' };
 const DENOMS = [[500, 'gold'], [100, 'black'], [25, 'green'], [5, 'red'], [1, 'white']];
@@ -410,7 +411,7 @@ export function createCasino(host, kind) {
   }
 
   // ---------- the table ----------
-  const T = kind === 'bj' ? buildBJTable() : kind === 'roulette' ? buildRouletteTable() : buildHoldemTable();
+  const T = kind === 'bj' ? buildBJTable() : kind === 'baccarat' ? buildBaccaratTable() : kind === 'roulette' ? buildRouletteTable() : buildHoldemTable();
   const bar = scene.userData.bar;
 
   // ---------- dealer button ----------
@@ -1048,7 +1049,7 @@ export function createCasino(host, kind) {
     const W = 2 * R, H = R + 0.45 + D, minY = D - (R + 0.45);
     // the felt prints the rules you picked, and reprints when you change them
     const makeFelt = () => {
-    const rulesTxt = (document.getElementById('rulesText') || {}).textContent || '';
+    const rEl = document.getElementById('rulesText'), rulesTxt = rEl ? (rEl.dataset.raw || rEl.textContent) : '';
     const pays = /6:5/.test(rulesTxt) ? 'BLACKJACK PAYS 6 TO 5' : 'BLACKJACK PAYS 3 TO 2';
     const h17 = /H17|hits soft/i.test(rulesTxt) ? 'DEALER HITS SOFT 17' : 'DEALER STANDS ON ALL 17s';
     const decks = (rulesTxt.match(/(\d+)\s*deck/i) || [])[1];
@@ -1060,8 +1061,8 @@ export function createCasino(host, kind) {
       g.strokeStyle = 'rgba(242,210,140,.7)'; g.lineWidth = 4;
       g.beginPath(); g.ellipse(ox, oy, 0.9 * sx, 1.3 * sy, 0, 0, Math.PI); g.stroke();
       g.beginPath(); g.ellipse(ox, oy, 0.62 * sx, 0.92 * sy, 0, 0, Math.PI); g.stroke();
-      arcText(g, pays, ox, oy, 0.76 * sx, Math.PI / 2, 44, 'rgba(255,228,170,.92)');
-      arcText(g, h17 + (decks ? ` · ${decks} DECK SHOE` : ''), ox, oy, 1.08 * sx, Math.PI / 2, 30, 'rgba(255,228,170,.75)', 'Arial, sans-serif', '700');
+      arcText(g, tr(pays), ox, oy, 0.76 * sx, Math.PI / 2, 44, 'rgba(255,228,170,.92)');
+      arcText(g, tr(h17 + (decks ? ` · ${decks} DECK SHOE` : '')), ox, oy, 1.08 * sx, Math.PI / 2, 30, 'rgba(255,228,170,.75)', 'Arial, sans-serif', '700');
       // your betting circle
       const [bx, by] = toC(0, -0.62);
       g.strokeStyle = 'rgba(255,236,190,.85)'; g.lineWidth = 5; g.beginPath(); g.arc(bx, by, 0.1 * sx, 0, Math.PI * 2); g.stroke();
@@ -1109,6 +1110,75 @@ export function createCasino(host, kind) {
     };
   }
 
+  // ---------- baccarat (punto banco): the blackjack table's shape, three betting areas in front of you ----------
+  function buildBaccaratTable() {
+    const R = 1.25, D = 0.6;
+    const shape = new THREE.Shape(); shape.moveTo(-R, D); shape.lineTo(R, D); shape.absellipse(0, D, R, R + 0.45, 0, Math.PI, true);
+    const pts = []; for (let i = 0; i <= 80; i++) { const a = -Math.PI * (i / 80); pts.push(new THREE.Vector3(Math.cos(a) * (R + 0.04), 0, -(D + Math.sin(a) * (R + 0.49)))); }
+    const railCurve = new THREE.CatmullRomCurve3(pts);
+    const W = 2 * R, H = R + 0.45 + D, minY = D - (R + 0.45);
+    // betting areas in table coordinates (x across, z toward you)
+    const zones = [
+      { key: 'player', label: 'PLAYER', sub: '1 TO 1', x0: -0.66, x1: -0.2, z0: 0.4, z1: 0.66, col: '#2a62c9' },
+      { key: 'tie', label: 'TIE', sub: '8 TO 1', x0: -0.18, x1: 0.18, z0: 0.3, z1: 0.52, col: '#1e9a5a' },
+      { key: 'banker', label: 'BANKER', sub: '19 TO 20', x0: 0.2, x1: 0.66, z0: 0.4, z1: 0.66, col: '#c22a35' },
+    ].map(z => ({ ...z, cx: (z.x0 + z.x1) / 2, cz: (z.z0 + z.z1) / 2 }));
+    const zoneAt = (x, z) => zones.find(q => x >= q.x0 && x < q.x1 && z >= q.z0 && z < q.z1) || null;
+    const tex = feltTexture(W, H, (g, w, h) => {
+      const sx = w / W, sy = h / H, toC = (x, zz) => [w / 2 + x * sx, h - (-zz - minY) * sy];
+      const [ox, oy] = toC(0, -D);
+      g.strokeStyle = 'rgba(242,210,140,.6)'; g.lineWidth = 4;
+      g.beginPath(); g.ellipse(ox, oy, 1.12 * sx, 1.55 * sy, 0, 0, Math.PI); g.stroke();
+      arcText(g, tr('BANKER PAYS 19 TO 20 · TIE PAYS 8 TO 1'), ox, oy, 1.32 * sx, Math.PI / 2, 30, 'rgba(255,228,170,.8)', 'Arial, sans-serif', '700');
+      // the betting areas
+      zones.forEach(q => {
+        const [ax, ay] = toC(q.x0, q.z0), [bx, by] = toC(q.x1, q.z1);
+        g.fillStyle = q.col + '55'; g.strokeStyle = 'rgba(255,236,190,.85)'; g.lineWidth = 4;
+        rr(g, ax, ay, bx - ax, by - ay, 18); g.fill(); g.stroke();
+        g.fillStyle = 'rgba(255,240,205,.95)'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.font = '700 46px Georgia, serif'; g.fillText(tr(q.label), (ax + bx) / 2, (ay + by) / 2 - 14);
+        g.font = '700 24px Arial, sans-serif'; g.fillStyle = 'rgba(255,240,205,.7)'; g.fillText(tr('PAYS ' + q.sub), (ax + bx) / 2, (ay + by) / 2 + 30);
+      });
+      // where the two hands are dealt
+      [[-0.35, 'PLAYER'], [0.35, 'BANKER']].forEach(([x, l]) => {
+        const [ax, ay] = toC(x - 0.27, -0.06), [bx, by] = toC(x + 0.27, 0.2);
+        g.strokeStyle = 'rgba(242,210,140,.45)'; g.lineWidth = 3; rr(g, ax, ay, bx - ax, by - ay, 14); g.stroke();
+        g.font = '700 26px Arial, sans-serif'; g.fillStyle = 'rgba(255,228,170,.45)'; g.textAlign = 'center'; g.fillText(tr(l), (ax + bx) / 2, by + 26);
+      });
+      g.font = 'italic 600 54px Georgia, serif'; g.fillStyle = 'rgba(255,228,170,.35)'; g.textAlign = 'center'; g.fillText('Odds Lounge', ox, oy + 0.2 * sy);
+    });
+    tableFrom(shape, railCurve, -R, minY, W, H, tex, 0.5);
+    // chip rack, shoe and discard tray
+    const rack = new THREE.Group(); rack.position.set(0, 0.012, -0.5); scene.add(rack);
+    rack.add(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.025, 0.12), M.darkwood));
+    ['gold', 'black', 'green', 'red', 'white', 'green', 'red', 'black'].forEach((c, i) => {
+      for (let k = 0; k < 9; k++) { const m = new THREE.Mesh(chipGeoRack, chipMatsRack(c)); m.rotation.z = Math.PI / 2; m.position.set(-0.27 + i * 0.077 + k * 0.0043 - 0.02, 0.025, 0); rack.add(m); }
+    });
+    const shoe = new THREE.Group(); shoe.position.set(0.85, 0, -0.32); shoe.rotation.y = -0.5; scene.add(shoe);
+    const sb = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.22), new THREE.MeshStandardMaterial({ color: '#1a0a08', roughness: 0.3, metalness: 0.2 })); sb.position.y = 0.05; sb.castShadow = true; shoe.add(sb);
+    const sd = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.18), backMat); sd.position.set(0, 0.07, -0.01); sd.rotation.x = 0.3; shoe.add(sd);
+    const tray = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.06, 0.18), new THREE.MeshStandardMaterial({ color: '#c8c8d0', metalness: 0.9, roughness: 0.3, transparent: true, opacity: 0.6 })); tray.position.set(-0.85, 0.03, -0.32); tray.rotation.y = 0.5; scene.add(tray);
+    // the dealer: reaches out to deal, and to turn cards over
+    const dealer = person({ shirt: '#f4f1ea', vest: '#5a0f1e', bow: '#c99a2e', hair: '#1a120a', skin: SKINS[4], seated: false });
+    dealer.position.set(0, 0.03, -0.98); scene.add(dealer);
+    const rest = { L: [-0.17, -0.01, 0.44], R: [0.17, -0.01, 0.44] };
+    const dealHand = { t: 9, x: 0, z: 0 };
+    dealer.userData.dealTo = (wx, wz) => { dealHand.t = 0; dealHand.x = wx; dealHand.z = wz + 0.98; };
+    animated.push((t, dt) => {
+      dealHand.t += dt;
+      dealer.userData.head.rotation.y = Math.sin(t * 0.35) * 0.22;
+      dealer.userData.reach('L', rest.L[0], rest.L[1], rest.L[2] + Math.sin(t * 0.9) * 0.01);
+      const p = Math.min(1, dealHand.t / 0.55), k = Math.sin(p * Math.PI);
+      dealer.userData.reach('R', lerp(rest.R[0], dealHand.x, k * 0.8), rest.R[1] + k * 0.06, lerp(rest.R[2], dealHand.z, k * 0.75));
+    });
+    [-1.05, -0.55, 0.55, 1.05].forEach(x => chair(x * 1.05, Math.sqrt(Math.max(0, 1 - (x / 1.4) ** 2)) * 1.3 + 0.15, Math.atan2(x, 1)));
+    return {
+      seat: { pos: new THREE.Vector3(0, 0.5, 1.0), target: new THREE.Vector3(0, 0.03, -0.3) },
+      dealFrom: { x: 0.8, z: -0.3 }, muck: { x: -0.85, z: -0.32 },
+      drinkSpot: { x: 0.78, z: 0.6 }, barYaw: 1.38, barPitch: 0.06, dealer, zones, zoneAt,
+      fitWidth: 1.55, fitTall: { x: 0, z: 0.24, width: 1.5 },
+    };
+  }
   function buildHoldemTable() {
     const A = 1.35, B = 0.75;
     const shape = new THREE.Shape();
@@ -1121,7 +1191,7 @@ export function createCasino(host, kind) {
       rrStadium(g, w / 2, h / 2, (A - 0.22) * sx, (B - 0.22) * sy);
       g.font = 'italic 600 70px Georgia, serif'; g.fillStyle = 'rgba(255,228,170,.33)'; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText('Odds Lounge', w / 2, h / 2 + 0.3 * sy);
-      g.font = '700 26px Arial'; g.fillStyle = 'rgba(255,228,170,.3)'; g.fillText("TEXAS HOLD'EM · NO LIMIT", w / 2, h / 2 - 0.34 * sy);
+      g.font = '700 26px Arial'; g.fillStyle = 'rgba(255,228,170,.3)'; g.fillText(tr("TEXAS HOLD'EM · NO LIMIT"), w / 2, h / 2 - 0.34 * sy);
     });
     tableFrom(shape, railCurve, -A, -B, 2 * A, 2 * B, tex, 0.45);
     return {
@@ -1274,6 +1344,7 @@ export function barButton(host, casino) {
       if (!window.UI || UI.wallet.chips < D.price) { say('Not enough chips in your wallet for that one.'); return; }
       if (!casino.order(D)) { say('Your last drink is still on its way.'); return; }
       UI.wallet.add(-D.price);
+      window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'drink', id: D.id } }));
       say(`One <b>${D.name}</b> coming up · ${D.price} chips`, 3000);
     };
     dlg.showModal();
@@ -1288,7 +1359,7 @@ export function tableChrome(casino, items) {
   const wrap = casino.wrap, table = wrap.parentElement;
   const rail = document.createElement('div'); rail.className = 't3-rail'; wrap.appendChild(rail);
   const btns = items.map(it => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 't3-ico';
+    const b = document.createElement('button'); b.type = 'button'; b.className = 't3-ico'; b.dataset.k = it.icon;
     b.setAttribute('aria-label', it.label); b.dataset.tip = it.label;
     b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[it.icon]}</svg>`;
     b.onclick = () => { it.onClick(); paint(); };

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://yinanjushi.github.io/odds-lounge/sitemap.xml

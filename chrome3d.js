@@ -11,6 +11,8 @@ export const ICONS = {
   soundOn: '<path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16.5 9a4 4 0 0 1 0 6"/><path d="M19 6.5a7.5 7.5 0 0 1 0 11"/>',
   soundOff: '<path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M17 9.5l4 5"/><path d="M21 9.5l-4 5"/>',
   quality: '<path d="M12 3l2.2 5.6L20 9.3l-4.4 3.9 1.3 5.8L12 16l-4.9 3 1.3-5.8L4 9.3l5.8-.7z"/>',
+  trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5.5a2.5 2.5 0 0 0 2.6 3.6"/><path d="M16 6h2.5a2.5 2.5 0 0 1-2.6 3.6"/><path d="M12 13v4"/><path d="M8.5 20h7"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5s1.2-6.1 3.8-8.5z"/>',
   pick: '<rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><rect x="13" y="13" width="7" height="7" rx="1.2"/>',
 };
 
@@ -27,10 +29,10 @@ export function headerChrome(container, onClass) {
   // the site header folds into the table: games, account and sound top-left, your chips top-right
   const topL = document.createElement('div'); topL.className = 't3-topl'; container.appendChild(topL);
   const chipBox = document.createElement('div'); chipBox.className = 't3-chips'; container.appendChild(chipBox);
-  const mk = (icon, label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 't3-ico'; b.setAttribute('aria-label', label); b.dataset.tip = label; b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg>`; b.onclick = fn; topL.appendChild(b); return b; };
+  const mk = (icon, label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 't3-ico'; b.dataset.k = icon; b.setAttribute('aria-label', label); b.dataset.tip = label; b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg>`; b.onclick = fn; topL.appendChild(b); return b; };
   const menu = document.createElement('div'); menu.className = 't3-menu'; menu.hidden = true;
   const here = location.pathname.split('/').pop() || 'index.html';
-  menu.innerHTML = [['index.html', "Texas Hold'em"], ['blackjack.html', 'Blackjack'], ['roulette.html', 'Roulette'], ['slots.html', 'Slots'], ['pusher.html', 'Coin Pusher'], ['stats.html', 'Stats']]
+  menu.innerHTML = [['index.html', "Texas Hold'em"], ['blackjack.html', 'Blackjack'], ['baccarat.html', 'Baccarat'], ['roulette.html', 'Roulette'], ['slots.html', 'Slots'], ['pusher.html', 'Coin Pusher'], ['stats.html', 'Stats']]
     .map(([h, n]) => `<a href="${h}"${h === here ? ' aria-current="page"' : ''}>${n}</a>`).join('');
   const gamesBtn = mk('games', 'Games', () => { menu.hidden = !menu.hidden; gamesBtn.setAttribute('aria-expanded', String(!menu.hidden)); });
   topL.appendChild(menu);
@@ -38,10 +40,16 @@ export function headerChrome(container, onClass) {
   const accBtn = mk('account', 'Account', () => { const a = document.getElementById('acctBtn'); if (a) a.click(); });
   const sndBtn = mk('soundOn', 'Sound', () => { const sb = document.getElementById('soundBtn'); if (sb) sb.click(); paintTop(); });
   const qBtn = mk('quality', 'Graphics', () => { setQuality(getQuality() === 'high' ? 'low' : 'high'); });
+  const questBtn = mk('trophy', 'Missions & badges', () => { if (window.OLQ) window.OLQ.open(); });
+  const zh = window.I18N && I18N.lang === 'zh';
+  const langBtn = mk('globe', zh ? 'English' : '中文', () => { if (window.I18N) I18N.set(zh ? 'en' : 'zh'); });
+  langBtn.translate = false;
+  const paintQ = () => questBtn.classList.toggle('dot', !!(window.OLQ && window.OLQ.claimable() > 0));
+  window.addEventListener('ol-quests', paintQ); setTimeout(paintQ, 300);
   onQuality(q => { qBtn.dataset.tip = q === 'high' ? 'Graphics: high (tap for low)' : 'Graphics: low (tap for high)'; qBtn.setAttribute('aria-label', qBtn.dataset.tip); qBtn.setAttribute('aria-pressed', String(q === 'high')); });
   function paintTop() {
     const a = document.getElementById('acctBtn'), sb = document.getElementById('soundBtn');
-    if (a) { accBtn.dataset.tip = a.textContent.trim() === 'Sign in' ? 'Sign in' : 'Account · ' + a.textContent.trim(); accBtn.setAttribute('aria-label', accBtn.dataset.tip); }
+    if (a) { accBtn.dataset.tip = a.dataset.user !== '1' ? 'Sign in' : 'Account · ' + a.textContent.trim(); accBtn.setAttribute('aria-label', accBtn.dataset.tip); }
     const on = window.UI ? UI.soundOn() : true;
     sndBtn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[on ? 'soundOn' : 'soundOff']}</svg>`;
     sndBtn.dataset.tip = on ? 'Sound on' : 'Sound off'; sndBtn.setAttribute('aria-pressed', String(on));

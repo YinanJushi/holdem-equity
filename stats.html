@@ -2,15 +2,32 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script src="i18n.js?v=86"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Odds Lounge · Your Stats</title>
-<meta name="description" content="Your playing statistics in Odds Lounge: how often you fold, see the flop, win at showdown, follow best play, and how your chips have moved.">
+<meta name="description" content="Your playing statistics, daily missions and achievement badges in Odds Lounge, kept with your account on every device.">
+<link rel="canonical" href="https://yinanjushi.github.io/odds-lounge/stats.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Odds Lounge">
+<meta property="og:title" content="Your Stats, Missions &amp; Badges · Odds Lounge">
+<meta property="og:description" content="Your playing statistics, daily missions and achievement badges in Odds Lounge, kept with your account on every device.">
+<meta property="og:url" content="https://yinanjushi.github.io/odds-lounge/stats.html">
+<meta property="og:image" content="https://yinanjushi.github.io/odds-lounge/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Your Stats, Missions &amp; Badges · Odds Lounge">
+<meta name="twitter:description" content="Your playing statistics, daily missions and achievement badges in Odds Lounge, kept with your account on every device.">
+<meta name="twitter:image" content="https://yinanjushi.github.io/odds-lounge/og.jpg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "name": "Your Stats, Missions & Badges · Odds Lounge", "url": "https://yinanjushi.github.io/odds-lounge/stats.html", "description": "Your playing statistics, daily missions and achievement badges in Odds Lounge, kept with your account on every device.", "inLanguage": ["en", "zh-CN"]}</script>
+<title>Your Stats, Missions &amp; Badges · Odds Lounge</title>
 <meta name="theme-color" content="#2b1016">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=78">
+<link rel="stylesheet" href="style.css?v=86">
 </head>
 <body class="statspage">
 <header class="top">
@@ -19,6 +36,7 @@
   <nav class="games" aria-label="Games">
     <a href="index.html">Texas Hold'em</a>
     <a href="blackjack.html">Blackjack</a>
+    <a href="baccarat.html">Baccarat</a>
     <a href="roulette.html">Roulette</a>
     <a href="slots.html">Slots</a>
     <a href="pusher.html">Coin Pusher</a>
@@ -35,6 +53,8 @@
     <p id="walletLine"></p>
     <button class="ghostbtn st-resetall" id="resetAll">Reset all stats</button>
   </section>
+
+  <section class="st-game q-inline" id="quests"><div id="questsInline"></div></section>
 
   <section class="st-game" id="holdem">
     <div class="st-head"><h2>Texas Hold'em</h2><button class="linkbtn" data-reset="holdem">Reset</button></div>
@@ -78,9 +98,10 @@
 <div id="tip" class="tip" role="status" hidden></div>
 <footer class="foot">For practice and hand review.</footer>
 
-<script src="ui.js?v=78"></script>
-<script src="config.js?v=78"></script>
-<script src="account.js?v=78"></script>
-<script src="stats.js?v=78"></script>
+<script src="ui.js?v=86"></script>
+<script src="quests.js?v=86"></script>
+<script src="config.js?v=86"></script>
+<script src="account.js?v=86"></script>
+<script src="stats.js?v=86"></script>
 </body>
 </html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="i18n.js?v=86"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Play free baccarat at a 3D Macau-style table: bet on Player, Banker or Tie, the cards are turned one by one under the real third-card rules. Play chips only, no download.">
+<link rel="canonical" href="https://yinanjushi.github.io/odds-lounge/baccarat.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Odds Lounge">
+<meta property="og:title" content="Free 3D Baccarat (Punto Banco) · Odds Lounge">
+<meta property="og:description" content="Play free baccarat at a 3D Macau-style table: bet on Player, Banker or Tie, the cards are turned one by one under the real third-card rules. Play chips only, no download.">
+<meta property="og:url" content="https://yinanjushi.github.io/odds-lounge/baccarat.html">
+<meta property="og:image" content="https://yinanjushi.github.io/odds-lounge/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Free 3D Baccarat (Punto Banco) · Odds Lounge">
+<meta name="twitter:description" content="Play free baccarat at a 3D Macau-style table: bet on Player, Banker or Tie, the cards are turned one by one under the real third-card rules. Play chips only, no download.">
+<meta name="twitter:image" content="https://yinanjushi.github.io/odds-lounge/og.jpg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "Free 3D Baccarat (Punto Banco) · Odds Lounge", "url": "https://yinanjushi.github.io/odds-lounge/baccarat.html", "description": "Play free baccarat at a 3D Macau-style table: bet on Player, Banker or Tie, the cards are turned one by one under the real third-card rules. Play chips only, no download.", "inLanguage": ["en", "zh-CN"], "applicationCategory": "Game", "genre": "Casino", "gamePlatform": "Web browser", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}}</script>
+<title>Free 3D Baccarat (Punto Banco) · Odds Lounge</title>
+<meta name="theme-color" content="#2b1016">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>try{if(window.WebGLRenderingContext)document.documentElement.classList.add("t3d-wait")}catch(e){}setTimeout(function(){document.documentElement.classList.remove("t3d-wait")},8000)</script>
+<link rel="stylesheet" href="style.css?v=86">
+</head>
+<body class="rl bc">
+<header class="top">
+  <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <div class="top-right">
+  <nav class="games" aria-label="Games">
+    <a href="index.html">Texas Hold'em</a>
+    <a href="blackjack.html">Blackjack</a>
+    <a href="baccarat.html" class="on" aria-current="page">Baccarat</a>
+    <a href="roulette.html">Roulette</a>
+    <a href="slots.html">Slots</a>
+    <a href="pusher.html">Coin Pusher</a>
+    <a href="stats.html">Stats</a>
+  </nav>
+  <div id="wallet" class="wallet"></div>
+  <button id="soundBtn" class="iconbtn" aria-pressed="true">Sound on</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="left">
+    <div class="toolbar"><button class="linkbtn" id="fsBtn">Full screen</button></div>
+    <div class="table" id="table"><div class="msg" id="msg">Bet on Player, Banker or Tie, then Deal.</div></div>
+    <div id="bcBar" class="betbar rl-bar">
+      <div class="chip-row" id="bcChips">
+        <button class="bigchip" data-chip="5">5</button>
+        <button class="bigchip blue" data-chip="25">25</button>
+        <button class="bigchip black" data-chip="100">100</button>
+        <button class="bigchip gold" data-chip="500">500</button>
+      </div>
+      <span class="rl-total">Bet <b id="bcTotal">0</b></span>
+      <div class="bb-foot">
+        <button id="bcUndo" class="ghostbtn">Undo</button>
+        <button id="bcClear" class="ghostbtn">Clear</button>
+        <button id="bcRebet" class="ghostbtn">Rebet</button>
+        <button id="bcDeal" class="primary">Deal</button>
+      </div>
+    </div>
+    <div id="session" class="session"></div>
+  </section>
+</main>
+
+<footer class="foot">For fun with play chips only. Banker pays 19 to 20; the house edge is about 1.1% on Banker and 1.2% on Player.</footer>
+
+<script src="ui.js?v=86"></script>
+<script src="quests.js?v=86"></script>
+<script src="guide.js?v=86"></script>
+<script src="config.js?v=86"></script>
+<script src="account.js?v=86"></script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/" } }</script>
+<script type="module" src="baccarat3d.js?v=86"></script>
+</body>
+</html>
