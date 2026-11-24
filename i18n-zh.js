@@ -895,7 +895,16 @@ Object.assign(I18N.dict, {
 "TOWER DOWN!": "塔倒啦！",
 "TOWER FALL": "推倒硬币塔",
 "the coin tower comes down": "硬币塔倒下来了",
-"high": "层"
+"high": "层",
+"REACH!": "听牌！",
+"STAR!": "星星！",
+"a star toward the super jackpot": "超级大奖进度 +1 颗星",
+"JP CHANCE": "JP 大奖机会",
+"the ball decides": "看彩球落在哪一格",
+"the whole pot is yours": "整个奖池都归你",
+"TOWER +10": "硬币塔 +10",
+"ten coins on the tower": "硬币塔加高 10 层",
+"coin shower": "硬币雨"
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],

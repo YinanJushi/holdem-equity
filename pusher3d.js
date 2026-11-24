@@ -12,7 +12,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=92';
+import { headerChrome, onQuality } from './chrome3d.js?v=94';
 
 const COIN = 5, GOLD = 5, $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#pzHost');
@@ -75,6 +75,15 @@ function start() {
     const c = { body, gold, star: !!opts.star, gate: !!opts.gate, vy: 0, paid: false, ccd: falling };
     coins.push(c); return c;
   }
+  // coins you win pile up in the tray (just for show; the newest 70 stay)
+  const trayVis = [];
+  function toTray(x, gold) {
+    const tx = Math.max(-WIN + 0.02, Math.min(WIN - 0.02, x + (Math.random() - 0.5) * 0.03)), tz = FRONT + 0.04 + Math.random() * 0.1;
+    let h = 0; for (const c of trayVis) if ((c.x - tx) ** 2 + (c.z - tz) ** 2 < (R * 1.5) ** 2) h = Math.max(h, c.y + TH);
+    const y = Math.max(-0.145 + TH / 2, h || -0.145 + TH / 2);
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * 0.4, Math.random() * 6, (Math.random() - 0.5) * 0.4));
+    trayVis.push({ x: tx, y: Math.min(y, -0.145 + TH * 6), z: tz, q, gold }); if (trayVis.length > 70) trayVis.shift();
+  }
   const removeCoin = i => { world.removeRigidBody(coins[i].body); coins.splice(i, 1); };
 
   // ---------- the cabinet (looks) ----------
@@ -117,15 +126,57 @@ function start() {
   // sign, marquee bulbs and the bonus lamp
   const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const redraw = (...a) => { g.clearRect(0, 0, w, h); draw(g, w, h, ...a); t.needsUpdate = true; }; redraw(); return { t, redraw }; };
   const sign = canvasTex(1024, 200, (g, w, h) => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'italic 700 112px Georgia, serif'; const gr = g.createLinearGradient(0, 40, 0, 160); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#c99a2e'); g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.8)'; g.shadowBlur = 26; g.fillText('Coin Pusher', w / 2, h / 2); });
-  const signM = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.12), new THREE.MeshBasicMaterial({ map: sign.t, transparent: true })); signM.position.set(0, 0.72, BACK + 0.005); scene.add(signM);
+  const signM = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.12), new THREE.MeshBasicMaterial({ map: sign.t, transparent: true })); signM.position.set(0, 0.73, BACK + 0.005); scene.add(signM);
   const bulbs = []; for (let i = 0; i < 22; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' })); b.position.set(-W + 0.02 + i * ((W * 2 - 0.04) / 21), 0.8, BACK + 0.01); scene.add(b); bulbs.push(b); }
-  const lamp = canvasTex(768, 220, (g, w, h, big = tr('LUCKY GATE'), small = tr('drop a coin through the ring'), col = '#ffd36a') => {
-    g.fillStyle = '#12040a'; g.fillRect(0, 0, w, h); g.strokeStyle = col; g.lineWidth = 8; g.strokeRect(8, 8, w - 16, h - 16);
-    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 22;
-    g.font = /[\u4e00-\u9fff]/.test(big) ? '800 78px "PingFang SC", "Microsoft YaHei", sans-serif' : '700 86px "Share Tech Mono", ui-monospace, monospace'; g.fillText(big, w / 2, h * 0.42);
-    g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.75)'; g.font = '600 34px "Libre Franklin", sans-serif'; g.fillText(small, w / 2, h * 0.78);
+  // ---------- the slot screen on the back wall: three reels, spun by the Lucky Gate ----------
+  const SYM = ['COIN', 'GOLD', 'WALL', 'TOWER', 'STAR', 'JP', 'SEVEN'];
+  const STRIP = ['COIN', 'SEVEN', 'GOLD', 'WALL', 'COIN', 'TOWER', 'JP', 'COIN', 'STAR', 'WALL', 'SEVEN', 'GOLD', 'TOWER', 'COIN'];
+  function drawSym(g, sym, cx, cy, s) {
+    g.save(); g.translate(cx, cy);
+    const coin = (c1, c2, mark, mc) => { const gr = g.createRadialGradient(-s * 0.15, -s * 0.15, 2, 0, 0, s * 0.42); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, s * 0.38, 0, 7); g.fill(); g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, s * 0.31, 0, 7); g.stroke(); g.fillStyle = mc; g.font = `800 ${s * 0.36}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 0, s * 0.03); };
+    if (sym === 'COIN') coin('#ffffff', '#8c8f9c', '♠', '#4a4c58');
+    else if (sym === 'GOLD') coin('#fff1b0', '#c8902a', '★', '#7a4a10');
+    else if (sym === 'STAR') { g.shadowColor = '#b26bff'; g.shadowBlur = 24; g.fillStyle = '#d9a8ff'; g.font = `800 ${s * 0.8}px Arial`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('★', 0, s * 0.04); }
+    else if (sym === 'JP') { g.fillStyle = '#c8102e'; g.beginPath(); g.roundRect(-s * 0.4, -s * 0.3, s * 0.8, s * 0.6, s * 0.12); g.fill(); g.strokeStyle = '#ffd86a'; g.lineWidth = 5; g.stroke(); g.fillStyle = '#ffe08a'; g.font = `900 ${s * 0.4}px Arial`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('JP', 0, s * 0.02); }
+    else if (sym === 'WALL') { g.fillStyle = '#4fc8ff'; g.shadowColor = '#4fc8ff'; g.shadowBlur = 12; [-1, 1].forEach(k => { g.save(); g.rotate(k * 0.5); g.fillRect(k * s * 0.16 - s * 0.05, -s * 0.34, s * 0.1, s * 0.68); g.restore(); }); }
+    else if (sym === 'TOWER') { for (let i = 0; i < 6; i++) { const y = s * 0.3 - i * s * 0.11; g.fillStyle = i === 5 ? '#f2c14e' : '#d8dbe6'; g.beginPath(); g.ellipse(0, y, s * 0.24, s * 0.07, 0, 0, 7); g.fill(); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 2; g.stroke(); } }
+    else if (sym === 'SEVEN') { g.fillStyle = '#ff3b4e'; g.strokeStyle = '#fff'; g.lineWidth = 4; g.font = `900 ${s * 0.7}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.strokeText('7', 0, s * 0.04); g.fillText('7', 0, s * 0.04); }
+    g.restore();
+  }
+  const reels = [0, 1, 2].map(i => ({ p: i * 4 + 1, v: 0, state: 'idle', target: 0, from: 0, to: 0, t: 0, stopAt: 0, dur: 0.4 }));
+  const slot = { active: false, t: 0, out: null, reach: false, flash: 0, msg: null };
+  const lamp = canvasTex(768, 300, (g, w, h) => {
+    const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#1a0614'); bg.addColorStop(1, '#0b0208'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    const RW = 220, RH = 200, gap = 16, x0 = (w - RW * 3 - gap * 2) / 2, y0 = 16;
+    reels.forEach((r, i) => {
+      const x = x0 + i * (RW + gap);
+      g.save(); g.beginPath(); g.roundRect(x, y0, RW, RH, 14); g.clip();
+      g.fillStyle = '#fdf8ee'; g.fillRect(x, y0, RW, RH);
+      const base = Math.floor(r.p), frac = r.p - base;
+      for (let k = -1; k <= 2; k++) { const sym = STRIP[((base + k) % STRIP.length + STRIP.length) % STRIP.length]; drawSym(g, sym, x + RW / 2, y0 + RH / 2 + (k - frac) * 150, 150); }
+      const sh = g.createLinearGradient(0, y0, 0, y0 + RH); sh.addColorStop(0, 'rgba(0,0,0,.55)'); sh.addColorStop(0.25, 'rgba(0,0,0,0)'); sh.addColorStop(0.75, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.55)'); g.fillStyle = sh; g.fillRect(x, y0, RW, RH);
+      g.restore();
+      const hot = slot.reach && i === 2 && r.state !== 'idle' && Math.floor(slot.flash * 8) % 2 === 0;
+      g.strokeStyle = hot ? '#ff4d6d' : '#c99a2e'; g.lineWidth = hot ? 9 : 6; g.beginPath(); g.roundRect(x, y0, RW, RH, 14); g.stroke();
+    });
+    g.strokeStyle = 'rgba(255,60,80,.7)'; g.lineWidth = 3; g.beginPath(); g.moveTo(x0 - 8, y0 + RH / 2); g.lineTo(w - x0 + 8, y0 + RH / 2); g.stroke();
+    // caption, or a full-screen message
+    const m = slot.msg;
+    if (m) {
+      g.fillStyle = 'rgba(10,2,8,.78)'; g.fillRect(0, 0, w, h);
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = m.col; g.shadowColor = m.col; g.shadowBlur = 24;
+      g.font = /[一-鿿]/.test(m.big) ? '900 92px "PingFang SC", "Microsoft YaHei", sans-serif' : '800 92px "Share Tech Mono", ui-monospace, monospace'; g.fillText(m.big, w / 2, h * 0.42);
+      g.shadowBlur = 0; g.fillStyle = '#ffe9c4'; g.font = '700 36px "Libre Franklin", "PingFang SC", sans-serif'; g.fillText(m.small || '', w / 2, h * 0.78);
+    } else {
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = slot.reach ? '#ff8095' : '#ffd36a'; g.font = '700 30px "Libre Franklin", "PingFang SC", sans-serif';
+      g.fillText(slot.active ? tr(slot.reach ? 'REACH!' : 'Good luck…') : `${tr('LUCKY GATE')} · ${tr('drop a coin through the ring')}`, w / 2, 255);
+    }
   });
-  const lampM = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.115), new THREE.MeshBasicMaterial({ map: lamp.t, toneMapped: false })); lampM.position.set(0, 0.56, BACK + 0.005); scene.add(lampM);
+  // lamp.redraw(big, small, colour) shows a message on the screen; lamp.redraw() goes back to the reels
+  const lampRedraw = lamp.redraw;
+  lamp.redraw = (big, small, col = '#ffd36a') => { slot.msg = big ? { big, small, col } : null; lampRedraw(); };
+  const lampM = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.18), new THREE.MeshBasicMaterial({ map: lamp.t, toneMapped: false })); lampM.position.set(0, 0.555, BACK + 0.005); scene.add(lampM);
+  const lampFrame = new THREE.Mesh(new RoundedBoxGeometry(0.49, 0.21, 0.01, 3, 0.008), new THREE.MeshStandardMaterial({ color: '#c8963a', metalness: 1, roughness: 0.3 })); lampFrame.position.set(0, 0.555, BACK - 0.002); scene.add(lampFrame);
   // the lucky gate: a glowing ring that slides across under the coin chute
   const ringM = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.6, 0.4) });
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.005, 10, 40), ringM); ring.rotation.x = -Math.PI / 2; ring.position.set(0, GATE_Y, DROP.z); scene.add(ring);
@@ -215,10 +266,12 @@ function start() {
   const saveJP = () => { if (!sim) try { localStorage.setItem(JKEY, JSON.stringify(JP)); } catch (e) { /* ignore */ } };
   const meter = document.createElement('div'); meter.className = 'pz-jp'; meter.setAttribute('role', 'status'); host.appendChild(meter);
   function paintMeter(flash) {
-    meter.innerHTML = `<small>${tr('SUPER JACKPOT')}</small><span class="pz-stars">${[0, 1, 2].map(i => `<i class="${i < JP.stars ? 'on' : ''}">★</i>`).join('')}</span><b>${jpSize()}</b><small>${tr('coins')}</small>`;
+    meter.innerHTML = `<small>JP</small><b class="pz-pot">${Math.round(JP.pot || 500).toLocaleString('en-US')}</b><i class="pz-sep"></i><small>${tr('SUPER JACKPOT')}</small><span class="pz-stars">${[0, 1, 2].map(i => `<i class="${i < JP.stars ? 'on' : ''}">★</i>`).join('')}</span><b>${jpSize()}</b><small>${tr('coins')}</small>`;
     meter.title = tr('Push 3 purple star coins into the tray to win the super jackpot.');
     if (flash) { meter.classList.remove('flash'); void meter.offsetWidth; meter.classList.add('flash'); }
   }
+  let lastPot = -1;
+  function paintMeterPot() { const p = Math.round(JP.pot || 500); if (p !== lastPot) { lastPot = p; const el = meter.querySelector('.pz-pot'); if (el) el.textContent = p.toLocaleString('en-US'); } }
   function starIn(x, z) {
     JP.stars++;
     if (sim) { sim.stars = (sim.stars || 0) + 1; if (JP.stars >= 3) superJackpot(); return; }
@@ -238,11 +291,11 @@ function start() {
     superT = 4 + n * 0.03 + Math.floor(n / 30) * 0.5;
     showBanner(tr('SUPER JACKPOT!'), `${n} ${tr('coins')}`); bannerHold(4500);
     lamp.redraw(tr('SUPER JACKPOT!'), `${n} ${tr('coins')}`, '#c58bff');
-    fanfare(true); setTimeout(() => fanfare(true), 700); shake = 2;
+    fanfare(true); setTimeout(() => fanfare(true), 700); shake = 2; voice('Super jackpot!', '超级大奖！');
     for (let k = 0; k < 6; k++) setTimeout(() => burst((Math.random() - 0.5) * 0.5, 0.45 + Math.random() * 0.2, -0.3 + Math.random() * 0.3, 70, 1.4, k % 2 ? [1.2, 0.85, 0.3] : [0.9, 0.5, 1.6]), k * 500);
     window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: 'super', n } }));
     paintMeter(true);
-    setTimeout(() => { if (!rolling) lamp.redraw(); }, 9000);
+    setTimeout(() => { if (!slot.active && !wheel.active) lamp.redraw(); }, 9000);
   }
   function payout(c, x, z) {
     if (c.star) starIn(x, z);
@@ -264,7 +317,7 @@ function start() {
       pending -= COIN; dropped += COIN; drops++;
     }
     const gold = drops % 20 === 0, star = !gold && Math.random() < STAR_P;
-    if (!free || sim) { JP.since++; if (!sim && JP.since % JP_EVERY === 0) { saveJP(); paintMeter(); } towerDrops++; if (towerDrops % TOWER_EVERY === 0) growTower(); }
+    if (!free || sim) { JP.since++; JP.pot = Math.min(5000, (JP.pot || JP_POT0) + 0.1); if (!sim && JP.since % JP_EVERY === 0) { saveJP(); paintMeter(); } towerDrops++; if (towerDrops % TOWER_EVERY === 0) growTower(); }
     const c = addCoin(aimX + (Math.random() - 0.5) * 0.006, DROP.y, DROP.z + (Math.random() - 0.5) * 0.01, gold, { gate: true, vy: -0.4, star });
     if (c && star && !sim) { burst(c.body.translation().x, DROP.y, DROP.z, 25, 0.5, [0.9, 0.5, 1.6]); pop(tr('STAR COIN!'), 'star'); }
     if (c && !sim) { beep(1800); info(); document.body.classList.add('pz-played'); window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-drop' } })); }
@@ -272,14 +325,15 @@ function start() {
 
   // ---------- the bonus lamp ----------
   const BONUS = [
-    { k: 'shower', p: 0.16, big: 'COIN SHOWER', small: '6 free coins' },
-    { k: 'gold', p: 0.12, big: 'GOLD RUSH', small: '2 gold coins' },
-    { k: 'topple', p: 0.08, big: 'TOWER FALL', small: 'the coin tower comes down' },
-    { k: 'walls', p: 0.15, big: 'FUNNEL WALLS', small: 'walls guide the corners in for 15 seconds' },
-    { k: 'jackpot', p: 0.025, big: 'JACKPOT!', small: '20 coins + 3 gold' },
-    { k: 'none', p: 1, big: 'SO CLOSE', small: 'try the gate again' },
+    { k: 'shower', sym: 'COIN', p: 0.13, big: 'COIN SHOWER', small: '6 free coins' },
+    { k: 'gold', sym: 'GOLD', p: 0.12, big: 'GOLD RUSH', small: '2 gold coins' },
+    { k: 'topple', sym: 'TOWER', p: 0.07, big: 'TOWER FALL', small: 'the coin tower comes down' },
+    { k: 'walls', sym: 'WALL', p: 0.14, big: 'FUNNEL WALLS', small: 'walls guide the corners in for 15 seconds' },
+    { k: 'star', sym: 'STAR', p: 0.015, big: 'STAR!', small: 'a star toward the super jackpot' },
+    { k: 'jp', sym: 'JP', p: 0.03, big: 'JP CHANCE', small: 'the ball decides' },
+    { k: 'none', sym: null, p: 1, big: 'SO CLOSE', small: 'try the gate again' },
   ];
-  let rolling = 0, rollOut = null, gateReady = 0;
+  let gateReady = 0;
   const GATE_CD = 14;   // seconds the gate needs to recharge after a bonus
   const rainQ = [], towers = [];
   // a coin tower: coins stacked flat, one on top of the other, on the deck just in front of the lower pusher.
@@ -339,7 +393,7 @@ function start() {
     T.free = true; T.body.setEnabledRotations(true, true, true, true);
     T.body.setAngvel({ x: 3.2, y: 0, z: (Math.random() - 0.5) * 1.2 }, true);
     T.body.setLinvel({ x: 0, y: 0.05, z: 0.15 }, true);
-    if (!sim) { showBanner(tr('TOWER FALL'), `${T.n} ${tr('coins')}`); fanfare(true); shake = Math.max(shake, 0.8); }
+    if (!sim) { showBanner(tr('TOWER FALL'), `${T.n} ${tr('coins')}`); fanfare(true); shake = Math.max(shake, 0.8); voice('Tower down!', '推倒硬币塔！'); }
     return true;
   }
   const saveTower = () => { const T = mainTower(); JP.tower = T ? { n: T.n, x: +T.body.translation().x.toFixed(3), z: +T.body.translation().z.toFixed(3) } : null; saveJP(); };
@@ -374,27 +428,160 @@ function start() {
     });
     if (!sim) { burst(p0.x, p0.y, p0.z, 40, 0.8, [1.2, 0.9, 0.4]); clink(2, true); clink(1.5); shake = Math.max(shake, 0.5); pop(tr('TOWER DOWN!'), 'gold'); }
   }
+  // ---------- spinning the slot: the result is picked first, then the reels are steered onto it ----------
+  function spinSlot(out) {
+    let syms;
+    if (out.sym) syms = [out.sym, out.sym, out.sym];
+    else {
+      // a miss: sometimes the first two match and the last reel keeps you waiting ("reach")
+      const pick = () => SYM[Math.floor(Math.random() * SYM.length)];
+      if (Math.random() < 0.35) { const a = SYM[Math.floor(Math.random() * 6)]; let c; do c = pick(); while (c === a); syms = [a, a, c]; }
+      else { do syms = [pick(), pick(), pick()]; while (syms[0] === syms[1] && syms[1] === syms[2]); }
+    }
+    slot.active = true; slot.t = 0; slot.out = out; slot.msg = null; slot.reach = syms[0] === syms[1];
+    reels.forEach((r, i) => { r.state = 'spin'; r.v = 16 + i * 2; r.target = syms[i]; r.stopAt = slot.reach && i === 2 ? 3.8 : 0.9 + i * 0.5; r.dur = slot.reach && i === 2 ? 1.1 : 0.45; });
+  }
+  function stepSlot(dt) {
+    if (!slot.active) return;
+    slot.t += dt; slot.flash += dt;
+    let moving = false;
+    reels.forEach((r, i) => {
+      if (r.state === 'spin') {
+        r.p += r.v * dt * (slot.reach && i === 2 && slot.t > 2.3 ? 0.45 : 1);
+        if (slot.t >= r.stopAt) {
+          // stop on the next copy of the target symbol a little ahead
+          let k = Math.ceil(r.p) + 2; while (STRIP[k % STRIP.length] !== r.target) k++;
+          r.from = r.p; r.to = k; r.t = 0; r.state = 'stop';
+        }
+        moving = true;
+      } else if (r.state === 'stop') {
+        r.t += dt; const q = Math.min(1, r.t / r.dur), e = 1 + 2.2 * Math.pow(q - 1, 3) + 1.2 * Math.pow(q - 1, 2);   // ease out, a little overshoot
+        r.p = r.from + (r.to - r.from) * e;
+        if (q >= 1) { r.p = r.to % STRIP.length; r.state = 'idle'; clink(0.8, true); if (i === 1 && slot.reach) { beep(700); beep(1400); } }
+        moving = true;
+      }
+    });
+    if (slot.reach && reels[2].state === 'spin' && Math.floor(slot.t * 4) !== Math.floor((slot.t - dt) * 4)) beep(500 + (slot.t % 1) * 600);
+    if (!moving && slot.out) { const out = slot.out; slot.out = null; setTimeout(() => { slot.active = false; slot.reach = false; applyBonus(out); }, 350); }
+    lampRedraw();
+  }
+
+  // ---------- the JP wheel: drops in front of the back wall, a ball runs round and settles in a pocket ----------
+  const POCKETS = ['JP', '15', '30', 'STAR', '15', 'TOWER', '30', '15', 'STAR', '30', '15', 'TOWER'];
+  const SEC = Math.PI * 2 / POCKETS.length;
+  const wheelTex = canvasTex(512, 512, g => {
+    const c = 256;
+    POCKETS.forEach((pk, k) => {
+      const a0 = k * SEC, a1 = a0 + SEC;
+      g.beginPath(); g.moveTo(c, c); g.arc(c, c, 250, -a1, -a0); g.closePath();
+      g.fillStyle = pk === 'JP' ? '#c8102e' : pk === 'STAR' ? '#5a24b8' : pk === 'TOWER' ? '#1f6f8b' : k % 2 ? '#14532d' : '#0f3d22'; g.fill();
+      g.strokeStyle = '#f2c14e'; g.lineWidth = 3; g.stroke();
+      g.save(); g.translate(c, c); g.rotate(-(a0 + SEC / 2)); g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = pk === 'JP' ? '#ffe08a' : '#fff6e0'; g.font = pk === 'JP' ? '900 54px Arial' : '800 40px Arial';
+      g.fillText(pk === 'STAR' ? '★' : pk === 'TOWER' ? 'T+10' : pk, 175, 0); g.restore();
+    });
+    g.beginPath(); g.arc(c, c, 92, 0, 7); g.fillStyle = '#1a0614'; g.fill(); g.strokeStyle = '#f2c14e'; g.lineWidth = 6; g.stroke();
+    g.fillStyle = '#ffd86a'; g.font = '900 52px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('JP', c, c);
+  });
+  const wheel = { active: false, t: 0, T: 5.2, g: new THREE.Group(), disc: null, ball: null, th0: 0, th1: 0, ph0: 0, ph1: 0, k: 0, y: 1.3 };
+  wheel.disc = new THREE.Mesh(new THREE.CircleGeometry(0.15, 64), new THREE.MeshBasicMaterial({ map: wheelTex.t, toneMapped: false }));
+  const wrim = new THREE.Mesh(new THREE.TorusGeometry(0.152, 0.008, 12, 80), goldM);
+  wheel.ball = new THREE.Mesh(new THREE.SphereGeometry(0.011, 20, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.2, 1.6) }));
+  const wback = new THREE.Mesh(new THREE.CircleGeometry(0.17, 64), new THREE.MeshStandardMaterial({ color: '#12040a', roughness: 0.4, metalness: 0.5 })); wback.position.z = -0.004;
+  wheel.g.add(wback, wheel.disc, wrim, wheel.ball); wheel.g.position.set(0, wheel.y, -0.47); wheel.g.visible = false; scene.add(wheel.g);
+  wheel.ball.position.z = 0.012;
+  // the JP pot, in chips: starts at 500 and grows a little with every coin
+  const JP_POT0 = 500;
+  if (!Number.isFinite(JP.pot)) JP.pot = JP_POT0;
+  function jpChance() {
+    const k = Math.floor(Math.random() * POCKETS.length);
+    if (sim) { jpResult(POCKETS[k]); return; }
+    wheel.active = true; wheel.t = 0; wheel.k = k; wheel.g.visible = true;
+    wheel.th0 = wheel.disc.rotation.z; wheel.th1 = wheel.th0 + Math.PI * 2 * (3 + Math.random());
+    // the ball ends in pocket k, running the other way round a few times on the way
+    const pocket = wheel.th1 + (k + 0.5) * SEC;
+    wheel.ph0 = Math.PI / 2; let ph1 = pocket; while (ph1 > wheel.ph0 - Math.PI * 2 * 5) ph1 -= Math.PI * 2; wheel.ph1 = ph1;
+    wheel.last = -1;
+  }
+  function stepWheel(dt) {
+    if (!wheel.g.visible) return;
+    const W2 = wheel;
+    if (W2.active) {
+      W2.t += dt;
+      const q = Math.min(1, W2.t / W2.T), e = 1 - Math.pow(1 - q, 3);
+      W2.y += (0.5 - W2.y) * Math.min(1, dt * 5);
+      W2.disc.rotation.z = W2.th0 + (W2.th1 - W2.th0) * e;
+      const eb = 1 - Math.pow(1 - q, 2.4), ph = W2.ph0 + (W2.ph1 - W2.ph0) * eb;
+      const r = q < 0.72 ? 0.138 : 0.138 - (q - 0.72) / 0.28 * 0.03 + Math.abs(Math.sin(q * 40)) * 0.006 * (1 - q);
+      W2.ball.position.set(Math.cos(ph) * r, Math.sin(ph) * r, 0.012);
+      const sector = Math.floor(((ph - W2.disc.rotation.z) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) / SEC);
+      if (sector !== W2.last) { W2.last = sector; if (q < 0.97) beep(1600 + q * 900); }
+      if (q >= 1) { W2.active = false; W2.hold = 2.2; const pk = POCKETS[W2.k]; jpResult(pk); }
+    } else {
+      // keep the ball in its pocket while the wheel shows the result, then lift the wheel away
+      const ph = W2.disc.rotation.z + (W2.k + 0.5) * SEC; W2.ball.position.set(Math.cos(ph) * 0.108, Math.sin(ph) * 0.108, 0.012);
+      W2.hold -= dt; if (W2.hold < 0) { W2.y += (1.3 - W2.y) * Math.min(1, dt * 4); if (W2.y > 1.25) W2.g.visible = false; }
+    }
+    W2.g.position.y = W2.y;
+  }
+  function jpResult(pk) {
+    const rain = (n, gold) => { const base = rainQ.length ? rainQ[rainQ.length - 1].at : 0; for (let i = 0; i < n; i++) rainQ.push({ at: base + (i + 1) * 0.06, gold, wide: n > 20 }); };
+    if (sim) sim['jp_' + pk] = (sim['jp_' + pk] || 0) + 1;
+    if (pk === 'JP') {
+      const pot = Math.round(JP.pot);
+      JP.pot = JP_POT0; saveJP();
+      if (sim) { sim.won += pot; rain(30, false); return; }
+      pending += pot; won += pot; rain(30, false); rain(3, true);
+      showBanner(`${tr('JACKPOT!')} +${pot}`, tr('the whole pot is yours')); bannerHold(4500);
+      lamp.redraw(tr('JACKPOT!'), `+${pot} ${tr('chips')}`, '#ff5a7a');
+      fanfare(true); setTimeout(() => fanfare(true), 600); shake = 1.8; voice('Jackpot!', '中大奖啦！');
+      for (let k = 0; k < 5; k++) setTimeout(() => burst((Math.random() - 0.5) * 0.4, 0.5, -0.4, 80, 1.4, [1.4, 0.7, 0.4]), k * 400);
+      window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: 'jackpot', pot } }));
+      paintMeter(true);
+    } else if (pk === 'STAR') {
+      JP.stars++; if (JP.stars >= 3) { if (sim) superJackpot(); else setTimeout(superJackpot, 1500); } else { saveJP(); if (!sim) paintMeter(true); }
+      if (!sim) { showBanner('★', tr('a star toward the super jackpot')); lamp.redraw('★ +1', tr('a star toward the super jackpot'), '#d9a8ff'); fanfare(false); }
+    } else if (pk === 'TOWER') {
+      for (let i = 0; i < 10; i++) growTower();
+      if (!mainTower()) rain(10, false);
+      if (!sim) { showBanner(tr('TOWER +10'), tr('ten coins on the tower')); lamp.redraw(tr('TOWER +10'), '', '#4fc8ff'); fanfare(false); }
+    } else {
+      const n = +pk; rain(n, false);
+      if (!sim) { showBanner(`${n} ${tr('coins')}`, tr('coin shower')); lamp.redraw(`${n} ${tr('coins')}`, tr('coin shower'), '#ffd36a'); fanfare(n >= 30); }
+    }
+    if (!sim) setTimeout(() => { if (!slot.active && !wheel.active) lamp.redraw(); }, 3500);
+  }
+  // an announcer, using the browser's own speech (no audio files)
+  function voice(en, zh) {
+    try {
+      if (!UI.soundOn() || !window.speechSynthesis) return;
+      const zhOn = window.I18N && I18N.lang === 'zh', u = new SpeechSynthesisUtterance(zhOn ? zh : en);
+      u.lang = zhOn ? 'zh-CN' : 'en-US'; u.rate = 1.05; u.pitch = 1.25; u.volume = 0.9;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    } catch (e) { /* no voice */ }
+  }
   function pickBonus() { let r = Math.random(); for (const b of BONUS) { if (r < b.p) return b; r -= b.p; } return BONUS[BONUS.length - 1]; }
   function applyBonus(b) {
     const rain = (n, gold) => { const base = rainQ.length ? rainQ[rainQ.length - 1].at : 0; for (let i = 0; i < n; i++) rainQ.push({ at: base + (i + 1) * 0.09, gold }); };
     if (b.k === 'shower') rain(6, false);
     else if (b.k === 'gold') rain(2, true);
     else if (b.k === 'walls') wallUp = 15;
-    else if (b.k === 'jackpot') { rain(20, false); rain(3, true); wallUp = 15; }
     else if (b.k === 'topple') { if (!toppleTower()) rain(6, false); }
+    else if (b.k === 'star') { JP.stars++; if (JP.stars >= 3) { if (sim) superJackpot(); else setTimeout(superJackpot, 1200); } else { saveJP(); if (!sim) paintMeter(true); } }
+    else if (b.k === 'jp') { jpChance(); if (!sim) { lamp.redraw(tr('JP CHANCE'), tr('the ball decides'), '#ff5a7a'); voice('Jackpot chance!', '大奖机会！'); } return; }
     if (sim) return;
     window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: b.k } }));
-    lamp.redraw(tr(b.big), tr(b.small), b.k === 'none' ? '#9a8a7a' : b.k === 'jackpot' ? '#ff5ab0' : '#ffd36a');
-    if (b.k !== 'none') { showBanner(tr(b.big), tr(b.small)); fanfare(b.k === 'jackpot' || b.k === 'shower'); shake = b.k === 'jackpot' ? 1.4 : 0.8; burst(0, 0.56, BACK + 0.05, b.k === 'jackpot' ? 120 : 50, 1.2); }
-    setTimeout(() => { if (!rolling) lamp.redraw(); }, 3500);
+    lamp.redraw(tr(b.big), tr(b.small), b.k === 'none' ? '#9a8a7a' : b.k === 'star' ? '#d9a8ff' : '#ffd36a');
+    if (b.k !== 'none') { showBanner(tr(b.big), tr(b.small)); fanfare(b.k === 'shower' || b.k === 'star'); shake = 0.8; burst(0, 0.56, BACK + 0.05, 50, 1.2); }
+    setTimeout(() => { if (!slot.active && !wheel.active) lamp.redraw(); }, 3000);
   }
   function gateHit(x) {
     if (tp < gateReady) return;
     if (sim) { const o = pickBonus(); sim.hits = (sim.hits || 0) + 1; sim[o.k] = (sim[o.k] || 0) + 1; applyBonus(o); gateReady = tp + GATE_CD; return; }
-    if (rolling > 0 || rollOut) return;
-    gateReady = tp + 1.6 + GATE_CD;
-    rollOut = pickBonus();
-    rolling = 1.6; burst(x, GATE_Y, DROP.z, 30, 0.7); fanfare(false); pop(tr('LUCKY GATE!'), 'gate');
+    if (slot.active || wheel.active) return;
+    gateReady = tp + 4 + GATE_CD;
+    spinSlot(pickBonus());
+    burst(x, GATE_Y, DROP.z, 30, 0.7); fanfare(false); pop(tr('LUCKY GATE!'), 'gate');
   }
 
   // ---------- one physics step (also used by the fast test run) ----------
@@ -440,7 +627,7 @@ function start() {
         c.vy = vy;
       }
       if (!c.paid && p.y < -0.03 && p.z > FRONT - 0.02) { c.paid = true; if (Math.abs(p.x) < WIN) payout(c, p.x, p.z); else if (sim) sim.house = (sim.house || 0) + 1; else clink(0.3, true); }
-      if (p.y < -0.14 || Math.abs(p.x) > W + 0.2 || p.z > FRONT + 0.5) removeCoin(i);
+      if (p.y < -0.14 || Math.abs(p.x) > W + 0.2 || p.z > FRONT + 0.5) { if (!sim && c.paid && Math.abs(p.x) < WIN && p.y < -0.1) toTray(p.x, c.gold); removeCoin(i); }
     }
   }
 
@@ -499,6 +686,7 @@ function start() {
       m4.compose(v3.set(p.x, p.y, p.z), qt.set(q.x, q.y, q.z, q.w), one);
       if (c.star && nst < 40) starI.setMatrixAt(nst++, m4); else if (c.gold) goldI.setMatrixAt(ng++, m4); else silverI.setMatrixAt(ns++, m4);
     }
+    for (const c of trayVis) { m4.compose(v3.set(c.x, c.y, c.z), c.q, one); if (c.gold) { if (ng < MAXC) goldI.setMatrixAt(ng++, m4); } else if (ns < MAXC) silverI.setMatrixAt(ns++, m4); }
     for (const T of towers) {
       const shown = T.body ? T.n : T.shown;
       for (let i = 0; i < shown; i++) {
@@ -546,7 +734,7 @@ function start() {
   new ResizeObserver(resize).observe(host); resize();
   new ResizeObserver(resize).observe($('#pzBar'));
   onQuality(q => { const hi = q === 'high'; world.numSolverIterations = hi ? 6 : 4; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; resize(); });
-  const clock = new THREE.Clock(); let acc = 0, t = 0, rollTick = 0;
+  const clock = new THREE.Clock(); let acc = 0, t = 0;
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.1, clock.getDelta()); t += dt; acc += dt;
     clinkBudget = Math.min(4, clinkBudget + dt * 25);
@@ -564,14 +752,11 @@ function start() {
     chute.position.x += (aimX - chute.position.x) * Math.min(1, dt * 14);
     aimDot.position.set(chute.position.x, SLAB.y1 + 0.002, DROP.z); aimDot.material.opacity = 0.35 + Math.sin(t * 5) * 0.2;
     // the bonus lamp rolling
-    if (rolling > 0) {
-      rolling -= dt; rollTick -= dt;
-      if (rollTick <= 0) { rollTick = 0.07 + (1.6 - rolling) * 0.05; const b = BONUS[Math.floor(Math.random() * BONUS.length)]; lamp.redraw(tr(b.big), '', '#ffffff'); beep(1200 + Math.random() * 600); }
-      if (rolling <= 0) { rolling = 0; const b = rollOut; rollOut = null; applyBonus(b); }
-    }
+    stepSlot(dt); stepWheel(dt);
+    if (Math.floor(t * 2) !== Math.floor((t - dt) * 2) && !slot.active) paintMeterPot();
     // lights: chase normally, flash during a bonus
     if (superT > 0) superT -= dt;
-    const party = rolling > 0 || rainQ.length > 0 || shake > 0.3 || superT > 0;
+    const party = slot.active || wheel.active || rainQ.length > 0 || shake > 0.3 || superT > 0;
     bulbs.forEach((b, i) => { const on = party ? (Math.floor(t * 14) + i) % 2 === 0 : (i + Math.floor(t * 6)) % 3 === 0; const hue = party ? ((i * 0.09 + t) % 1) : 0.12; if (on) b.material.color.setHSL(hue, 1, 0.75).multiplyScalar(2.6); else b.material.color.setRGB(0.5, 0.35, 0.12); });
     ledM.color.setRGB(2.4 + Math.sin(t * 3) * 0.4, 1.7, 0.6);
     // the win counter rolls up
@@ -613,7 +798,11 @@ function start() {
     shape() { const col = coins[0].body.collider(0); return { hh: col.halfHeight(), r: col.radius(), round: col.roundRadius(), lu: world.lengthUnit, nf: world.integrationParameters.contact_natural_frequency, err: world.integrationParameters.normalizedAllowedLinearError, pred: world.integrationParameters.normalizedPredictionDistance }; },
     towerInfo() { return towers.map(T => { if (!T.body) return { building: T.shown + '/' + T.n }; const p = T.body.translation(), q = T.body.rotation(); tv.set(0, 1, 0).applyQuaternion(tq.set(q.x, q.y, q.z, q.w)); return { n: T.n, x: +p.x.toFixed(3), z: +p.z.toFixed(3), tilt: +(Math.acos(Math.min(1, tv.y)) * 57.3).toFixed(1) }; }); },
     column(x = 0, z = 0.08) { return coins.map(c => c.body.translation()).filter(p => (p.x - x) ** 2 + (p.z - z) ** 2 < 0.0004).map(p => +p.y.toFixed(3)).sort((a, b) => a - b); },
-    bonus(k) { if (rolling > 0) return; rollOut = BONUS.find(b => b.k === k) || BONUS[0]; rolling = 1.6; },
+    bonus(k) { if (slot.active || wheel.active) return; spinSlot(BONUS.find(b => b.k === k) || BONUS[0]); },
+    jp() { jpChance(); },
+    jpPocket(pk) { jpResult(pk); },
+    advance(sec) { const n = Math.round(sec * 60); for (let i = 0; i < n; i++) { stepSlot(1 / 60); stepWheel(1 / 60); physStep(); } return this.slotState(); },
+    slotState() { return { active: slot.active, reach: slot.reach, t: +slot.t.toFixed(2), reels: reels.map(r => ({ state: r.state, p: +r.p.toFixed(2), target: r.target, show: STRIP[((Math.round(r.p)) % STRIP.length + STRIP.length) % STRIP.length] })), wheel: { active: wheel.active, vis: wheel.g.visible, k: POCKETS[wheel.k] } }; },
     where: () => { const r = { upper: 0, p2top: 0, p1top: 0, deck: 0, deckLayers: [0, 0, 0, 0, 0] }; coins.forEach(c => { const p = c.body.translation(); if (p.y > 0.19) r.p2top++; else if (p.y > 0.145) r.upper++; else if (p.z < fz1(tp) - 0.005 && p.y > 0.055) r.p1top++; else { r.deck++; r.deckLayers[Math.min(4, Math.floor(p.y / TH))]++; } }); return r; },
   };
 }
