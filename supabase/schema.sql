@@ -26,6 +26,8 @@ create table if not exists public.secret_codes (
   amount    int not null default 1000 check (amount > 0 and amount <= 100000),
   active    boolean not null default true
 );
+-- a reusable code can be redeemed any number of times (by anyone who knows it); others once per account
+alter table public.secret_codes add column if not exists reusable boolean not null default false;
 create table if not exists public.code_redemptions (
   user_id     uuid references auth.users (id) on delete cascade,
   code_hash   text references public.secret_codes (code_hash) on delete cascade,
@@ -106,28 +108,33 @@ end $$;
 -- any prime number works as a code; all primes together count as ONE code, so each account gets it once
 insert into public.secret_codes (code_hash, amount) values ('prime-number', 1000) on conflict (code_hash) do nothing;
 
--- a secret code: each code once per account; at most 10 tries per hour per account
+-- a secret code: once per account (or any number of times if it is reusable);
+-- at most 10 WRONG tries per hour per account (correct codes don't count against you)
 create or replace function public.redeem_code(p_code text)
 returns json language plpgsql security definer set search_path = public as $$
 declare
   c   text := lower(trim(coalesce(p_code, '')));
   h   text := encode(extensions.digest(c, 'sha256'), 'hex');
   amt int;
+  again boolean;
   w   public.wallets;
 begin
   if auth.uid() is null then raise exception 'not signed in'; end if;
   if (select count(*) from public.code_attempts where user_id = auth.uid() and at > now() - interval '1 hour') >= 10 then
-    return json_build_object('error', 'Too many tries. Try again in an hour.');
+    return json_build_object('error', 'Too many wrong tries. Try again in an hour.');
   end if;
-  insert into public.code_attempts (user_id) values (auth.uid());
   -- a whole number of up to 12 digits that is prime → the shared "prime-number" code
   if c ~ '^[0-9]{1,12}$' and public.is_prime(c::bigint) then h := 'prime-number'; end if;
-  select amount into amt from public.secret_codes where code_hash = h and active;
-  if amt is null then return json_build_object('error', 'That code isn''t valid.'); end if;
-  if exists (select 1 from public.code_redemptions where user_id = auth.uid() and code_hash = h) then
+  select amount, reusable into amt, again from public.secret_codes where code_hash = h and active;
+  if amt is null then
+    insert into public.code_attempts (user_id) values (auth.uid());   -- only wrong guesses count toward the limit
+    return json_build_object('error', 'That code isn''t valid.');
+  end if;
+  if not again and exists (select 1 from public.code_redemptions where user_id = auth.uid() and code_hash = h) then
     return json_build_object('error', 'You''ve already used this code.');
   end if;
-  insert into public.code_redemptions (user_id, code_hash) values (auth.uid(), h);
+  insert into public.code_redemptions (user_id, code_hash) values (auth.uid(), h)
+  on conflict (user_id, code_hash) do update set redeemed_at = now();
   update public.wallets set chips = chips + amt, updated_at = now() where user_id = auth.uid() returning * into w;
   return jsonb_build_object('ok', true, 'amount', amt, 'wallet', public.wallet_state(w)::jsonb)::json;
 end $$;
@@ -217,3 +224,11 @@ grant execute on function public.get_stats()               to authenticated;
 grant execute on function public.add_stat(text, jsonb)     to authenticated;
 grant execute on function public.import_stats(text, jsonb) to authenticated;
 grant execute on function public.clear_stats(text)         to authenticated;
+
+-- ---------- adding codes (run these yourself; the codes are never stored in plain text) ----------
+-- A code you can redeem ANY number of times: replace YOUR-CODE (letters are not case sensitive) and the amount.
+--   insert into public.secret_codes (code_hash, amount, reusable)
+--   values (encode(extensions.digest(lower(trim('YOUR-CODE')), 'sha256'), 'hex'), 1000, true)
+--   on conflict (code_hash) do update set amount = excluded.amount, reusable = true, active = true;
+-- Turn a code off again:
+--   update public.secret_codes set active = false where code_hash = encode(extensions.digest(lower(trim('YOUR-CODE')), 'sha256'), 'hex');
