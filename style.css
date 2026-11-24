@@ -876,3 +876,12 @@ body:not(.t3d-on) .bet-pill { display: none; }
 @keyframes pzBannerHold { 0% { opacity: 0; transform: translateX(-50%) scale(.4) rotate(-6deg); } 10% { opacity: 1; transform: translateX(-50%) scale(1.15) rotate(2deg); } 18% { transform: translateX(-50%) scale(1) rotate(0); } 90% { opacity: 1; } 100% { opacity: 0; } }
 .pz-jp .pz-pot { color: #ff9a8a; text-shadow: 0 0 10px rgba(255,90,110,.8); }
 .pz-jp .pz-sep { width: 1px; height: 18px; background: rgba(255,255,255,.25); }
+/* coin pusher themes */
+body.pz-theme-macau .pz-jp { background: linear-gradient(90deg, rgba(90,8,18,.92), rgba(140,16,30,.92)); border-color: #f2c14e; box-shadow: 0 0 18px rgba(255,180,60,.45); }
+body.pz-theme-macau .pz-stars i.on { color: #ffd24a; text-shadow: 0 0 10px #ff3b3b, 0 0 3px #fff; }
+body.pz-theme-macau .pz-banner.hold { border-color: #f2c14e; box-shadow: 0 0 60px rgba(255,90,40,.7), inset 0 0 20px rgba(255,200,80,.3); }
+body.pz-theme-macau .pz-banner.hold b { color: #ffe08a; text-shadow: 0 0 22px #ff3b3b; }
+body.pz-theme-choco .pz-jp { background: linear-gradient(90deg, rgba(74,36,20,.92), rgba(160,50,100,.9)); border-color: #ff8fc4; box-shadow: 0 0 18px rgba(255,120,190,.5); }
+body.pz-theme-choco .pz-stars i.on { color: #ff8fc4; text-shadow: 0 0 10px #ff2f8a, 0 0 3px #fff; }
+body.pz-theme-choco .pz-banner.hold { border-color: #ff8fc4; box-shadow: 0 0 60px rgba(255,100,180,.7), inset 0 0 20px rgba(255,180,220,.3); }
+body.pz-theme-choco .pz-banner.hold b { color: #ffe4f0; text-shadow: 0 0 22px #ff2f8a; }

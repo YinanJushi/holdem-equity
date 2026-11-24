@@ -904,7 +904,19 @@ Object.assign(I18N.dict, {
 "the whole pot is yours": "整个奖池都归你",
 "TOWER +10": "硬币塔 +10",
 "ten coins on the tower": "硬币塔加高 10 层",
-"coin shower": "硬币雨"
+"coin shower": "硬币雨",
+"Theme": "主题",
+"Macau Night": "澳门夜城",
+"Chocolate Factory": "巧克力工厂",
+"GOLDEN DRAGON": "金龙大奖",
+"GOLDEN DRAGON!": "金龙大奖！",
+"CHOCOLATE FOUNTAIN": "巧克力瀑布",
+"CHOCOLATE FOUNTAIN!": "巧克力瀑布！",
+"Theme: {0}": "主题：{0}",
+"LUCKY COIN!": "福币！",
+"CANDY COIN!": "糖果币！",
+"Push {0} red lucky coins into the tray to win the golden dragon jackpot.": "把 {0} 枚红色福币推进收币盘，就能赢得金龙大奖。",
+"Push {0} pink candy coins into the tray to win the chocolate fountain jackpot.": "把 {0} 枚粉色糖果币推进收币盘，就能赢得巧克力瀑布大奖。"
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],

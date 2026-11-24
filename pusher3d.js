@@ -12,7 +12,39 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=94';
+import { headerChrome, onQuality } from './chrome3d.js?v=96';
+
+
+// ---------- themes: each one dresses the whole machine and has its own way of celebrating the big wins ----------
+const THEMES = {
+  macau: {
+    id: 'macau', name: 'Macau Night', sign: 'Macau Nights', signFont: 'italic 700 104px Georgia, serif', signCols: ['#fff1c4', '#e0a23a'], signGlow: 'rgba(255,120,60,.85)',
+    bg: '#0b0410', room: '#12060a', side: '#7a0f1e', slab: '#2a0a12', deck: ['#3a0610', '#5c0a18'], deckLine: 'rgba(255,200,90,.18)', deckText: 'Odds Lounge · 澳门',
+    neon: [[2.2, 0.25, 0.3], [2.2, 1.5, 0.3]], led: [2.6, 1.3, 0.4], bulbHue: 0.06, lip: [2.4, 1.4, 0.4],
+    screen: ['#1a0614', '#0b0208'], frame: '#c8963a',
+    silver: ['#9a9ca8', '#eef0f6', '#6a6c78', '♠', 0.95], gold: ['#c8902a', '#ffe08a', '#8a5a12', '★', 1, '#8a5a10'],
+    collect: { coin: ['#b8102a', '#ffd0c8', '#6a0612', '福', 0.7, '#c0102a'], glyph: '福', name: 'lucky coin', col: [1.6, 0.35, 0.3] },
+    superName: 'GOLDEN DRAGON', superFx: 'dragon', jpFx: 'firecrackers',
+    wheel: { a: '#9c0f1f', b: '#6a0a16', jp: '#ffd24a', jpText: '#9c0f1f', star: '#e3263a', tower: '#7a4a12', text: '#ffe9b0', hub: '#7a0f1e', rim: '#f2c14e' },
+    fx: [[1.6, 0.35, 0.25], [1.4, 1.0, 0.3]],
+    voice: { super: ['Golden dragon jackpot!', '金龙大奖！恭喜发财！'], jp: ['Jackpot!', '恭喜发财，中大奖啦！'], tower: ['Tower down!', '推倒硬币塔！'], chance: ['Jackpot chance!', '大奖机会！'] },
+  },
+  choco: {
+    id: 'choco', name: 'Chocolate Factory', sign: 'Choco Factory', signFont: '800 100px "Libre Franklin", Arial, sans-serif', signCols: ['#8a4a26', '#4a2414'], signGlow: 'rgba(255,255,255,.95)',
+    bg: '#1a0d08', room: '#22130b', side: '#5a2e17', slab: '#3b1d0e', deck: ['#4a2414', '#6b3a22'], deckLine: 'rgba(255,170,210,.18)', deckText: 'Choco Factory',
+    neon: [[2.2, 0.4, 1.2], [0.4, 2.0, 1.3]], led: [2.4, 0.8, 1.6], bulbHue: 0.92, lip: [2.4, 0.9, 1.6],
+    screen: ['#2a1208', '#140804'], frame: '#ff8fc4',
+    silver: ['#6b3a22', '#d9a074', '#3b1d0e', '♥', 0.85], gold: ['#c8902a', '#ffe08a', '#8a5a12', '♥', 1, '#8a5a10'],
+    collect: { coin: ['#ff4f9a', '#ffe0f0', '#9a0f4e', '✿', 0.4, '#ff2f8a'], glyph: '♥', name: 'candy coin', col: [1.8, 0.5, 1.2] },
+    superName: 'CHOCOLATE FOUNTAIN', superFx: 'waterfall', jpFx: 'sprinkles',
+    wheel: { a: '#6b3a22', b: '#ff8fc4', jp: '#ffe14d', jpText: '#6b3a22', star: '#ff4f9a', tower: '#4cc2a0', text: '#fff6e0', hub: '#5a2e17', rim: '#ffd0e6' },
+    fx: [[1.8, 0.5, 1.2], [0.5, 1.8, 1.4]],
+    voice: { super: ['Chocolate fountain jackpot!', '巧克力瀑布大奖！'], jp: ['Sweet jackpot!', '甜蜜大奖！'], tower: ['Cake tower down!', '蛋糕塔倒啦！'], chance: ['Sweet chance!', '甜蜜大奖机会！'] },
+  },
+};
+const THEME_KEY = 'ol-pz-theme';
+let THEME = THEMES.macau;
+try { THEME = THEMES[localStorage.getItem(THEME_KEY)] || THEMES.macau; } catch (e) { /* default */ }
 
 const COIN = 5, GOLD = 5, $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#pzHost');
@@ -26,7 +58,7 @@ function start() {
   renderer.toneMapping = THREE.NeutralToneMapping; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.domElement.className = 'pz-canvas'; host.appendChild(renderer.domElement);
   headerChrome(host, 'pz-on');
-  const scene = new THREE.Scene(); scene.background = new THREE.Color('#0d0508');
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(THEME.bg); document.body.classList.add('pz-theme-' + THEME.id);
   const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.55;
   const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 20);
   scene.add(new THREE.HemisphereLight('#ffe6c8', '#2a0a10', 0.7));
@@ -86,34 +118,104 @@ function start() {
   }
   const removeCoin = i => { world.removeRigidBody(coins[i].body); coins.splice(i, 1); };
 
+
+  // ---------- theme art: the back wall and the decorations around the cabinet ----------
+  function backdropTex() {
+    const c = document.createElement('canvas'); c.width = 720; c.height = 800; const g = c.getContext('2d');
+    const w = c.width, h = c.height, rnd = (a, b) => a + Math.random() * (b - a);
+    if (THEME.id === 'macau') {
+      // night sky over a skyline of towers with lit windows, a lotus-shaped tower in the middle, neon signs
+      const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#12052a'); sky.addColorStop(0.55, '#3a0a2a'); sky.addColorStop(1, '#5a0f1c'); g.fillStyle = sky; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(255,255,255,${rnd(0.2, 0.8)})`; g.fillRect(rnd(0, w), rnd(0, h * 0.45), 2, 2); }
+      g.fillStyle = '#ffe9b0'; g.beginPath(); g.arc(w * 0.82, h * 0.12, 26, 0, 7); g.fill();
+      const tower = (x, tw, th, col) => { g.fillStyle = col; g.fillRect(x, h - th, tw, th); for (let yy = h - th + 10; yy < h - 8; yy += 14) for (let xx = x + 5; xx < x + tw - 6; xx += 10) if (Math.random() < 0.55) { g.fillStyle = Math.random() < 0.8 ? 'rgba(255,214,120,.9)' : 'rgba(255,90,90,.9)'; g.fillRect(xx, yy, 5, 7); } };
+      for (let x = -20; x < w; x += rnd(45, 80)) tower(x, rnd(40, 70), rnd(180, 380), '#1c0816');
+      // the lotus tower
+      const cx = w / 2; g.fillStyle = '#2a0a1a'; g.fillRect(cx - 30, h - 520, 60, 520);
+      for (let k = 0; k < 7; k++) { const a = -Math.PI / 2 + (k - 3) * 0.32; g.save(); g.translate(cx, h - 520); g.rotate(a + Math.PI / 2); g.fillStyle = k % 2 ? '#f2c14e' : '#ffd86a'; g.beginPath(); g.ellipse(0, -60, 22, 70, 0, 0, 7); g.fill(); g.restore(); }
+      g.shadowColor = '#ffcc66'; g.shadowBlur = 30; g.fillStyle = '#fff1c4'; g.beginPath(); g.arc(cx, h - 560, 16, 0, 7); g.fill(); g.shadowBlur = 0;
+      g.font = '900 54px "PingFang SC", "Microsoft YaHei", serif'; g.textAlign = 'center'; g.shadowBlur = 20;
+      g.shadowColor = '#ff3355'; g.fillStyle = '#ff6b7f'; g.fillText('澳門', w * 0.18, h * 0.62); g.shadowColor = '#ffd24a'; g.fillStyle = '#ffe08a'; g.fillText('發', w * 0.83, h * 0.58); g.shadowBlur = 0;
+    } else {
+      // a factory: pastel wall, pipes, a chocolate vat, candy jars on shelves
+      const wall = g.createLinearGradient(0, 0, 0, h); wall.addColorStop(0, '#ffd8e8'); wall.addColorStop(1, '#f7b5d2'); g.fillStyle = wall; g.fillRect(0, 0, w, h);
+      g.fillStyle = 'rgba(255,255,255,.35)'; for (let x = 0; x < w; x += 60) g.fillRect(x, 0, 28, h);
+      // pipes
+      g.lineCap = 'round'; [['#c9a0dc', 90], ['#8fd8c8', 150], ['#ffd27a', 210]].forEach(([col, y]) => { g.strokeStyle = col; g.lineWidth = 26; g.beginPath(); g.moveTo(-20, y); g.lineTo(w * 0.3, y); g.quadraticCurveTo(w * 0.42, y, w * 0.42, y + 120); g.stroke(); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 6; g.beginPath(); g.moveTo(-20, y - 6); g.lineTo(w * 0.3, y - 6); g.stroke(); });
+      // the vat of melted chocolate
+      g.fillStyle = '#b8b8c8'; g.beginPath(); g.roundRect(w * 0.55, h * 0.18, w * 0.36, h * 0.26, 30); g.fill();
+      g.fillStyle = '#5a2e17'; g.beginPath(); g.ellipse(w * 0.73, h * 0.2, w * 0.17, 26, 0, 0, 7); g.fill();
+      for (let i = 0; i < 7; i++) { const x = w * 0.58 + i * 34; g.fillStyle = '#5a2e17'; g.beginPath(); g.roundRect(x, h * 0.2, 16, 40 + Math.random() * 60, 8); g.fill(); }
+      // candy jars
+      for (let i = 0; i < 5; i++) { const x = 40 + i * 130, y = h - 190; g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.roundRect(x, y, 90, 120, 20); g.fill(); for (let k = 0; k < 14; k++) { g.fillStyle = ['#ff4f9a', '#4cc2a0', '#ffd24a', '#7a5cff', '#ff8a3d'][k % 5]; g.beginPath(); g.arc(x + 15 + (k % 4) * 20, y + 30 + Math.floor(k / 4) * 22, 9, 0, 7); g.fill(); } g.fillStyle = '#ff8fc4'; g.fillRect(x - 4, y - 10, 98, 16); }
+      g.fillStyle = '#9a4a2a'; g.fillRect(0, h - 60, w, 60);
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  }
+  function buildDecor() {
+    if (THEME.id === 'macau') {
+      // red lanterns on the side panels, glowing
+      const lanternM = new THREE.MeshStandardMaterial({ color: '#c8102a', emissive: '#ff1a2e', emissiveIntensity: 0.9, roughness: 0.5 });
+      const capM = new THREE.MeshStandardMaterial({ color: '#f2c14e', metalness: 1, roughness: 0.3 });
+      [-1, 1].forEach(sd => [0.62, 0.36, 0.1].forEach((z, k) => {
+        const g = new THREE.Group(); g.position.set(sd * (W + 0.03), 0.72 - k * 0.02, z - 0.55); scene.add(g);
+        const l = new THREE.Mesh(new THREE.SphereGeometry(0.03, 20, 14), lanternM); l.scale.set(1, 0.85, 1); g.add(l);
+        [-1, 1].forEach(e => { const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.008, 16), capM); cap.position.y = e * 0.027; g.add(cap); });
+        const tassel = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.006, 0.04, 6), new THREE.MeshBasicMaterial({ color: '#ffcc55' })); tassel.position.y = -0.05; g.add(tassel);
+        decorAnim.push(t => { g.rotation.z = Math.sin(t * 1.3 + k + sd) * 0.08; });
+      }));
+      // golden pillars at the front corners
+      [-1, 1].forEach(sd => { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.5, 20), capM); p.position.set(sd * (W + 0.06), 0.22, FRONT + 0.05); scene.add(p); const top = new THREE.Mesh(new THREE.SphereGeometry(0.026, 16, 12), lanternM); top.position.set(sd * (W + 0.06), 0.49, FRONT + 0.05); scene.add(top); });
+    } else {
+      // candy-cane pillars and lollipops
+      const stripe = canvasTex(64, 256, g => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, 64, 256); g.fillStyle = '#ff3b7a'; for (let y = -64; y < 256; y += 48) { g.beginPath(); g.moveTo(0, y); g.lineTo(64, y + 32); g.lineTo(64, y + 52); g.lineTo(0, y + 20); g.fill(); } }).t;
+      stripe.wrapS = stripe.wrapT = THREE.RepeatWrapping; stripe.repeat.set(1, 3);
+      const caneM = new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.3 });
+      [-1, 1].forEach(sd => {
+        const p = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.55, 20), caneM); p.position.set(sd * (W + 0.06), 0.25, FRONT + 0.05); scene.add(p);
+        const hook = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.02, 12, 24, Math.PI), caneM); hook.position.set(sd * (W + 0.06) - sd * 0.04, 0.52, FRONT + 0.05); hook.rotation.z = sd > 0 ? 0 : 0; scene.add(hook);
+      });
+      const popCols = ['#ff4f9a', '#4cc2a0', '#ffd24a', '#7a5cff'];
+      [-1, 1].forEach(sd => [0.6, 0.3, 0.0].forEach((z, k) => {
+        const g = new THREE.Group(); g.position.set(sd * (W + 0.03), 0.7, z - 0.5); scene.add(g);
+        const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.08, 8), new THREE.MeshStandardMaterial({ color: '#ffffff' })); stick.position.y = -0.04; g.add(stick);
+        const sw = canvasTex(128, 128, gg => { gg.fillStyle = '#fff'; gg.fillRect(0, 0, 128, 128); gg.strokeStyle = popCols[(k + (sd > 0 ? 1 : 0)) % 4]; gg.lineWidth = 14; gg.beginPath(); for (let a = 0; a < 14; a += 0.1) { const r = a * 4.2; gg.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } gg.stroke(); }).t;
+        const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.012, 28), [new THREE.MeshStandardMaterial({ color: popCols[k % 4] }), new THREE.MeshStandardMaterial({ map: sw }), new THREE.MeshStandardMaterial({ map: sw })]);
+        disc.rotation.x = Math.PI / 2; disc.rotation.z = Math.PI / 2 * sd; g.add(disc);
+        decorAnim.push(t => { disc.rotation.y = t * 0.8 * sd; });
+      }));
+    }
+  }
+  const decorAnim = [];
   // ---------- the cabinet (looks) ----------
   const goldM = new THREE.MeshStandardMaterial({ color: '#c8963a', metalness: 1, roughness: 0.3, envMapIntensity: 0.8 });
   const chromeM = new THREE.MeshPhysicalMaterial({ color: '#d8dbe6', metalness: 1, roughness: 0.18, clearcoat: 1, envMapIntensity: 0.9 });
   const deckTex = (() => {
     const c = document.createElement('canvas'); c.width = 512; c.height = 768; const g = c.getContext('2d');
-    const gr = g.createLinearGradient(0, 0, 0, 768); gr.addColorStop(0, '#2a0618'); gr.addColorStop(1, '#4a0a28'); g.fillStyle = gr; g.fillRect(0, 0, 512, 768);
-    g.strokeStyle = 'rgba(255,200,90,.16)'; g.lineWidth = 2;
+    const gr = g.createLinearGradient(0, 0, 0, 768); gr.addColorStop(0, THEME.deck[0]); gr.addColorStop(1, THEME.deck[1]); g.fillStyle = gr; g.fillRect(0, 0, 512, 768);
+    if (THEME.id === 'choco') { g.fillStyle = 'rgba(255,255,255,.05)'; for (let y = 0; y < 768; y += 96) for (let x = 0; x < 512; x += 128) { g.fillRect(x + 6, y + 6, 116, 84); } }
+    g.strokeStyle = THEME.deckLine; g.lineWidth = 2;
     for (let i = -8; i <= 8; i++) { g.beginPath(); g.moveTo(256, -200); g.lineTo(256 + i * 70, 800); g.stroke(); }
-    g.fillStyle = 'rgba(255,214,120,.55)'; g.font = 'italic 700 46px Georgia, serif'; g.textAlign = 'center'; g.fillText('Odds Lounge', 256, 560);
+    g.fillStyle = 'rgba(255,214,120,.55)'; g.font = 'italic 700 46px Georgia, "PingFang SC", serif'; g.textAlign = 'center'; g.fillText(THEME.deckText, 256, 560);
     g.fillStyle = 'rgba(255,214,120,.35)';
     for (let k = 0; k < 3; k++) { const y = 640 + k * 34; g.beginPath(); g.moveTo(226, y); g.lineTo(256, y + 22); g.lineTo(286, y); g.lineTo(276, y); g.lineTo(256, y + 12); g.lineTo(236, y); g.fill(); }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
   })();
   const deckM = new THREE.MeshPhysicalMaterial({ map: deckTex, roughness: 0.25, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.15 });
   const deck = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.04, FRONT - BACK), deckM); deck.position.set(0, -0.02, (FRONT + BACK) / 2); deck.receiveShadow = true; scene.add(deck);
-  const lip = new THREE.Mesh(new THREE.BoxGeometry(WIN * 2, 0.006, 0.012), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.6, 0.5) })); lip.position.set(0, 0.001, FRONT - 0.006); scene.add(lip);
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(WIN * 2, 0.006, 0.012), new THREE.MeshBasicMaterial({ color: new THREE.Color(...THEME.lip) })); lip.position.set(0, 0.001, FRONT - 0.006); scene.add(lip);
   [-1, 1].forEach(sd => { const c = new THREE.Mesh(new THREE.BoxGeometry(W - WIN, 0.006, 0.012), new THREE.MeshBasicMaterial({ color: '#6a0a1a' })); c.position.set(sd * (WIN + (W - WIN) / 2), 0.001, FRONT - 0.006); scene.add(c); });
-  const sideM = new THREE.MeshPhysicalMaterial({ color: '#5a0a26', metalness: 0.4, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3 });
+  const sideM = new THREE.MeshPhysicalMaterial({ color: THEME.side, metalness: 0.4, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3 });
   [-1, 1].forEach(sd => {
     const s = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.78, FRONT - BACK + 0.12, 3, 0.02), sideM); s.position.set(sd * (W + 0.03), 0.28, (FRONT + BACK) / 2); s.castShadow = true; scene.add(s);
-    const neon = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.008, FRONT - BACK), new THREE.MeshBasicMaterial({ color: sd < 0 ? new THREE.Color(1.6, 0.25, 0.8) : new THREE.Color(0.25, 1, 1.6) }));
+    const neon = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.008, FRONT - BACK), new THREE.MeshBasicMaterial({ color: new THREE.Color(...THEME.neon[sd < 0 ? 0 : 1]) }));
     neon.position.set(sd * (W + 0.001), 0.1, (FRONT + BACK) / 2); scene.add(neon);
   });
-  const backPanel = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, 0.8), new THREE.MeshStandardMaterial({ color: '#25060f', roughness: 0.55, metalness: 0.3 })); backPanel.position.set(0, 0.38, BACK - 0.001); scene.add(backPanel);
-  const slabM = new THREE.MeshPhysicalMaterial({ color: '#3a0a1c', roughness: 0.3, metalness: 0.4, clearcoat: 1 });
+  const backPanel = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, 0.8), new THREE.MeshBasicMaterial({ map: backdropTex(), toneMapped: true })); backPanel.position.set(0, 0.38, BACK - 0.001); scene.add(backPanel);
+  const slabM = new THREE.MeshPhysicalMaterial({ color: THEME.slab, roughness: 0.3, metalness: 0.4, clearcoat: 1 });
   const slab = new THREE.Mesh(new THREE.BoxGeometry(W * 2, SLAB.y1 - SLAB.y0, SLAB.z1 - BACK), slabM); slab.position.set(0, (SLAB.y0 + SLAB.y1) / 2, (SLAB.z1 + BACK) / 2); slab.castShadow = slab.receiveShadow = true; scene.add(slab);
   const slabTop = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, SLAB.z1 - BACK), deckM); slabTop.rotation.x = -Math.PI / 2; slabTop.position.set(0, SLAB.y1 + 0.0005, (SLAB.z1 + BACK) / 2); slabTop.receiveShadow = true; scene.add(slabTop);
-  const ledM = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.7, 0.6) });
+  const ledM = new THREE.MeshBasicMaterial({ color: new THREE.Color(...THEME.led) });
   const led = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.008, 0.004), ledM); led.position.set(0, SLAB.y0 + 0.03, SLAB.z1 + 0.002); scene.add(led);
   const scraper = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.12, SCRAPER.z1 - BACK), slabM); scraper.position.set(0, SCRAPER.y0 + 0.06, (SCRAPER.z1 + BACK) / 2); scraper.castShadow = true; scene.add(scraper);
   const led2 = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 0.008, 0.004), ledM); led2.position.set(0, SCRAPER.y0 + 0.02, SCRAPER.z1 + 0.002); scene.add(led2);
@@ -122,10 +224,11 @@ function start() {
   const fwMeshes = FW.list.map(f => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.06, FW.len), new THREE.MeshPhysicalMaterial({ color: '#7fe8ff', emissive: '#1aa8ff', emissiveIntensity: 1.2, transparent: true, opacity: 0.75, roughness: 0.1 })); m.rotation.y = f.th; scene.add(m); return m; });
   // the tray in front catches the winnings
   const tray = new THREE.Mesh(new RoundedBoxGeometry(WIN * 2 + 0.04, 0.05, 0.16, 3, 0.02), goldM); tray.position.set(0, -0.17, FRONT + 0.09); tray.receiveShadow = true; scene.add(tray);
-  const room = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), new THREE.MeshStandardMaterial({ color: '#140709', side: THREE.BackSide })); room.position.y = 1; scene.add(room);
+  const room = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), new THREE.MeshStandardMaterial({ color: THEME.room, side: THREE.BackSide })); room.position.y = 1; scene.add(room);
   // sign, marquee bulbs and the bonus lamp
   const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const redraw = (...a) => { g.clearRect(0, 0, w, h); draw(g, w, h, ...a); t.needsUpdate = true; }; redraw(); return { t, redraw }; };
-  const sign = canvasTex(1024, 200, (g, w, h) => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'italic 700 112px Georgia, serif'; const gr = g.createLinearGradient(0, 40, 0, 160); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#c99a2e'); g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.8)'; g.shadowBlur = 26; g.fillText('Coin Pusher', w / 2, h / 2); });
+  const sign = canvasTex(1024, 200, (g, w, h) => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = THEME.signFont; const gr = g.createLinearGradient(0, 40, 0, 160); gr.addColorStop(0, THEME.signCols[0]); gr.addColorStop(1, THEME.signCols[1]); g.fillStyle = gr; g.shadowColor = THEME.signGlow; g.shadowBlur = 26; g.fillText(THEME.sign, w / 2, h / 2); });
+  buildDecor();
   const signM = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.12), new THREE.MeshBasicMaterial({ map: sign.t, transparent: true })); signM.position.set(0, 0.73, BACK + 0.005); scene.add(signM);
   const bulbs = []; for (let i = 0; i < 22; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' })); b.position.set(-W + 0.02 + i * ((W * 2 - 0.04) / 21), 0.8, BACK + 0.01); scene.add(b); bulbs.push(b); }
   // ---------- the slot screen on the back wall: three reels, spun by the Lucky Gate ----------
@@ -134,10 +237,16 @@ function start() {
   function drawSym(g, sym, cx, cy, s) {
     g.save(); g.translate(cx, cy);
     const coin = (c1, c2, mark, mc) => { const gr = g.createRadialGradient(-s * 0.15, -s * 0.15, 2, 0, 0, s * 0.42); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, s * 0.38, 0, 7); g.fill(); g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, s * 0.31, 0, 7); g.stroke(); g.fillStyle = mc; g.font = `800 ${s * 0.36}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 0, s * 0.03); };
-    if (sym === 'COIN') coin('#ffffff', '#8c8f9c', '♠', '#4a4c58');
-    else if (sym === 'GOLD') coin('#fff1b0', '#c8902a', '★', '#7a4a10');
+    const choco = THEME.id === 'choco';
+    if (sym === 'COIN') choco ? coin('#e8b48a', '#6b3a22', '♥', '#3b1d0e') : coin('#ffffff', '#8c8f9c', '♠', '#4a4c58');
+    else if (sym === 'GOLD' && !choco) { g.fillStyle = '#f2c14e'; g.strokeStyle = '#8a5a12'; g.lineWidth = 4; g.beginPath(); g.moveTo(-s * 0.36, -s * 0.02); g.quadraticCurveTo(-s * 0.3, s * 0.22, 0, s * 0.24); g.quadraticCurveTo(s * 0.3, s * 0.22, s * 0.36, -s * 0.02); g.quadraticCurveTo(s * 0.18, s * 0.06, s * 0.12, -s * 0.06); g.quadraticCurveTo(0, -s * 0.3, -s * 0.12, -s * 0.06); g.quadraticCurveTo(-s * 0.18, s * 0.06, -s * 0.36, -s * 0.02); g.fill(); g.stroke(); }
+    else if (sym === 'GOLD') coin('#fff1b0', '#c8902a', '♥', '#7a4a10');
+    else if (sym === 'STAR' && !choco) coin('#ff8a8a', '#b8102a', '福', '#ffe08a');
+    else if (sym === 'STAR') { g.fillStyle = '#ff4f9a'; g.beginPath(); g.ellipse(0, 0, s * 0.24, s * 0.2, 0, 0, 7); g.fill(); [-1, 1].forEach(e => { g.beginPath(); g.moveTo(e * s * 0.22, 0); g.lineTo(e * s * 0.42, -s * 0.16); g.lineTo(e * s * 0.42, s * 0.16); g.closePath(); g.fill(); }); g.strokeStyle = '#fff'; g.lineWidth = 5; g.beginPath(); g.arc(0, 0, s * 0.1, 0, 5); g.stroke(); }
+    else if (sym === 'WALL' && choco) { g.fillStyle = '#e8c08a'; [-1, 1].forEach(k => { g.save(); g.rotate(k * 0.4); g.fillRect(k * s * 0.15 - s * 0.06, -s * 0.34, s * 0.12, s * 0.68); g.strokeStyle = '#a0703a'; g.lineWidth = 2; for (let y = -0.3; y < 0.34; y += 0.08) { g.beginPath(); g.moveTo(k * s * 0.15 - s * 0.06, y * s); g.lineTo(k * s * 0.15 + s * 0.06, y * s); g.stroke(); } g.restore(); }); }
+    else if (sym === 'TOWER' && choco) { [['#6b3a22', 0.22], ['#ffd0e6', 0.08], ['#6b3a22', -0.06], ['#ffd0e6', -0.2]].forEach(([c, y]) => { g.fillStyle = c; g.fillRect(-s * 0.3, y * s - s * 0.07, s * 0.6, s * 0.14); }); g.fillStyle = '#e3263a'; g.beginPath(); g.arc(0, -s * 0.32, s * 0.07, 0, 7); g.fill(); }
     else if (sym === 'STAR') { g.shadowColor = '#b26bff'; g.shadowBlur = 24; g.fillStyle = '#d9a8ff'; g.font = `800 ${s * 0.8}px Arial`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('★', 0, s * 0.04); }
-    else if (sym === 'JP') { g.fillStyle = '#c8102e'; g.beginPath(); g.roundRect(-s * 0.4, -s * 0.3, s * 0.8, s * 0.6, s * 0.12); g.fill(); g.strokeStyle = '#ffd86a'; g.lineWidth = 5; g.stroke(); g.fillStyle = '#ffe08a'; g.font = `900 ${s * 0.4}px Arial`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('JP', 0, s * 0.02); }
+    else if (sym === 'JP') { g.fillStyle = THEME.id === 'choco' ? '#ff4f9a' : '#c8102e'; g.beginPath(); g.roundRect(-s * 0.4, -s * 0.3, s * 0.8, s * 0.6, s * 0.12); g.fill(); g.strokeStyle = '#ffd86a'; g.lineWidth = 5; g.stroke(); g.fillStyle = '#ffe08a'; g.font = `900 ${s * 0.4}px Arial`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('JP', 0, s * 0.02); }
     else if (sym === 'WALL') { g.fillStyle = '#4fc8ff'; g.shadowColor = '#4fc8ff'; g.shadowBlur = 12; [-1, 1].forEach(k => { g.save(); g.rotate(k * 0.5); g.fillRect(k * s * 0.16 - s * 0.05, -s * 0.34, s * 0.1, s * 0.68); g.restore(); }); }
     else if (sym === 'TOWER') { for (let i = 0; i < 6; i++) { const y = s * 0.3 - i * s * 0.11; g.fillStyle = i === 5 ? '#f2c14e' : '#d8dbe6'; g.beginPath(); g.ellipse(0, y, s * 0.24, s * 0.07, 0, 0, 7); g.fill(); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 2; g.stroke(); } }
     else if (sym === 'SEVEN') { g.fillStyle = '#ff3b4e'; g.strokeStyle = '#fff'; g.lineWidth = 4; g.font = `900 ${s * 0.7}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.strokeText('7', 0, s * 0.04); g.fillText('7', 0, s * 0.04); }
@@ -146,7 +255,7 @@ function start() {
   const reels = [0, 1, 2].map(i => ({ p: i * 4 + 1, v: 0, state: 'idle', target: 0, from: 0, to: 0, t: 0, stopAt: 0, dur: 0.4 }));
   const slot = { active: false, t: 0, out: null, reach: false, flash: 0, msg: null };
   const lamp = canvasTex(768, 300, (g, w, h) => {
-    const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#1a0614'); bg.addColorStop(1, '#0b0208'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, THEME.screen[0]); bg.addColorStop(1, THEME.screen[1]); g.fillStyle = bg; g.fillRect(0, 0, w, h);
     const RW = 220, RH = 200, gap = 16, x0 = (w - RW * 3 - gap * 2) / 2, y0 = 16;
     reels.forEach((r, i) => {
       const x = x0 + i * (RW + gap);
@@ -176,7 +285,7 @@ function start() {
   const lampRedraw = lamp.redraw;
   lamp.redraw = (big, small, col = '#ffd36a') => { slot.msg = big ? { big, small, col } : null; lampRedraw(); };
   const lampM = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.18), new THREE.MeshBasicMaterial({ map: lamp.t, toneMapped: false })); lampM.position.set(0, 0.555, BACK + 0.005); scene.add(lampM);
-  const lampFrame = new THREE.Mesh(new RoundedBoxGeometry(0.49, 0.21, 0.01, 3, 0.008), new THREE.MeshStandardMaterial({ color: '#c8963a', metalness: 1, roughness: 0.3 })); lampFrame.position.set(0, 0.555, BACK - 0.002); scene.add(lampFrame);
+  const lampFrame = new THREE.Mesh(new RoundedBoxGeometry(0.49, 0.21, 0.01, 3, 0.008), new THREE.MeshStandardMaterial({ color: THEME.frame, metalness: THEME.id === 'choco' ? 0.3 : 1, roughness: 0.3 })); lampFrame.position.set(0, 0.555, BACK - 0.002); scene.add(lampFrame);
   // the lucky gate: a glowing ring that slides across under the coin chute
   const ringM = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.6, 0.4) });
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.005, 10, 40), ringM); ring.rotation.x = -Math.PI / 2; ring.position.set(0, GATE_Y, DROP.z); scene.add(ring);
@@ -205,9 +314,9 @@ function start() {
     return [edge, face, face];
   };
   const coinGeo = new THREE.CylinderGeometry(R, R, TH, 32);
-  const silverI = new THREE.InstancedMesh(coinGeo, coinMats('#9a9ca8', '#eef0f6', '#6a6c78', '♠', 0.95), MAXC);
-  const goldI = new THREE.InstancedMesh(coinGeo, coinMats('#c8902a', '#ffe08a', '#8a5a12', '★', 1, '#8a5a10'), MAXC);
-  const starI = new THREE.InstancedMesh(coinGeo, coinMats('#5a24b8', '#ead2ff', '#2e0c66', '✦', 0.85, '#8a3cff'), 40);
+  const silverI = new THREE.InstancedMesh(coinGeo, coinMats(...THEME.silver), MAXC);
+  const goldI = new THREE.InstancedMesh(coinGeo, coinMats(...THEME.gold), MAXC);
+  const starI = new THREE.InstancedMesh(coinGeo, coinMats(...THEME.collect.coin), 40);
   [silverI, goldI, starI].forEach(m => { m.castShadow = true; m.receiveShadow = true; m.count = 0; m.frustumCulled = false; scene.add(m); });
 
   // ---------- sparkles ----------
@@ -266,8 +375,8 @@ function start() {
   const saveJP = () => { if (!sim) try { localStorage.setItem(JKEY, JSON.stringify(JP)); } catch (e) { /* ignore */ } };
   const meter = document.createElement('div'); meter.className = 'pz-jp'; meter.setAttribute('role', 'status'); host.appendChild(meter);
   function paintMeter(flash) {
-    meter.innerHTML = `<small>JP</small><b class="pz-pot">${Math.round(JP.pot || 500).toLocaleString('en-US')}</b><i class="pz-sep"></i><small>${tr('SUPER JACKPOT')}</small><span class="pz-stars">${[0, 1, 2].map(i => `<i class="${i < JP.stars ? 'on' : ''}">★</i>`).join('')}</span><b>${jpSize()}</b><small>${tr('coins')}</small>`;
-    meter.title = tr('Push 3 purple star coins into the tray to win the super jackpot.');
+    meter.innerHTML = `<small>JP</small><b class="pz-pot">${Math.round(JP.pot || 500).toLocaleString('en-US')}</b><i class="pz-sep"></i><small>${tr(THEME.superName)}</small><span class="pz-stars">${[0, 1, 2].map(i => `<i class="${i < JP.stars ? 'on' : ''}">${THEME.collect.glyph}</i>`).join('')}</span><b>${jpSize()}</b><small>${tr('coins')}</small>`;
+    meter.title = THEME.id === 'macau' ? tr('Push 3 red lucky coins into the tray to win the golden dragon jackpot.') : tr('Push 3 pink candy coins into the tray to win the chocolate fountain jackpot.');
     if (flash) { meter.classList.remove('flash'); void meter.offsetWidth; meter.classList.add('flash'); }
   }
   let lastPot = -1;
@@ -275,7 +384,7 @@ function start() {
   function starIn(x, z) {
     JP.stars++;
     if (sim) { sim.stars = (sim.stars || 0) + 1; if (JP.stars >= 3) superJackpot(); return; }
-    burst(x, 0, z, 60, 1.1, [0.9, 0.5, 1.6]); fanfare(false); pop(`★ ${JP.stars} / 3`, 'star');
+    burst(x, 0, z, 60, 1.1, THEME.collect.col); fanfare(false); pop(`${THEME.collect.glyph} ${JP.stars} / 3`, 'star');
     if (JP.stars >= 3) setTimeout(superJackpot, 900); else { saveJP(); paintMeter(true); }
   }
   let superT = 0;
@@ -289,10 +398,10 @@ function start() {
     for (let i = 0; i < n; i++) rainQ.push({ at: base + 0.4 + i * 0.03 + Math.floor(i / 30) * 0.5, gold: i % 25 === 24, wide: true });
     if (sim) { sim.super = (sim.super || 0) + 1; sim.superCoins = (sim.superCoins || 0) + n; return; }
     superT = 4 + n * 0.03 + Math.floor(n / 30) * 0.5;
-    showBanner(tr('SUPER JACKPOT!'), `${n} ${tr('coins')}`); bannerHold(4500);
-    lamp.redraw(tr('SUPER JACKPOT!'), `${n} ${tr('coins')}`, '#c58bff');
-    fanfare(true); setTimeout(() => fanfare(true), 700); shake = 2; voice('Super jackpot!', '超级大奖！');
-    for (let k = 0; k < 6; k++) setTimeout(() => burst((Math.random() - 0.5) * 0.5, 0.45 + Math.random() * 0.2, -0.3 + Math.random() * 0.3, 70, 1.4, k % 2 ? [1.2, 0.85, 0.3] : [0.9, 0.5, 1.6]), k * 500);
+    showBanner(tr(THEME.superName) + '!', `${n} ${tr('coins')}`); bannerHold(5000);
+    lamp.redraw(tr(THEME.superName) + '!', `${n} ${tr('coins')}`, THEME.id === 'macau' ? '#ffd24a' : '#ff8fc4');
+    fanfare(true); setTimeout(() => fanfare(true), 700); shake = 2; voice(...THEME.voice.super);
+    if (THEME.superFx === 'dragon') fxDragon(); else fxWaterfall();
     window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: 'super', n } }));
     paintMeter(true);
     setTimeout(() => { if (!slot.active && !wheel.active) lamp.redraw(); }, 9000);
@@ -319,7 +428,7 @@ function start() {
     const gold = drops % 20 === 0, star = !gold && Math.random() < STAR_P;
     if (!free || sim) { JP.since++; JP.pot = Math.min(5000, (JP.pot || JP_POT0) + 0.1); if (!sim && JP.since % JP_EVERY === 0) { saveJP(); paintMeter(); } towerDrops++; if (towerDrops % TOWER_EVERY === 0) growTower(); }
     const c = addCoin(aimX + (Math.random() - 0.5) * 0.006, DROP.y, DROP.z + (Math.random() - 0.5) * 0.01, gold, { gate: true, vy: -0.4, star });
-    if (c && star && !sim) { burst(c.body.translation().x, DROP.y, DROP.z, 25, 0.5, [0.9, 0.5, 1.6]); pop(tr('STAR COIN!'), 'star'); }
+    if (c && star && !sim) { burst(c.body.translation().x, DROP.y, DROP.z, 25, 0.5, THEME.collect.col); pop(tr(THEME.id === 'macau' ? 'LUCKY COIN!' : 'CANDY COIN!'), 'star'); }
     if (c && !sim) { beep(1800); info(); document.body.classList.add('pz-played'); window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-drop' } })); }
   }
 
@@ -393,7 +502,7 @@ function start() {
     T.free = true; T.body.setEnabledRotations(true, true, true, true);
     T.body.setAngvel({ x: 3.2, y: 0, z: (Math.random() - 0.5) * 1.2 }, true);
     T.body.setLinvel({ x: 0, y: 0.05, z: 0.15 }, true);
-    if (!sim) { showBanner(tr('TOWER FALL'), `${T.n} ${tr('coins')}`); fanfare(true); shake = Math.max(shake, 0.8); voice('Tower down!', '推倒硬币塔！'); }
+    if (!sim) { showBanner(tr('TOWER FALL'), `${T.n} ${tr('coins')}`); fanfare(true); shake = Math.max(shake, 0.8); voice(...THEME.voice.tower); }
     return true;
   }
   const saveTower = () => { const T = mainTower(); JP.tower = T ? { n: T.n, x: +T.body.translation().x.toFixed(3), z: +T.body.translation().z.toFixed(3) } : null; saveJP(); };
@@ -474,14 +583,14 @@ function start() {
     POCKETS.forEach((pk, k) => {
       const a0 = k * SEC, a1 = a0 + SEC;
       g.beginPath(); g.moveTo(c, c); g.arc(c, c, 250, -a1, -a0); g.closePath();
-      g.fillStyle = pk === 'JP' ? '#c8102e' : pk === 'STAR' ? '#5a24b8' : pk === 'TOWER' ? '#1f6f8b' : k % 2 ? '#14532d' : '#0f3d22'; g.fill();
-      g.strokeStyle = '#f2c14e'; g.lineWidth = 3; g.stroke();
+      const WC = THEME.wheel; g.fillStyle = pk === 'JP' ? WC.jp : pk === 'STAR' ? WC.star : pk === 'TOWER' ? WC.tower : k % 2 ? WC.a : WC.b; g.fill();
+      g.strokeStyle = WC.rim; g.lineWidth = 3; g.stroke();
       g.save(); g.translate(c, c); g.rotate(-(a0 + SEC / 2)); g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillStyle = pk === 'JP' ? '#ffe08a' : '#fff6e0'; g.font = pk === 'JP' ? '900 54px Arial' : '800 40px Arial';
-      g.fillText(pk === 'STAR' ? '★' : pk === 'TOWER' ? 'T+10' : pk, 175, 0); g.restore();
+      g.fillStyle = pk === 'JP' ? THEME.wheel.jpText : THEME.wheel.text; g.font = pk === 'JP' ? '900 54px Arial' : pk === 'STAR' ? '900 46px "PingFang SC", Arial' : '800 40px Arial';
+      g.fillText(pk === 'STAR' ? THEME.collect.glyph : pk === 'TOWER' ? 'T+10' : pk, 175, 0); g.restore();
     });
-    g.beginPath(); g.arc(c, c, 92, 0, 7); g.fillStyle = '#1a0614'; g.fill(); g.strokeStyle = '#f2c14e'; g.lineWidth = 6; g.stroke();
-    g.fillStyle = '#ffd86a'; g.font = '900 52px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('JP', c, c);
+    g.beginPath(); g.arc(c, c, 92, 0, 7); g.fillStyle = THEME.wheel.hub; g.fill(); g.strokeStyle = THEME.wheel.rim; g.lineWidth = 6; g.stroke();
+    g.fillStyle = '#ffd86a'; g.font = '900 52px "PingFang SC", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(THEME.id === 'macau' ? '發' : 'JP', c, c);
   });
   const wheel = { active: false, t: 0, T: 5.2, g: new THREE.Group(), disc: null, ball: null, th0: 0, th1: 0, ph0: 0, ph1: 0, k: 0, y: 1.3 };
   wheel.disc = new THREE.Mesh(new THREE.CircleGeometry(0.15, 64), new THREE.MeshBasicMaterial({ map: wheelTex.t, toneMapped: false }));
@@ -534,13 +643,13 @@ function start() {
       pending += pot; won += pot; rain(30, false); rain(3, true);
       showBanner(`${tr('JACKPOT!')} +${pot}`, tr('the whole pot is yours')); bannerHold(4500);
       lamp.redraw(tr('JACKPOT!'), `+${pot} ${tr('chips')}`, '#ff5a7a');
-      fanfare(true); setTimeout(() => fanfare(true), 600); shake = 1.8; voice('Jackpot!', '中大奖啦！');
-      for (let k = 0; k < 5; k++) setTimeout(() => burst((Math.random() - 0.5) * 0.4, 0.5, -0.4, 80, 1.4, [1.4, 0.7, 0.4]), k * 400);
+      fanfare(true); setTimeout(() => fanfare(true), 600); shake = 1.8; voice(...THEME.voice.jp);
+      if (THEME.jpFx === 'firecrackers') fxFirecrackers(); else fxSprinkles();
       window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: 'jackpot', pot } }));
       paintMeter(true);
     } else if (pk === 'STAR') {
       JP.stars++; if (JP.stars >= 3) { if (sim) superJackpot(); else setTimeout(superJackpot, 1500); } else { saveJP(); if (!sim) paintMeter(true); }
-      if (!sim) { showBanner('★', tr('a star toward the super jackpot')); lamp.redraw('★ +1', tr('a star toward the super jackpot'), '#d9a8ff'); fanfare(false); }
+      if (!sim) { showBanner(THEME.collect.glyph, tr('a star toward the super jackpot')); lamp.redraw(THEME.collect.glyph + ' +1', tr('a star toward the super jackpot'), '#ff8fc4'); fanfare(false); }
     } else if (pk === 'TOWER') {
       for (let i = 0; i < 10; i++) growTower();
       if (!mainTower()) rain(10, false);
@@ -550,6 +659,46 @@ function start() {
       if (!sim) { showBanner(`${n} ${tr('coins')}`, tr('coin shower')); lamp.redraw(`${n} ${tr('coins')}`, tr('coin shower'), '#ffd36a'); fanfare(n >= 30); }
     }
     if (!sim) setTimeout(() => { if (!slot.active && !wheel.active) lamp.redraw(); }, 3500);
+  }
+  // ---------- themed celebrations ----------
+  const fxTasks = [];
+  function stepFx(dt, t) { decorAnim.forEach(f => f(t)); for (let i = fxTasks.length - 1; i >= 0; i--) if (fxTasks[i](dt) === false) fxTasks.splice(i, 1); }
+  function noiseBurst(d, v, hp = 2000) { const a = audio(); if (!a) return; const t = a.currentTime, b = a.createBuffer(1, Math.floor(a.sampleRate * d), a.sampleRate), x = b.getChannelData(0); for (let i = 0; i < x.length; i++) x[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / x.length, 3); const src = a.createBufferSource(), f = a.createBiquadFilter(), gn = a.createGain(); f.type = 'highpass'; f.frequency.value = hp; gn.gain.value = v; src.buffer = b; src.connect(f).connect(gn).connect(a.destination); src.start(t); }
+  function gong() { const a = audio(); if (!a) return; const t = a.currentTime; [110, 164, 223, 291].forEach((f, i) => { const o = a.createOscillator(), gn = a.createGain(); o.type = 'sine'; o.frequency.value = f; gn.gain.setValueAtTime(0.12 / (i + 1), t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 3.5); o.connect(gn).connect(a.destination); o.start(t); o.stop(t + 3.6); }); }
+  function bloop(n = 6) { const a = audio(); if (!a) return; for (let i = 0; i < n; i++) { const t = a.currentTime + i * 0.09, o = a.createOscillator(), gn = a.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(300 + Math.random() * 300, t); o.frequency.exponentialRampToValueAtTime(900 + Math.random() * 600, t + 0.12); gn.gain.setValueAtTime(0.06, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.15); o.connect(gn).connect(a.destination); o.start(t); o.stop(t + 0.16); } }
+  // Macau: a golden dragon of light snakes across the machine, with firecrackers and a gong
+  function fxDragon() {
+    gong(); let tt = 0;
+    fxTasks.push(dt => {
+      tt += dt; const q = tt / 3.2; if (q > 1) return false;
+      for (let seg = 0; seg < 6; seg++) {
+        const u = q * 3.2 - seg * 0.06, x = Math.sin(u * 2.2) * 0.3, y = 0.42 + Math.sin(u * 4) * 0.08, z = -0.45 + u * 0.12;
+        burst(x, y, z, seg === 0 ? 12 : 5, seg === 0 ? 0.1 : 0.05, seg === 0 ? [2, 1.4, 0.4] : seg % 2 ? [1.8, 0.3, 0.2] : [1.6, 1.1, 0.3]);
+      }
+    });
+    fxFirecrackers();
+  }
+  function fxFirecrackers() {
+    for (let k = 0; k < 14; k++) setTimeout(() => { const x = (Math.random() - 0.5) * 0.6, y = 0.3 + Math.random() * 0.35; burst(x, y, -0.3 + Math.random() * 0.4, 40, 1.1, Math.random() < 0.5 ? [2, 0.3, 0.25] : [2, 1.5, 0.4]); noiseBurst(0.08, 0.25); }, k * 160 + Math.random() * 80);
+  }
+  // Chocolate factory: melted chocolate pours down the back wall, then sprinkles everywhere
+  const pourTex = canvasTex(256, 512, g => { const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, '#7a3f1d'); gr.addColorStop(1, '#4a2414'); g.fillStyle = gr; g.fillRect(0, 0, 256, 512); g.fillStyle = 'rgba(255,230,200,.18)'; for (let i = 0; i < 40; i++) g.fillRect(Math.random() * 256, Math.random() * 512, 3, 40 + Math.random() * 80); });
+  pourTex.t.wrapT = THREE.RepeatWrapping;
+  const pour = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.6, 0.6), new THREE.MeshBasicMaterial({ map: pourTex.t, transparent: true, opacity: 0.95 })); pour.position.set(0, 1.2, BACK + 0.012); pour.visible = false; scene.add(pour);
+  function fxWaterfall() {
+    bloop(10); let tt = 0; pour.visible = true; pour.material.opacity = 0.95;
+    fxTasks.push(dt => {
+      tt += dt; pourTex.t.offset.y -= dt * 1.6;
+      pour.position.y = Math.max(0.47, 1.2 - tt * 0.5);
+      if (tt > 1.4 && Math.random() < 0.6) burst((Math.random() - 0.5) * W * 1.4, 0.18, BACK + 0.05, 3, 0.25, [0.9, 0.45, 0.2]);
+      if (tt > 3.6) { pour.material.opacity = Math.max(0, 0.95 - (tt - 3.6)); if (pour.material.opacity <= 0) { pour.visible = false; return false; } }
+    });
+    setTimeout(fxSprinkles, 1200);
+  }
+  function fxSprinkles() {
+    const cols = [[2, 0.5, 1.2], [0.4, 1.8, 1.4], [2, 1.7, 0.3], [0.9, 0.6, 2], [2, 0.8, 0.3]];
+    bloop(8);
+    for (let k = 0; k < 10; k++) setTimeout(() => burst((Math.random() - 0.5) * 0.6, 0.3 + Math.random() * 0.3, -0.3 + Math.random() * 0.4, 45, 1.2, cols[k % cols.length]), k * 140);
   }
   // an announcer, using the browser's own speech (no audio files)
   function voice(en, zh) {
@@ -568,7 +717,7 @@ function start() {
     else if (b.k === 'walls') wallUp = 15;
     else if (b.k === 'topple') { if (!toppleTower()) rain(6, false); }
     else if (b.k === 'star') { JP.stars++; if (JP.stars >= 3) { if (sim) superJackpot(); else setTimeout(superJackpot, 1200); } else { saveJP(); if (!sim) paintMeter(true); } }
-    else if (b.k === 'jp') { jpChance(); if (!sim) { lamp.redraw(tr('JP CHANCE'), tr('the ball decides'), '#ff5a7a'); voice('Jackpot chance!', '大奖机会！'); } return; }
+    else if (b.k === 'jp') { jpChance(); if (!sim) { lamp.redraw(tr('JP CHANCE'), tr('the ball decides'), '#ff5a7a'); voice(...THEME.voice.chance); } return; }
     if (sim) return;
     window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: b.k } }));
     lamp.redraw(tr(b.big), tr(b.small), b.k === 'none' ? '#9a8a7a' : b.k === 'star' ? '#d9a8ff' : '#ffd36a');
@@ -670,6 +819,10 @@ function start() {
   $('#pzDrop').onclick = () => { audio(); drop(); };
   let auto = false, autoT = 0;
   const paintAuto = () => { $('#pzAuto').setAttribute('aria-pressed', String(auto)); $('#pzAuto').classList.toggle('on', auto); $('#pzAuto').textContent = auto ? 'Auto on' : 'Auto'; };
+  // switching theme reloads the page with the other theme (the pile and the jackpots are kept)
+  const themeIds = Object.keys(THEMES);
+  $('#pzTheme').textContent = `${tr('Theme')}: ${tr(THEME.name)}`;
+  $('#pzTheme').onclick = () => { savePile(); flush(); const next = themeIds[(themeIds.indexOf(THEME.id) + 1) % themeIds.length]; try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ } location.reload(); };
   $('#pzAuto').onclick = () => { audio(); auto = !auto; paintAuto(); };
   document.addEventListener('keydown', e => {
     if (e.code === 'Space' && e.target.tagName !== 'BUTTON') { e.preventDefault(); drop(); }
@@ -757,8 +910,9 @@ function start() {
     // lights: chase normally, flash during a bonus
     if (superT > 0) superT -= dt;
     const party = slot.active || wheel.active || rainQ.length > 0 || shake > 0.3 || superT > 0;
-    bulbs.forEach((b, i) => { const on = party ? (Math.floor(t * 14) + i) % 2 === 0 : (i + Math.floor(t * 6)) % 3 === 0; const hue = party ? ((i * 0.09 + t) % 1) : 0.12; if (on) b.material.color.setHSL(hue, 1, 0.75).multiplyScalar(2.6); else b.material.color.setRGB(0.5, 0.35, 0.12); });
-    ledM.color.setRGB(2.4 + Math.sin(t * 3) * 0.4, 1.7, 0.6);
+    bulbs.forEach((b, i) => { const on = party ? (Math.floor(t * 14) + i) % 2 === 0 : (i + Math.floor(t * 6)) % 3 === 0; const hue = party ? ((i * 0.09 + t) % 1) : THEME.bulbHue; if (on) b.material.color.setHSL(hue, 1, 0.75).multiplyScalar(2.6); else b.material.color.setRGB(0.5, 0.35, 0.12); });
+    ledM.color.setRGB(THEME.led[0] + Math.sin(t * 3) * 0.4, THEME.led[1], THEME.led[2]);
+    stepFx(dt, t);
     // the win counter rolls up
     if (shown < won) { shown = Math.min(won, shown + Math.max(1, (won - shown) * dt * 6)); info(); }
     if (auto) { autoT += dt; if (autoT > 0.65) { autoT = 0; drop(); } }
@@ -800,6 +954,7 @@ function start() {
     column(x = 0, z = 0.08) { return coins.map(c => c.body.translation()).filter(p => (p.x - x) ** 2 + (p.z - z) ** 2 < 0.0004).map(p => +p.y.toFixed(3)).sort((a, b) => a - b); },
     bonus(k) { if (slot.active || wheel.active) return; spinSlot(BONUS.find(b => b.k === k) || BONUS[0]); },
     jp() { jpChance(); },
+    fx(kind, sec = 1.6) { if (kind === 'waterfall') fxWaterfall(); else if (kind === 'dragon') fxDragon(); else if (kind === 'sprinkles') fxSprinkles(); else fxFirecrackers(); for (let i = 0; i < Math.round(sec * 60); i++) { stepFx(1 / 60, i / 60); stepSparks(1 / 60); } },
     jpPocket(pk) { jpResult(pk); },
     advance(sec) { const n = Math.round(sec * 60); for (let i = 0; i < n; i++) { stepSlot(1 / 60); stepWheel(1 / 60); physStep(); } return this.slotState(); },
     slotState() { return { active: slot.active, reach: slot.reach, t: +slot.t.toFixed(2), reels: reels.map(r => ({ state: r.state, p: +r.p.toFixed(2), target: r.target, show: STRIP[((Math.round(r.p)) % STRIP.length + STRIP.length) % STRIP.length] })), wheel: { active: wheel.active, vis: wheel.g.visible, k: POCKETS[wheel.k] } }; },
