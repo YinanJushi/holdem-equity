@@ -1,5 +1,5 @@
 // Blackjack in 3D: turns the table description from blackjack.js into cards, chips and labels on a 3D table.
-import { createCasino, barButton } from './casino3d.js?v=38';
+import { createCasino, barButton } from './casino3d.js?v=44';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'bj') : null;
@@ -27,7 +27,9 @@ if (C) {
       h.cards.forEach((c, i) => {
         // a doubled hand gets its last card turned sideways, like at a real table
         const side = h.doubled && i === 2;
-        list.push({ key: `${R}h${k}-${i}`, c, x: hx + i * 0.042 - 0.021 * Math.min(1, h.cards.length - 1), z: 0.4 - i * 0.04, tilt: 0.42, y: 0.004 * i, yaw: side ? Math.PI / 2 : 0 });
+        // cascade up and to the right, each card resting on the one before (no cards cutting through each other)
+        const q = C.onPlane(hx - 0.021 * Math.min(1, h.cards.length - 1), 0.42, 0.42, i * 0.045, i * 0.042, i);
+        list.push({ key: `${R}h${k}-${i}`, c, ...q, yaw: side ? Math.PI / 2 : 0 });
       });
     });
     C.setCards(list);

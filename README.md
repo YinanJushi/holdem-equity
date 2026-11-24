@@ -74,3 +74,8 @@ Then open http://localhost:8765.
 - `index.html`, `blackjack.html`, `slots.html`, `stats.html`: pages
 
 > Advice and analysis are for practice and hand review. Don't use it during real-money games.
+
+## Credits
+
+- 3D faces at the card tables: "Infinite" 3D head scan by Lee Perry-Smith (Infinite-Realities), licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), loaded from the three.js examples. The head is trimmed to the neck and tinted per character.
+- 3D rendering: [three.js](https://threejs.org) (MIT).
