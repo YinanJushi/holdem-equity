@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=58';
+import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=59';
 
 const FLOOR = -0.76;                       // the floor, with the table top at y = 0 (metres)
 const CW = 0.102, CH = 0.143;              // card size (a little larger than life so it reads on screen)
@@ -118,77 +118,102 @@ export function createCasino(host, kind) {
   function limb(mesh, a, b) { const d = new THREE.Vector3().subVectors(b, a), L = d.length(); mesh.position.copy(a).addScaledVector(d, 0.5); mesh.quaternion.setFromUnitVectors(UP, d.normalize()); mesh.scale.set(1, L / mesh.userData.len, 1); }
   function person({ shirt = '#e8e2d6', vest = null, hair = '#2a1a12', hairStyle = 'short', skin = [1, 1, 1], bow = null, glasses = false, trousers = '#15110f', seated = true } = {}) {
     const g = new THREE.Group();
-    const sm = new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.78 });
+    const sm = new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.8 });
     const tint = new THREE.Color(skin[0], skin[1], skin[2]);
     const km = new THREE.MeshStandardMaterial({ color: new THREE.Color('#d8b496').multiply(tint), roughness: 0.6 });
-    // torso shaped on a lathe: waist, chest, broad shoulders, narrowing to the neck
-    const prof = [[0.135, -0.02], [0.145, 0.06], [0.158, 0.16], [0.168, 0.26], [0.172, 0.33], [0.16, 0.38], [0.11, 0.425], [0.055, 0.45]].map(([r, y]) => new THREE.Vector2(r, y));
-    const torso = new THREE.Mesh(new THREE.LatheGeometry(prof, 28), sm); torso.scale.set(1.12, 1, 0.66); g.add(torso);
+    // torso: one smooth lathe from waist through chest to rounded shoulders and the base of the neck
+    const prof = [[0.128, -0.04], [0.136, 0.05], [0.148, 0.15], [0.158, 0.25], [0.164, 0.31], [0.158, 0.35], [0.13, 0.385], [0.085, 0.41], [0.05, 0.42]].map(([r, y]) => new THREE.Vector2(r, y));
+    const torso = new THREE.Mesh(new THREE.LatheGeometry(prof, 36), sm); torso.scale.set(1.28, 1, 0.66); g.add(torso);
     if (vest) { // open at the front so the shirt and tie show
-      const vp = prof.slice(0, 6).map(v => new THREE.Vector2(v.x + 0.006, v.y));
-      const v = new THREE.Mesh(new THREE.LatheGeometry(vp, 28, 0.42, Math.PI * 2 - 0.84), new THREE.MeshStandardMaterial({ color: vest, roughness: 0.55, side: THREE.DoubleSide }));
+      const vp = prof.slice(0, 7).map(v => new THREE.Vector2(v.x + 0.005, v.y));
+      const v = new THREE.Mesh(new THREE.LatheGeometry(vp, 36, 0.4, Math.PI * 2 - 0.8), new THREE.MeshStandardMaterial({ color: vest, roughness: 0.55, side: THREE.DoubleSide }));
       v.scale.copy(torso.scale); g.add(v);
-      [-1, 1].forEach(sd => { const btn = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), M.gold); btn.position.set(sd * 0.045, 0.12 + (sd > 0 ? 0.06 : 0), 0.112); g.add(btn); });
+      [0, 1, 2].forEach(i => { const btn = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 6), M.gold); btn.position.set(0.045, 0.08 + i * 0.06, 0.1); g.add(btn); });
     }
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 8, 20), sm); collar.rotation.x = Math.PI / 2; collar.position.y = 0.445; g.add(collar);
+    // collar points (a shirt) or a crew neck (a sweater)
+    if (vest || bow) [-1, 1].forEach(sd => { const c = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.05, 3), sm); c.position.set(sd * 0.024, 0.405, 0.045); c.rotation.set(0.5, 0, sd * 2.3); g.add(c); });
+    else { const c = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.012, 8, 24), sm); c.rotation.x = Math.PI / 2; c.position.y = 0.415; g.add(c); }
     if (bow) {
       const bm = new THREE.MeshStandardMaterial({ color: bow, roughness: 0.45 });
-      [-1, 1].forEach(sd => { const w = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.034, 10), bm); w.rotation.z = sd * Math.PI / 2; w.position.set(sd * 0.017, 0.43, 0.06); g.add(w); });
-      const knot = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), bm); knot.position.set(0, 0.43, 0.062); g.add(knot);
+      [-1, 1].forEach(sd => { const w = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.03, 10), bm); w.rotation.z = sd * Math.PI / 2; w.position.set(sd * 0.015, 0.395, 0.055); g.add(w); });
+      const knot = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 6), bm); knot.position.set(0, 0.395, 0.057); g.add(knot);
     }
-    [-1, 1].forEach(sd => { const sh = new THREE.Mesh(new THREE.SphereGeometry(0.052, 16, 12), sm); sh.scale.set(1, 0.85, 0.95); sh.position.set(sd * 0.18, 0.37, 0); g.add(sh); });
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.043, 0.05, 0.08, 14), km); neck.position.y = 0.47; g.add(neck);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.046, 0.06, 16), km); neck.position.y = 0.435; g.add(neck);
     // head: a soft rounded head with the face left blurred
-    const headG = new THREE.Group(); headG.position.y = 0.5; g.add(headG);
+    const headG = new THREE.Group(); headG.position.y = 0.455; g.add(headG);
     const look = new THREE.Group(); look.rotation.x = 0.1; headG.add(look);   // eyes a little down, on the table
-    const hc = new THREE.Vector3(0, 0.1, 0);   // centre of the head
-    const hg = new THREE.SphereGeometry(0.095, 40, 30), hp = hg.attributes.position;
-    for (let i = 0; i < hp.count; i++) { const y = hp.getY(i); if (y < 0) { const k = 1 - Math.min(1, -y / 0.095) * 0.22; hp.setX(i, hp.getX(i) * k); hp.setZ(i, hp.getZ(i) * (k + 0.06)); } }
+    const hc = new THREE.Vector3(0, 0.09, 0);   // centre of the head
+    const hg = new THREE.SphereGeometry(0.092, 40, 30), hp = hg.attributes.position;
+    for (let i = 0; i < hp.count; i++) { const y = hp.getY(i); if (y < 0) { const k = 1 - Math.min(1, -y / 0.092) * 0.22; hp.setX(i, hp.getX(i) * k); hp.setZ(i, hp.getZ(i) * (k + 0.06)); } }
     hg.computeVertexNormals();
-    // no drawn features: just soft, blurred shading where eyes, nose and mouth would be
-    const skull = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ map: blurFace(), color: km.color, roughness: 0.62 })); skull.scale.set(0.94, 1.08, 0.98); skull.position.copy(hc); look.add(skull);
-    [-1, 1].forEach(sd => { const ear = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 10), km); ear.scale.set(0.5, 1, 0.75); ear.position.set(sd * 0.09, hc.y, -0.005); look.add(ear); });
-    // hair
-    const hairM = new THREE.MeshStandardMaterial({ color: hair, roughness: 0.75 });
+    const SK = new THREE.Vector3(0.94, 1.1, 0.98);
+    const skull = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ map: blurFace(), color: km.color, roughness: 0.62 })); skull.scale.copy(SK); skull.position.copy(hc); look.add(skull);
+    [-1, 1].forEach(sd => { const ear = new THREE.Mesh(new THREE.SphereGeometry(0.019, 12, 10), km); ear.scale.set(0.45, 1, 0.7); ear.position.set(sd * 0.087, hc.y, -0.005); look.add(ear); });
+    // hair hugs the skull: crown and sides down to the ears, a nape at the back, the forehead left clear
+    const hairM = new THREE.MeshStandardMaterial({ color: hair, roughness: 0.78 });
     if (hairStyle !== 'none') {
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), hairM);
-      cap.scale.set(0.98, 0.9, 1.05); cap.position.set(0, hc.y + 0.012, -0.008); cap.rotation.x = -0.35; look.add(cap);
-      const fringe = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.4), hairM);
-      fringe.scale.set(1.35, 0.55, 0.9); fringe.position.set(-0.012, hc.y + 0.058, 0.04); fringe.rotation.set(0.45, 0, 0.25); look.add(fringe);
+      const R = 0.092 * 1.05;
+      const crown = new THREE.Mesh(new THREE.SphereGeometry(R, 40, 20, 0, Math.PI * 2, 0, Math.PI * 0.42), hairM);
+      crown.scale.copy(SK); crown.position.set(0, hc.y + 0.004, -0.006); crown.rotation.x = -0.32; look.add(crown);
+      const nape = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 12, Math.PI, Math.PI, Math.PI * 0.3, Math.PI * 0.32), hairM);
+      nape.scale.copy(SK); nape.position.copy(hc); look.add(nape);
+      if (hairStyle === 'short') { const part = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.45), hairM); part.scale.set(1.5, 0.45, 1.0); part.position.set(-0.01, hc.y + 0.075, 0.04); part.rotation.set(0.5, 0, 0.2); look.add(part); }
     }
-    if (hairStyle === 'long') { const back = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.11, 6, 16), hairM); back.scale.z = 0.6; back.position.set(0, hc.y - 0.055, -0.05); look.add(back); }
-    if (hairStyle === 'bun') { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.036, 16, 12), hairM); bun.position.set(0, hc.y + 0.085, -0.06); look.add(bun); }
-    // arms: placed by a two-bone reach, so hands land exactly where they are put (on the table, not through it)
-    const capsule = (r, len, mat) => { const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 12), mat); m.userData.len = len + r * 2; return m; };
+    if (hairStyle === 'long') { const back = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.12, 8, 20), hairM); back.scale.set(1.2, 1, 0.55); back.position.set(0, hc.y - 0.06, -0.05); look.add(back); }
+    if (hairStyle === 'bun') { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.034, 16, 12), hairM); bun.position.set(0, hc.y + 0.08, -0.065); look.add(bun); }
+    // arms: tapered sleeves with a rounded shoulder and elbow, and real hands (palm, fingers, thumb)
+    const seg = (r0, r1, mat) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, 1, 16), mat); m.userData.len = 1; return m; };
     const arms = {};
     [['L', -1], ['R', 1]].forEach(([k, sd]) => {
-      const up = capsule(0.04, 0.2, sm), fo = capsule(0.035, 0.19, sm);
-      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.03, 12), new THREE.MeshStandardMaterial({ color: vest ? '#f4f1ea' : shirt, roughness: 0.7 }));
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.036, 14, 10), km); hand.scale.set(1.0, 0.5, 1.4);
-      g.add(up, fo, cuff, hand);
-      arms[k] = { sd, up, fo, cuff, hand, shoulder: new THREE.Vector3(sd * 0.18, 0.37, 0), L1: 0.27, L2: 0.26 };
+      const sh = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 12), sm);
+      const up = seg(0.043, 0.037, sm), el = new THREE.Mesh(new THREE.SphereGeometry(0.037, 14, 10), sm), fo = seg(0.036, 0.03, sm);
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.022, 14), new THREE.MeshStandardMaterial({ color: vest ? '#f4f1ea' : shirt, roughness: 0.7 }));
+      const hand = new THREE.Group();
+      const palm = new THREE.Mesh(new RoundedBoxGeometry(0.062, 0.02, 0.07, 3, 0.009), km); palm.position.z = 0.03; hand.add(palm);
+      const fingers = new THREE.Mesh(new RoundedBoxGeometry(0.058, 0.014, 0.05, 3, 0.006), km); fingers.position.set(0, -0.003, 0.085); fingers.rotation.x = 0.12; hand.add(fingers);
+      const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.009, 0.03, 4, 8), km); thumb.rotation.set(Math.PI / 2, 0, -sd * 0.6); thumb.position.set(-sd * 0.035, 0.002, 0.04); hand.add(thumb);
+      g.add(sh, up, el, fo, cuff, hand);
+      sh.position.set(sd * 0.185, 0.345, 0);
+      arms[k] = { sd, up, el, fo, cuff, hand, shoulder: new THREE.Vector3(sd * 0.185, 0.345, 0), L1: 0.27, L2: 0.25 };
     });
+    const fwd = new THREE.Vector3(0, 0, 1);
+    function place(A, E, H) {
+      limb(A.up, A.shoulder, E); A.el.position.copy(E); limb(A.fo, E, H);
+      const fd = new THREE.Vector3().subVectors(H, E).normalize();
+      A.cuff.position.copy(H).addScaledVector(fd, -0.012); A.cuff.quaternion.setFromUnitVectors(UP, fd);
+      // the hand lies along the forearm's heading, palm down
+      const flat = new THREE.Vector3(fd.x, 0, fd.z); if (flat.lengthSq() < 1e-6) flat.set(0, 0, 1); flat.normalize();
+      A.hand.position.copy(H); A.hand.quaternion.setFromUnitVectors(fwd, flat);
+      A.hand.rotateX(Math.max(-0.5, Math.min(0.5, -Math.asin(Math.max(-1, Math.min(1, fd.y))) * 0.4)));
+    }
+    // two-bone reach: the hand goes where it is put, the elbow finds itself (down and a little out)
     function reach(k, x, y, z) {
       const A = arms[k], S = A.shoulder, T2 = new THREE.Vector3(x, y, z);
       const d = new THREE.Vector3().subVectors(T2, S); let dist = d.length();
       const max = A.L1 + A.L2 - 0.002; if (dist > max) { d.setLength(max); T2.copy(S).add(d); dist = max; }
       const dn = d.clone().normalize();
       const a = (A.L1 * A.L1 - A.L2 * A.L2 + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, A.L1 * A.L1 - a * a));
-      const bend = new THREE.Vector3(A.sd * 0.22, -1, -0.2); bend.addScaledVector(dn, -bend.dot(dn)).normalize();
-      const E = S.clone().addScaledVector(dn, a).addScaledVector(bend, h);
-      limb(A.up, S, E); limb(A.fo, E, T2);
-      const fd = new THREE.Vector3().subVectors(T2, E).normalize();
-      A.cuff.position.copy(T2).addScaledVector(fd, -0.035); A.cuff.quaternion.setFromUnitVectors(UP, fd);
-      A.hand.position.copy(T2).addScaledVector(fd, 0.02); A.hand.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(fd.x, 0, fd.z).normalize());
+      const bend = new THREE.Vector3(A.sd * 0.35, -1, -0.25); bend.addScaledVector(dn, -bend.dot(dn)).normalize();
+      place(A, S.clone().addScaledVector(dn, a).addScaledVector(bend, h), T2);
+    }
+    // seated at a table: forearm resting on the padded rail, hand on the felt just inside it
+    // railD: how far ahead the rail is; railY / feltY: their heights, all in this person's own coordinates
+    function rest(k, railD, railY, feltY, spread = 0.13, lift = 0) {
+      const A = arms[k];
+      const E = new THREE.Vector3(A.sd * (spread + 0.06), railY + 0.05 + lift, railD - 0.05);
+      const H = new THREE.Vector3(A.sd * spread, feltY + 0.012 + lift, railD + 0.11);
+      place(A, E, H);
     }
     // lower body: hips, thighs forward, shins down to the floor (mostly under the table, but no floating torsos)
     const tm = new THREE.MeshStandardMaterial({ color: trousers, roughness: 0.8 });
-    const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.15, 0.1, 20), tm); hips.scale.z = 0.7; hips.position.y = -0.06; g.add(hips);
+    const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.148, 0.1, 24), tm); hips.scale.z = 0.72; hips.position.y = -0.08; g.add(hips);
+    const leg = (r, mat) => { const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, 1, 4, 12), mat); m.userData.len = 1 + r * 2; return m; };
     if (seated) [-1, 1].forEach(sd => {
-      const th = capsule(0.07, 0.3, tm); limb(th, new THREE.Vector3(sd * 0.09, -0.08, 0), new THREE.Vector3(sd * 0.1, -0.1, 0.4)); g.add(th);
-      const sh = capsule(0.055, 0.34, tm); limb(sh, new THREE.Vector3(sd * 0.1, -0.1, 0.4), new THREE.Vector3(sd * 0.1, -0.52, 0.44)); g.add(sh);
+      const th = leg(0.068, tm); limb(th, new THREE.Vector3(sd * 0.085, -0.1, 0), new THREE.Vector3(sd * 0.095, -0.12, 0.38)); g.add(th);
+      const sh = leg(0.052, tm); limb(sh, new THREE.Vector3(sd * 0.095, -0.12, 0.38), new THREE.Vector3(sd * 0.095, -0.6, 0.42)); g.add(sh);
+      const shoe = new THREE.Mesh(new RoundedBoxGeometry(0.085, 0.05, 0.16, 3, 0.02), M.black); shoe.position.set(sd * 0.095, -0.62, 0.46); g.add(shoe);
     });
-    g.userData = { head: headG, torso, reach, arms };
+    g.userData = { head: headG, torso, reach, rest, arms };
     reach('L', -0.16, 0.05, 0.4); reach('R', 0.16, 0.05, 0.4);
     g.traverse(o => { if (o.isMesh) o.castShadow = true; });
     return g;
@@ -812,36 +837,62 @@ export function createCasino(host, kind) {
         g.beginPath(); g.moveTo(x, y); g.lineTo(x + 40, y); g.lineTo(x + 40, y + 40); g.lineTo(x + 10, y + 40); g.lineTo(x + 10, y + 14); g.lineTo(x + 28, y + 14); g.lineTo(x + 28, y + 28); g.stroke();
       }
     }, false);
-    const screenM = new THREE.MeshStandardMaterial({ color: '#d4a84a', metalness: 0.9, roughness: 0.3, alphaMap: fret, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide });
-    const screenPanel = new THREE.PlaneGeometry(1.2, 2.6);
-    [[-3.6, -4.6, 0.15], [-2.3, -4.9, 0.08], [2.3, -4.9, -0.08], [3.6, -4.6, -0.15], [-5.2, -1.2, 1.35], [5.2, -1.6, -1.35]].forEach(([x, z, ry]) => {
-      const p = new THREE.Mesh(screenPanel, screenM); p.position.set(x, FLOOR + 1.3, z); p.rotation.y = ry; scene.add(p);
-      const frame = new THREE.Mesh(new THREE.BoxGeometry(1.26, 0.06, 0.06), M.gold); frame.position.set(x, FLOOR + 2.62, z); frame.rotation.y = ry; scene.add(frame);
+    const screenM = new THREE.MeshStandardMaterial({ color: '#8a6a2e', metalness: 0.75, roughness: 0.5, envMapIntensity: 0.5, alphaMap: fret, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide });
+    const screenPanel = new THREE.PlaneGeometry(1.0, 2.1);
+    [[-4.6, -5.6, 0.2], [-5.7, -5.2, 0.35], [4.6, -5.6, -0.2], [5.7, -5.2, -0.35]].forEach(([x, z, ry]) => {
+      const p = new THREE.Mesh(screenPanel, screenM); p.position.set(x, FLOOR + 1.05, z); p.rotation.y = ry; scene.add(p);
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(1.04, 0.05, 0.05), M.gold); frame.position.set(x, FLOOR + 2.12, z); frame.rotation.y = ry; scene.add(frame);
     });
 
-    // slot machines along the back and left walls: dark cabinets, soft screens, gentle topper lights
-    const bodies = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 1.55, 0.6), new THREE.MeshStandardMaterial({ color: '#3a0a18', metalness: 0.5, roughness: 0.35 }), 40);
-    const screens = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.52, 0.42), new THREE.MeshBasicMaterial({ color: '#ffffff' }), 40);
-    const tops = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.3, 0.3, 0.16, 20, 1, false, 0, Math.PI), new THREE.MeshBasicMaterial({ color: '#ffffff' }), 40);
+    // slot machines along the back and left walls: rounded cabinets, a reel window with real symbols,
+    // a sloped button deck, a lit topper and light strips down the sides
+    const reelTex = canvasTex(256, 192, (g, w, h) => {
+      g.fillStyle = '#1a0a0c'; g.fillRect(0, 0, w, h);
+      const sym = ['7', '♦', 'BAR', '♣', '★', '7', '♥', 'BAR', '♠'], cols = ['#d81b3c', '#2a5bb5', '#1b1a1f', '#19703f', '#d4a12a', '#d81b3c', '#c2185b', '#1b1a1f', '#1b1a1f'];
+      for (let r = 0; r < 3; r++) {
+        const x = 14 + r * 78;
+        const gr = g.createLinearGradient(0, 10, 0, h - 10); gr.addColorStop(0, '#cfc6b0'); gr.addColorStop(0.18, '#fffaf0'); gr.addColorStop(0.82, '#fffaf0'); gr.addColorStop(1, '#cfc6b0');
+        g.fillStyle = gr; g.fillRect(x, 10, 72, h - 20);
+        for (let k = 0; k < 3; k++) { const i = (r * 3 + k * 2) % sym.length; g.fillStyle = cols[i]; g.font = `700 ${sym[i] === 'BAR' ? 22 : 40}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(sym[i], x + 36, 40 + k * 56); }
+      }
+      g.strokeStyle = '#d4a12a'; g.lineWidth = 4; g.strokeRect(4, 4, w - 8, h - 8);
+      g.strokeStyle = 'rgba(255,60,60,.8)'; g.lineWidth = 3; g.beginPath(); g.moveTo(8, h / 2); g.lineTo(w - 8, h / 2); g.stroke();
+    });
+    const CAB = 40;
+    const bodies = new THREE.InstancedMesh(new RoundedBoxGeometry(0.66, 1.45, 0.58, 3, 0.05), new THREE.MeshStandardMaterial({ color: '#4a0c1e', metalness: 0.55, roughness: 0.35 }), CAB);
+    const screens = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.5, 0.38), new THREE.MeshBasicMaterial({ map: reelTex }), CAB);
+    const bezels = new THREE.InstancedMesh(new THREE.BoxGeometry(0.56, 0.44, 0.02), M.gold, CAB);
+    const decks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.62, 0.05, 0.2), new THREE.MeshStandardMaterial({ color: '#160608', roughness: 0.4 }), CAB);
+    const tops = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.33, 0.33, 0.5, 24, 1, false, 0, Math.PI), new THREE.MeshBasicMaterial({ color: '#ffffff' }), CAB);
+    const strips = new THREE.InstancedMesh(new THREE.BoxGeometry(0.025, 1.2, 0.025), new THREE.MeshBasicMaterial({ color: '#ffffff' }), CAB * 2);
     let n = 0;
     const put = (x, z, ry) => {
-      const qq = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0));
-      m4.compose(new THREE.Vector3(x, FLOOR + 0.775, z), qq, V1); bodies.setMatrixAt(n, m4);
-      const off = new THREE.Vector3(0, 0.25, 0.301).applyQuaternion(qq);
-      m4.compose(new THREE.Vector3(x + off.x, FLOOR + 1.025, z + off.z), qq, V1); screens.setMatrixAt(n, m4);
-      const tq = qq.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, -Math.PI / 2)));
-      m4.compose(new THREE.Vector3(x, FLOOR + 1.6, z), tq, V1); tops.setMatrixAt(n, m4);
+      const qq = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), at = (dx, dy, dz) => new THREE.Vector3(dx, dy, dz).applyQuaternion(qq).add(new THREE.Vector3(x, FLOOR, z));
+      m4.compose(at(0, 0.725, 0), qq, V1); bodies.setMatrixAt(n, m4);
+      m4.compose(at(0, 1.08, 0.296), qq, V1); bezels.setMatrixAt(n, m4);
+      m4.compose(at(0, 1.08, 0.308), qq, V1); screens.setMatrixAt(n, m4);
+      m4.compose(at(0, 0.78, 0.36), qq.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, 0, 0))), V1); decks.setMatrixAt(n, m4);
+      m4.compose(at(0, 1.45, 0), qq.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2))).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0))), new THREE.Vector3(1, 1, 1)); tops.setMatrixAt(n, m4);
+      m4.compose(at(-0.34, 0.8, 0.27), qq, V1); strips.setMatrixAt(n * 2, m4);
+      m4.compose(at(0.34, 0.8, 0.27), qq, V1); strips.setMatrixAt(n * 2 + 1, m4);
       n++;
     };
     for (let i = 0; i < 12; i++) put(-4.6 + i * 0.84, -RAD + 0.5, 0);
     for (let i = 0; i < 10; i++) put(-RAD + 0.5, -6 + i * 0.84, Math.PI / 2);
     for (let i = 0; i < 8; i++) put(-3.1 + i * 0.84, -6.6, 0);
-    bodies.count = screens.count = tops.count = n;
-    const SC = [[0.9, 0.35, 0.5], [0.3, 0.55, 0.95], [0.95, 0.7, 0.25], [0.5, 0.85, 0.5], [0.85, 0.3, 0.3], [0.6, 0.35, 0.9]];
-    const paint = t => { for (let i = 0; i < n; i++) { const c = SC[(i + Math.floor(t * 0.5 + i * 0.37)) % SC.length], f = 0.7 + 0.2 * Math.sin(t * 1.5 + i); screens.setColorAt(i, col.setRGB(c[0] * f, c[1] * f, c[2] * f)); const on = (Math.floor(t * 1.5) + i) % 4 === 0; tops.setColorAt(i, col.setRGB(on ? 1.15 : 0.7, on ? 0.85 : 0.45, on ? 0.45 : 0.22)); } screens.instanceColor.needsUpdate = true; tops.instanceColor.needsUpdate = true; };
+    bodies.count = screens.count = bezels.count = decks.count = tops.count = n; strips.count = n * 2;
+    const SC = [[1.0, 0.45, 0.55], [0.5, 0.7, 1.0], [1.0, 0.8, 0.4], [0.6, 1.0, 0.6], [1.0, 0.5, 0.35], [0.8, 0.55, 1.0]];
+    const paint = t => {
+      for (let i = 0; i < n; i++) {
+        const f = 0.78 + 0.08 * Math.sin(t * 1.2 + i); screens.setColorAt(i, col.setRGB(f, f, f * 0.96));
+        const c = SC[i % SC.length], on = (Math.floor(t * 1.5) + i) % 4 === 0, k = on ? 1.15 : 0.75; tops.setColorAt(i, col.setRGB(c[0] * k, c[1] * k, c[2] * k));
+        for (let j = 0; j < 2; j++) { const lit = (Math.floor(t * 3) + i + j) % 3 === 0; strips.setColorAt(i * 2 + j, col.setRGB(lit ? 1.2 : 0.55, lit ? 0.85 : 0.35, lit ? 0.4 : 0.15)); }
+      }
+      screens.instanceColor.needsUpdate = true; tops.instanceColor.needsUpdate = true; strips.instanceColor.needsUpdate = true;
+    };
     paint(0);
     let lastP = 0; animated.push(t => { if (t - lastP > 0.2) { lastP = t; paint(t); } });
-    scene.add(bodies, screens, tops);
+    scene.add(bodies, screens, bezels, decks, tops, strips);
 
     // baccarat tables with silk drum lamps and seated guests
     [[-4.2, -2.6], [4.0, -3.6], [-5.6, 4.0], [2.8, 6.0]].forEach(([x, z], i) => {
@@ -857,7 +908,7 @@ export function createCasino(host, kind) {
         const a = (sN / 3) * Math.PI * 2 + i, k = (sN + i) % 5;
         const p = person({ shirt: ['#1e2433', '#5a1a2a', '#22303a', '#3a2a1a', '#2a2a2a'][k], hair: ['#1a1208', '#5a3a1a', '#0a0a0a', '#8a8a8a', '#3a2412'][k], hairStyle: ['short', 'long', 'short', 'none', 'bun'][k], skin: SKINS[k], glasses: k === 3 });
         p.position.set(Math.cos(a) * 1.32, -0.12, Math.sin(a) * 1.32); p.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a)); t.add(p);
-        p.userData.reach('L', -0.15, 0.17, 0.36); p.userData.reach('R', 0.15, 0.17, 0.36);
+        p.userData.rest('L', 0.3, 0.19, 0.145); p.userData.rest('R', 0.3, 0.19, 0.145);
         const ph = Math.random() * 6; animated.push(tt => { p.userData.head.rotation.y = Math.sin(tt * 0.35 + ph) * 0.35; });
       }
     });
@@ -1114,18 +1165,18 @@ export function tableChrome(casino, items) {
   // fit the table to the window: whatever height the header, the controls under the table and a margin leave
   function fit() {
     if (!document.body.classList.contains('t3d-on')) return;
-    // only one of these bars shows at a time; measure the hidden ones too (invisibly) and keep room for the tallest,
-    // so the table doesn't jump (and the canvas doesn't flash) each time the bar changes
-    let below = 0;
+    // the controls sit in a bar along the bottom of the screen; only one shows at a time, so keep the bar as tall
+    // as the tallest one (measuring hidden ones invisibly) and the table never jumps or flashes mid-hand
+    let hud = 0;
     for (let el = table.nextElementSibling; el; el = el.nextElementSibling) {
       if (el.id === 'session' || el.id === 'manualTools') continue;
+      const ms = el.style.minHeight; el.style.minHeight = '0px';
       let h = el.offsetHeight;
       if (el.hidden) { el.style.visibility = 'hidden'; el.hidden = false; h = el.offsetHeight; el.hidden = true; el.style.visibility = ''; }
-      below = Math.max(below, h);
+      el.style.minHeight = ms;
+      hud = Math.max(hud, h);
     }
-    below += 14;
-    const top = table.getBoundingClientRect().top + window.scrollY;
-    document.documentElement.style.setProperty('--t3-reserve', Math.round(top + below + 18) + 'px');
+    document.documentElement.style.setProperty('--t3-hud', Math.round(hud) + 'px');
   }
   const ro = new ResizeObserver(fit);
   for (let el = table.nextElementSibling; el; el = el.nextElementSibling) ro.observe(el);

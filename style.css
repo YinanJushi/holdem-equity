@@ -676,3 +676,16 @@ html.t3d-wait #table > :not(.t3-host) { visibility: hidden; }
   body.t3d-on:not(.t3-sizes) #raiseWrap { display: none; }
   body.t3d-on #betBar .bb-foot .hint { display: none; }
 }
+
+/* ---------- true full screen: the table covers the window, the controls are a bar along the bottom ---------- */
+body.t3d-on { overflow: hidden; }
+body.t3d-on .foot, body.t3d-on #session { display: none !important; }
+html body.t3d-on #table { position: fixed; left: 0; right: 0; top: 0; width: 100vw; height: calc(100dvh - var(--t3-hud, 180px)); max-width: none; margin: 0; border-radius: 0; box-shadow: none; z-index: 1; }
+body.t3d-on .left > #table ~ :not(#session):not(#manualTools) {
+  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 5; margin: 0; box-sizing: border-box;
+  width: min(860px, 100vw); min-height: var(--t3-hud, 0px); padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: #1a0b0d; border-top: 1px solid rgba(201,154,46,.4); border-radius: 0;
+}
+body.t3d-on .left > #table ~ [hidden] { display: none !important; }
+@media (min-width: 861px) { body.t3d-on .left > #table ~ :not(#session):not(#manualTools) { border: 1px solid rgba(201,154,46,.4); border-bottom: 0; border-radius: 16px 16px 0 0; } }
+body.t3d-on::before { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: var(--t3-hud, 180px); background: #12070a; z-index: 4; }

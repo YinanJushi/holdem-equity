@@ -1,6 +1,6 @@
 // Texas Hold'em in 3D: turns the table description from app.js into seated opponents, cards, chips and labels.
 // "Pick cards" mode needs the flat table (you click card spots), so the 3D view steps aside there.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=58';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=59';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'holdem') : null;
@@ -36,6 +36,11 @@ if (C) {
   const angle = (i, n) => { const span = Math.min(136, 42 * (n - 1)); return ((n === 1 ? 90 : 90 + span / 2 - i * (span / (n - 1))) * Math.PI) / 180; };
   const ring = (th, a, b) => ({ x: Math.cos(th) * a, z: -Math.sin(th) * b });
 
+  // how far a seated player is from the table's padded rail (the table is a stadium 2.7 m by 1.5 m)
+  const TA = 1.35, TB = 0.75;
+  const inside = (x, z) => { const cx = Math.max(-(TA - TB), Math.min(TA - TB, x)); return Math.hypot(x - cx, z) <= TB; };
+  function railDist(px, pz) { const L = Math.hypot(px, pz), ux = -px / L, uz = -pz / L; let d = 0; while (d < 1.5 && !inside(px + ux * d, pz + uz * d)) d += 0.004; return d - 0.045; }
+  const PY = -0.12;   // seated players' height offset (table top = 0)
   let people = [], chairs = [], seatsFor = -1;
   function seatPeople(n, seats) {
     if (seatsFor === n) return;
@@ -44,7 +49,7 @@ if (C) {
     for (let i = 0; i < n; i++) {
       const th = angle(i, n), p = ring(th, 1.62, 1.02), key = (seats[i] && seats[i].styleKey) || '';
       const person = C.person({ shirt: SHIRT[key] || ['#2a2a3a', '#3a2a4a', '#1a3a3a'][i % 3], skin: C.SKINS[(i * 2 + 1) % C.SKINS.length], hair: HAIR[i % HAIR.length], hairStyle: STYLE[i % STYLE.length], glasses: i % 4 === 2 });
-      person.position.set(p.x, -0.12, p.z); person.rotation.y = Math.atan2(-p.x, -p.z);
+      person.position.set(p.x, PY, p.z); person.rotation.y = Math.atan2(-p.x, -p.z); person.userData.railD = railDist(p.x, p.z);
       C.scene.add(person); people.push(person);
       const ch = ring(th, 1.7, 1.1); chairs.push(C.chair(ch.x, ch.z, Math.atan2(-ch.x, -ch.z) + Math.PI));
     }
@@ -59,8 +64,9 @@ if (C) {
       const lean = s.folded ? -0.08 : s.acting ? 0.08 : 0;
       p.rotation.x += (lean - p.rotation.x) * 0.08;
       p.userData.head.rotation.y = s.acting ? Math.sin(tt * 2 + ph) * 0.12 : Math.sin(tt * 0.45 + ph) * 0.3;
-      if (s.folded) { p.userData.reach('L', -0.12, 0.08, 0.16); p.userData.reach('R', 0.12, 0.08, 0.16); }
-      else { p.userData.reach('L', -0.15, 0.17, 0.35 + Math.sin(tt * 0.7 + ph) * 0.01); p.userData.reach('R', 0.15, 0.17 + (s.acting ? 0.03 : 0), s.acting ? 0.42 : 0.35); }
+      const rd = p.userData.railD, railY = 0.08 - PY, feltY = -PY;
+      if (s.folded) { p.userData.reach('L', -0.11, 0.06, 0.14); p.userData.reach('R', 0.11, 0.06, 0.14); }
+      else { p.userData.rest('L', rd, railY, feltY, 0.13 + Math.sin(tt * 0.7 + ph) * 0.004); p.userData.rest('R', rd, railY, feltY, 0.13, s.acting ? 0.015 + Math.abs(Math.sin(tt * 3)) * 0.01 : 0); }
     });
     requestAnimationFrame(loop);
   })();
