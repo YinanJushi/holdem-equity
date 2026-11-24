@@ -70,8 +70,28 @@
   function drawReels() {
     reelsEl.innerHTML = st.grid.map((col, r) => `<div class="reel" data-r="${r}"><div class="strip">${col.map(cell).join('')}</div></div>`).join('');
   }
+  // ---------- 3D reels (slots3d.js); the flat reels stay as the fallback ----------
+  let R3 = null;
+  function use3D() {
+    if (R3 || !window.Reels3D || reduced()) return;
+    const frame = document.querySelector('.reel-frame'), host = $('#r3Host');
+    R3 = window.Reels3D.create(host);
+    if (!R3) return;
+    frame.classList.add('is3d');
+    R3.setTheme(theme.id, theme.symbols).then(() => R3.setGrid(st.grid));
+  }
+  window.addEventListener('reels3d-ready', use3D);
+
   const cellH = () => reelsEl.querySelector('.cell').getBoundingClientRect().height;
   function animateReels(grid, tease) {
+    if (R3) {
+      const tick = setInterval(snd.tick, 65);
+      return R3.spin(grid, {
+        tease,
+        onTease: () => snd.tease(),
+        onStop: r => { snd.stop(); if (r === 4) clearInterval(tick); },
+      }).then(() => clearInterval(tick));
+    }
     const h = cellH();
     return Promise.all(grid.map((col, r) => new Promise(res => {
       const reel = reelsEl.children[r], strip = reel.firstElementChild;
@@ -107,11 +127,18 @@
   // ---------- paylines ----------
   const linesEl = $('#lines');
   function drawLines(wins) {
+    if (R3) {
+      const w = linesEl.clientWidth || 500, h = linesEl.clientHeight || 300;
+      linesEl.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      linesEl.innerHTML = wins.map((x, k) => `<polyline class="pl" style="animation-delay:${k * 0.12}s" points="${E.LINES[x.line].map((row, r) => { const p = R3.project(r, row); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' ')}"/>`).join('');
+      return;
+    }
     linesEl.setAttribute('viewBox', '0 0 500 300');
     linesEl.setAttribute('preserveAspectRatio', 'none');
     linesEl.innerHTML = wins.map((w, k) => `<polyline class="pl" style="animation-delay:${k * 0.12}s" points="${E.LINES[w.line].map((row, r) => `${r * 100 + 50},${row * 100 + 50}`).join(' ')}"/>`).join('');
   }
   function lightCells(cells) {
+    if (R3) { R3.highlight(cells); return; }
     reelsEl.querySelectorAll('.cell.hit').forEach(c => c.classList.remove('hit'));
     cells.forEach(([r, row]) => { const c = reelsEl.children[r].firstElementChild.children[row]; if (c) c.classList.add('hit'); });
   }
@@ -147,6 +174,7 @@
     $('#cabTitle').innerHTML = `${theme.title[0]} <em>${theme.title[1]}</em>`;
     $('#themePick').innerHTML = Object.values(TH).map(t => `<button type="button" role="radio" aria-checked="${t.id === theme.id}" class="tp ${t.id === theme.id ? 'on' : ''}" data-theme="${t.id}"><span class="tp-ic">${t.symbols[5]}</span>${t.name}</button>`).join('');
     if (st.grid) drawReels();
+    if (R3) R3.setTheme(theme.id, theme.symbols).then(() => R3.setGrid(st.grid));
   }
   $('#themePick').onclick = e => {
     const b = e.target.closest('[data-theme]');
@@ -393,6 +421,7 @@
         burst(lvl);
       };
       setTier(jackpot || title ? top : 1);
+      if (R3) R3.celebrate(top);
       const stopFx = particles(top);
       const dur = jackpot ? 6000 : 1500 + top * 1100, start = performance.now();
       let raf, finished = false, lastTick = 0;
@@ -522,6 +551,7 @@
   applyTheme();
   buildBonusWheel();
   paint(); paintWheel();
+  use3D();
   if (st.credits) ticker(`Welcome back. ${fmt(st.credits)} credits are still in the machine.`);
   UI.wallet.onChange(() => paintWheel());
   window.addEventListener('resize', () => { if (!st.spinning) reelsEl.querySelectorAll('.strip').forEach(s => (s.style.transform = 'translateY(0)')); });

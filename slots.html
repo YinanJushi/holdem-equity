@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=27">
-<link rel="stylesheet" href="slots.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="slots.css?v=28">
 </head>
 <body class="slotspage">
 <header class="top">
@@ -46,6 +46,7 @@
 
       <div class="reel-frame">
         <div class="reels" id="reels"></div>
+        <div class="r3-host" id="r3Host" aria-hidden="true"></div>
         <svg class="lines" id="lines" aria-hidden="true"></svg>
         <div class="fs-banner" id="fsBanner" hidden>Free spins <b id="fsLeft">0</b> · wins ×2</div>
       </div>
@@ -125,11 +126,13 @@
 
 <footer class="foot">For fun with play chips only. No real money.</footer>
 
-<script src="ui.js?v=27"></script>
-<script src="config.js?v=27"></script>
-<script src="account.js?v=27"></script>
-<script src="slots-engine.js?v=27"></script>
-<script src="slots-themes.js?v=27"></script>
-<script src="slots.js?v=27"></script>
+<script src="ui.js?v=28"></script>
+<script src="config.js?v=28"></script>
+<script src="account.js?v=28"></script>
+<script src="slots-engine.js?v=28"></script>
+<script src="slots-themes.js?v=28"></script>
+<script src="slots.js?v=28"></script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/" } }</script>
+<script type="module" src="slots3d.js?v=28"></script>
 </body>
 </html>
