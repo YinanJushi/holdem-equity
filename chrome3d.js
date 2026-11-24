@@ -30,7 +30,7 @@ export function headerChrome(container, onClass) {
   const mk = (icon, label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 't3-ico'; b.setAttribute('aria-label', label); b.dataset.tip = label; b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg>`; b.onclick = fn; topL.appendChild(b); return b; };
   const menu = document.createElement('div'); menu.className = 't3-menu'; menu.hidden = true;
   const here = location.pathname.split('/').pop() || 'index.html';
-  menu.innerHTML = [['index.html', "Texas Hold'em"], ['blackjack.html', 'Blackjack'], ['slots.html', 'Slots'], ['stats.html', 'Stats']]
+  menu.innerHTML = [['index.html', "Texas Hold'em"], ['blackjack.html', 'Blackjack'], ['roulette.html', 'Roulette'], ['slots.html', 'Slots'], ['pusher.html', 'Coin Pusher'], ['stats.html', 'Stats']]
     .map(([h, n]) => `<a href="${h}"${h === here ? ' aria-current="page"' : ''}>${n}</a>`).join('');
   const gamesBtn = mk('games', 'Games', () => { menu.hidden = !menu.hidden; gamesBtn.setAttribute('aria-expanded', String(!menu.hidden)); });
   topL.appendChild(menu);

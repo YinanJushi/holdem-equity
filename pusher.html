@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Odds Lounge · Coin Pusher</title>
+<meta name="description" content="A 3D coin pusher: drop coins, watch the shelf push the pile, and catch what falls over the edge.">
+<meta name="theme-color" content="#2b1016">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script>try{if(window.WebGLRenderingContext)document.documentElement.classList.add("t3d-wait")}catch(e){}setTimeout(function(){document.documentElement.classList.remove("t3d-wait")},8000)</script>
+<link rel="stylesheet" href="style.css?v=75">
+</head>
+<body class="pz">
+<header class="top">
+  <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <div class="top-right">
+  <nav class="games" aria-label="Games">
+    <a href="index.html">Texas Hold'em</a>
+    <a href="blackjack.html">Blackjack</a>
+    <a href="roulette.html">Roulette</a>
+    <a href="slots.html">Slots</a>
+    <a href="pusher.html" class="on" aria-current="page">Coin Pusher</a>
+    <a href="stats.html">Stats</a>
+  </nav>
+  <div id="wallet" class="wallet"></div>
+  <button id="soundBtn" class="iconbtn" aria-pressed="true">Sound on</button>
+  </div>
+</header>
+<main class="pz-main">
+  <div class="pz-host" id="pzHost" aria-label="Coin pusher machine"></div>
+  <div class="pz-bar" id="pzBar">
+    <span class="pz-info" id="pzInfo" role="status">Each coin costs 5 chips</span>
+    <button class="primary" id="pzDrop">Drop coin</button>
+    <button class="ghostbtn" id="pzAuto" aria-pressed="false">Auto</button>
+  </div>
+  <p class="hint pz-noscript">The coin pusher needs a browser with 3D graphics (WebGL).</p>
+</main>
+<footer class="foot">For fun with play chips only.</footer>
+<script src="ui.js?v=75"></script>
+<script src="config.js?v=75"></script>
+<script src="account.js?v=75"></script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/" } }</script>
+<script type="module" src="pusher3d.js?v=75"></script>
+</body>
+</html>

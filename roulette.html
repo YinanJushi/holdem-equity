@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Odds Lounge · Roulette</title>
+<meta name="description" content="European single-zero roulette at a 3D table: place chips on the layout, watch the ball drop, collect your winnings.">
+<meta name="theme-color" content="#2b1016">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Odds Lounge · Roulette">
+<meta property="og:description" content="Single-zero roulette at a 3D table.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>try{if(window.WebGLRenderingContext)document.documentElement.classList.add("t3d-wait")}catch(e){}setTimeout(function(){document.documentElement.classList.remove("t3d-wait")},8000)</script>
+<link rel="stylesheet" href="style.css?v=75">
+</head>
+<body class="rl">
+<header class="top">
+  <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <div class="top-right">
+  <nav class="games" aria-label="Games">
+    <a href="index.html">Texas Hold'em</a>
+    <a href="blackjack.html">Blackjack</a>
+    <a href="roulette.html" class="on" aria-current="page">Roulette</a>
+    <a href="slots.html">Slots</a>
+    <a href="pusher.html">Coin Pusher</a>
+    <a href="stats.html">Stats</a>
+  </nav>
+  <div id="wallet" class="wallet"></div>
+  <button id="soundBtn" class="iconbtn" aria-pressed="true">Sound on</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="left">
+    <div class="toolbar"><button class="linkbtn" id="fsBtn">Full screen</button></div>
+    <div class="table" id="table"><div class="msg" id="msg">Place your chips, then Spin.</div></div>
+    <div id="rlBar" class="betbar rl-bar">
+      <div class="chip-row" id="rlChips">
+        <button class="bigchip" data-chip="5">5</button>
+        <button class="bigchip blue" data-chip="25">25</button>
+        <button class="bigchip black" data-chip="100">100</button>
+        <button class="bigchip gold" data-chip="500">500</button>
+      </div>
+      <span class="rl-total">Bet <b id="rlTotal">0</b></span>
+      <div class="bb-foot">
+        <button id="rlUndo" class="ghostbtn">Undo</button>
+        <button id="rlClear" class="ghostbtn">Clear</button>
+        <button id="rlRebet" class="ghostbtn">Rebet</button>
+        <button id="rlSpin" class="primary">Spin</button>
+      </div>
+    </div>
+    <div id="session" class="session"></div>
+  </section>
+</main>
+
+<footer class="foot">For fun with play chips only. Single zero: the house edge is 2.7%.</footer>
+
+<script src="ui.js?v=75"></script>
+<script src="config.js?v=75"></script>
+<script src="account.js?v=75"></script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/" } }</script>
+<script type="module" src="roulette3d.js?v=75"></script>
+</body>
+</html>

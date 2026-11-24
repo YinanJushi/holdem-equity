@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=69';
+import { ICONS, headerChrome, onQuality } from './chrome3d.js?v=75';
 
 const FLOOR = -0.76;                       // the floor, with the table top at y = 0 (metres)
 const CW = 0.102, CH = 0.143;              // card size (a little larger than life so it reads on screen)
@@ -410,7 +410,7 @@ export function createCasino(host, kind) {
   }
 
   // ---------- the table ----------
-  const T = kind === 'bj' ? buildBJTable() : buildHoldemTable();
+  const T = kind === 'bj' ? buildBJTable() : kind === 'roulette' ? buildRouletteTable() : buildHoldemTable();
   const bar = scene.userData.bar;
 
   // ---------- dealer button ----------
@@ -470,7 +470,12 @@ export function createCasino(host, kind) {
   const cv = renderer.domElement;
   cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch, moved: false }; cv.setPointerCapture(e.pointerId); });
   cv.addEventListener('pointermove', e => {
-    if (!drag) { cv.style.cursor = hitDrink(e) ? 'pointer' : 'grab'; return; }
+    if (!drag) {
+      const overDrink = hitDrink(e), g = !overDrink && api.onTableHover ? groundAt(e) : null;
+      const hot = g && api.onTableHover(g.x, g.z);
+      cv.style.cursor = overDrink || hot ? 'pointer' : 'grab';
+      return;
+    }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
     if (!drag.moved || view.cine) return;
@@ -481,7 +486,16 @@ export function createCasino(host, kind) {
   cv.addEventListener('pointerup', e => {
     const d = drag; drag = null; cv.style.cursor = 'grab';
     if (d && !d.moved && hitDrink(e)) sip();
+    else if (d && !d.moved && api.onTableClick) { const g = groundAt(e); if (g) api.onTableClick(g.x, g.z); }
   });
+  cv.addEventListener('pointerleave', () => { if (api.onTableHover) api.onTableHover(null, null); });
+  const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), gp = new THREE.Vector3(), gray = new THREE.Raycaster(), gndc = new THREE.Vector2();
+  function groundAt(e) {
+    const r = cv.getBoundingClientRect();
+    gndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    gray.setFromCamera(gndc, camera);
+    return gray.ray.intersectPlane(floorPlane, gp) ? { x: gp.x, z: gp.z } : null;
+  }
   cv.addEventListener('dblclick', () => { view.idle = 99; });
   function resize() {
     const w = wrap.clientWidth, h = wrap.clientHeight; if (!w || !h) return;
@@ -494,6 +508,16 @@ export function createCasino(host, kind) {
     const tall = w / eh < 1;
     seat.pos.copy(T.seat.pos); seat.target.copy(T.seat.target);
     if (tall) { seat.pos.y += 0.08; seat.pos.z += 0.14; }
+    // wide tables (roulette): back the seat away along its line of sight until the whole table fits across
+    if (T.fitWidth) {
+      // tall screens: frame just the betting layout, looking down more steeply (the camera glides to the wheel for each spin)
+      if (tall && T.fitTall) { const f = T.fitTall; seat.target.set(f.x, 0, f.z); seat.pos.set(f.x + 0.05, 1, f.z + 0.62); }
+      const vf = THREE.MathUtils.degToRad(tall ? Math.min(72, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(44) / 2) * 1.2 / (w / eh)) * 180 / Math.PI) : 47);
+      const hh = Math.atan(Math.tan(vf / 2) * (w / eh)), dir = new THREE.Vector3().subVectors(seat.pos, seat.target);
+      const need = ((tall && T.fitTall ? T.fitTall.width : T.fitWidth) / 2) / Math.tan(hh) + 0.25;
+      if (tall && T.fitTall) seat.pos.copy(seat.target).addScaledVector(dir.normalize(), need);
+      else if (dir.length() < need) seat.pos.copy(seat.target).addScaledVector(dir.normalize(), need);
+    }
     // keep the table across the view on tall phone screens too
     camera.fov = w / eh < 1 ? Math.min(72, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(44) / 2) * 1.2 / (w / eh)) * 180 / Math.PI) : 47;
     camera.updateProjectionMatrix();
@@ -729,7 +753,7 @@ export function createCasino(host, kind) {
     const c = Math.cos(tilt), sn = Math.sin(tilt);
     return { x: x + dx, z: z - c * du + sn * layer * 0.0022, y: sn * du + c * layer * 0.0022, tilt };
   }
-  const api = { refit: () => resize(), cards, camera, debugCam: null, onPlane, SKINS, setCards, setStacks, setLabels, setPuck, chair: T.chair, order, sip, T, person, scene, wrap, hasDrink: () => !!drink, onDrink: null };
+  const api = { seatNow: () => ({ pos: seat.pos.clone(), target: seat.target.clone() }), refit: () => resize(), cards, camera, debugCam: null, onPlane, SKINS, setCards, setStacks, setLabels, setPuck, chair: T.chair, order, sip, T, person, scene, wrap, hasDrink: () => !!drink, onDrink: null };
   started = true;
   return api;
 
@@ -1104,6 +1128,115 @@ export function createCasino(host, kind) {
       seat: { pos: new THREE.Vector3(0, 0.46, 1.02), target: new THREE.Vector3(0, 0.05, -0.38) },
       dealFrom: { x: 0, z: -0.45 }, muck: { x: 0.35, z: -0.42 },
       drinkSpot: { x: 0.2, z: 0.62 }, barYaw: 1.4, barPitch: 0.06, A, B, chair,
+    };
+  }
+  // ---------- roulette: a single-zero wheel at the left end, the betting layout printed on the felt ----------
+  function buildRouletteTable() {
+    const HW = 1.3, HH = 0.65, RR = 0.22;
+    const shape = new THREE.Shape();
+    shape.moveTo(-HW + RR, -HH); shape.lineTo(HW - RR, -HH); shape.quadraticCurveTo(HW, -HH, HW, -HH + RR); shape.lineTo(HW, HH - RR); shape.quadraticCurveTo(HW, HH, HW - RR, HH);
+    shape.lineTo(-HW + RR, HH); shape.quadraticCurveTo(-HW, HH, -HW, HH - RR); shape.lineTo(-HW, -HH + RR); shape.quadraticCurveTo(-HW, -HH, -HW + RR, -HH);
+    const rp = shape.getSpacedPoints(200).map(p => { const cx = Math.max(-HW + RR, Math.min(HW - RR, p.x)), cy = Math.max(-HH + RR, Math.min(HH - RR, p.y)), d = new THREE.Vector2(p.x - cx, p.y - cy).normalize(); return new THREE.Vector3(p.x + d.x * 0.045, 0, -(p.y + d.y * 0.045)); });
+    const railCurve = new THREE.CatmullRomCurve3(rp, true);
+    // the layout, in table coordinates (x across, z toward you)
+    const GX = -0.25, CWD = 0.105, GZ = -0.3, CHT = 0.13;
+    const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+    const cells = [];
+    const add = (key, label, nums, pay, x0, z0, x1, z1) => cells.push({ key, label, nums, pay, x0, z0, x1, z1, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 });
+    add('n0', '0', [0], 35, GX - 0.12, GZ, GX, GZ + 3 * CHT);
+    for (let c = 0; c < 12; c++) for (let r = 0; r < 3; r++) { const n = 3 * c + (3 - r); add('n' + n, String(n), [n], 35, GX + c * CWD, GZ + r * CHT, GX + (c + 1) * CWD, GZ + (r + 1) * CHT); }
+    for (let r = 0; r < 3; r++) { const nums = []; for (let c = 0; c < 12; c++) nums.push(3 * c + (3 - r)); add('col' + r, '2 to 1', nums, 2, GX + 12 * CWD, GZ + r * CHT, GX + 12 * CWD + 0.12, GZ + (r + 1) * CHT); }
+    ['1st 12', '2nd 12', '3rd 12'].forEach((l, d) => { const nums = []; for (let n = d * 12 + 1; n <= d * 12 + 12; n++) nums.push(n); add('doz' + d, l, nums, 2, GX + d * 4 * CWD, GZ + 3 * CHT, GX + (d + 1) * 4 * CWD, GZ + 3 * CHT + 0.11); });
+    const all = [...Array(36)].map((_, i) => i + 1);
+    [['low', '1–18', all.filter(n => n <= 18)], ['even', 'EVEN', all.filter(n => n % 2 === 0)], ['red', 'RED', all.filter(n => RED.has(n))], ['black', 'BLACK', all.filter(n => !RED.has(n))], ['odd', 'ODD', all.filter(n => n % 2 === 1)], ['high', '19–36', all.filter(n => n > 18)]]
+      .forEach(([k, l, nums], i) => add(k, l, nums, 1, GX + i * 2 * CWD, GZ + 3 * CHT + 0.11, GX + (i + 1) * 2 * CWD, GZ + 3 * CHT + 0.22));
+    const cellAt = (x, z) => cells.find(c => x >= c.x0 && x < c.x1 && z >= c.z0 && z < c.z1) || null;
+    const tex = feltTexture(2 * HW, 2 * HH, (g, w, h) => {
+      const sx = w / (2 * HW), sy = h / (2 * HH), X = x => (x + HW) * sx, Z = z => (z + HH) * sy;
+      g.lineWidth = 3; g.strokeStyle = 'rgba(255,240,210,.8)'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      cells.forEach(c => {
+        const x = X(c.x0), y = Z(c.z0), cw = (c.x1 - c.x0) * sx, chh = (c.z1 - c.z0) * sy;
+        if (c.key === 'n0') { g.fillStyle = '#1d7a4a'; g.fillRect(x, y, cw, chh); }
+        g.strokeRect(x, y, cw, chh);
+        const n = c.nums.length === 1 ? c.nums[0] : null;
+        if (n !== null && n > 0) {
+          g.fillStyle = RED.has(n) ? '#c8202f' : '#141414';
+          g.beginPath(); g.ellipse(x + cw / 2, y + chh / 2, cw * 0.32, chh * 0.34, 0, 0, Math.PI * 2); g.fill();
+          g.fillStyle = '#fff6e0'; g.font = `700 ${Math.round(chh * 0.36)}px Georgia, serif`; g.fillText(String(n), x + cw / 2, y + chh / 2 + 2);
+        } else if (c.key === 'red' || c.key === 'black') {
+          g.fillStyle = c.key === 'red' ? '#c8202f' : '#141414';
+          g.beginPath(); g.moveTo(x + cw / 2, y + chh * 0.15); g.lineTo(x + cw * 0.8, y + chh / 2); g.lineTo(x + cw / 2, y + chh * 0.85); g.lineTo(x + cw * 0.2, y + chh / 2); g.closePath(); g.fill();
+        } else {
+          g.fillStyle = '#fff6e0'; g.font = `700 ${Math.round(Math.min(chh * 0.42, cw * 0.2))}px Georgia, serif`;
+          g.save(); g.translate(x + cw / 2, y + chh / 2 + 2); if (c.key === 'n0') g.rotate(-Math.PI / 2); g.fillText(c.label, 0, 0); g.restore();
+        }
+      });
+      g.font = 'italic 600 60px Georgia, serif'; g.fillStyle = 'rgba(255,228,170,.3)'; g.fillText('Odds Lounge', X(0.45), Z(0.5));
+    });
+    tableFrom(shape, railCurve, -HW, -HH, 2 * HW, 2 * HH, tex, 0.5);
+
+    // the wheel
+    const WX = -0.85, WZ = -0.05;
+    const wheel = new THREE.Group(); wheel.position.set(WX, 0, WZ); scene.add(wheel);
+    const woodM = new THREE.MeshPhysicalMaterial({ color: '#5a2a12', roughness: 0.3, clearcoat: 0.8 });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.42, 0.06, 64), woodM); base.position.y = 0.03; wheel.add(base);
+    const bowl = new THREE.Mesh(new THREE.LatheGeometry([[0.27, 0.07], [0.3, 0.085], [0.345, 0.1], [0.38, 0.115], [0.4, 0.12], [0.405, 0.06]].map(([r, y]) => new THREE.Vector2(r, y)), 80), new THREE.MeshPhysicalMaterial({ color: '#3a1a0a', roughness: 0.25, clearcoat: 1, side: THREE.DoubleSide }));
+    wheel.add(bowl);
+    const rimG = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.008, 8, 80), M.gold); rimG.rotation.x = Math.PI / 2; rimG.position.y = 0.12; wheel.add(rimG);
+    const ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+    const SEC = (Math.PI * 2) / 37, A0 = -Math.PI / 2;
+    const rotor = new THREE.Group(); rotor.position.y = 0.068; wheel.add(rotor);
+    const ringTex = canvasTex(1024, 1024, (g, w, h) => {
+      const cx = w / 2, cy = h / 2, R = w / 2;
+      ORDER.forEach((n, k) => {
+        const a0 = A0 + (k - 0.5) * SEC, a1 = a0 + SEC;
+        g.fillStyle = n === 0 ? '#1d7a4a' : RED.has(n) ? '#b8202c' : '#141414';
+        g.beginPath(); g.arc(cx, cy, R, a0, a1); g.arc(cx, cy, R * 0.63, a1, a0, true); g.closePath(); g.fill();
+        const am = A0 + k * SEC;
+        g.save(); g.translate(cx + Math.cos(am) * R * 0.93, cy + Math.sin(am) * R * 0.93); g.rotate(am + Math.PI / 2);
+        g.fillStyle = '#fff6e0'; g.font = '700 30px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), 0, 0); g.restore();
+      });
+      g.strokeStyle = '#d9a843'; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, R * 0.86, 0, Math.PI * 2); g.stroke();
+    });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.27, 111, 1), new THREE.MeshStandardMaterial({ map: ringTex, roughness: 0.4 }));
+    ring.rotation.x = -Math.PI / 2; rotor.add(ring);
+    const fretM = new THREE.MeshStandardMaterial({ color: '#e8d8a8', metalness: 1, roughness: 0.25 });
+    for (let k = 0; k < 37; k++) { const a = A0 + (k + 0.5) * SEC, f = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.003), fretM); f.position.set(Math.cos(a) * 0.2, 0.006, Math.sin(a) * 0.2); f.rotation.y = -a; rotor.add(f); }
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.05, 48), woodM); cone.position.y = 0.025; rotor.add(cone);
+    const turret = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.07, 20), M.gold); turret.position.y = 0.075; rotor.add(turret);
+    for (let k = 0; k < 4; k++) { const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.14, 8), M.gold); arm.rotation.z = Math.PI / 2; arm.rotation.y = k * Math.PI / 2; arm.position.y = 0.1; rotor.add(arm); const knob = new THREE.Mesh(new THREE.SphereGeometry(0.01, 10, 8), M.gold); knob.position.set(Math.cos(k * Math.PI / 2) * 0.07, 0.1, -Math.sin(k * Math.PI / 2) * 0.07); rotor.add(knob); }
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.011, 20, 14), new THREE.MeshPhysicalMaterial({ color: '#fbfbf6', roughness: 0.15, clearcoat: 1 }));
+    ball.castShadow = true; wheel.add(ball);
+    wheel.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
+    // spin: the rotor turns and slows; the ball runs the other way on the track, drops and settles in the pocket
+    let theta = 0, omega = 0.6, spinT = -1, target = 0, done = null, ballOff = 0, ticks = 0;
+    const ballAt = (a, r, y) => ball.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    ballAt(A0, 0.21, 0.074);
+    animated.push((t, dt) => {
+      theta += omega * dt; omega = Math.max(0.35, omega - dt * 0.35 * (omega > 1 ? 1 : 0.2));
+      rotor.rotation.y = theta;
+      const pocket = k => A0 + k * SEC - theta;
+      if (spinT < 0) { ballAt(pocket(target) + ballOff, 0.215, 0.074); return; }
+      spinT += dt;
+      const DUR = 6.5, p = Math.min(1, spinT / DUR), e = 1 - Math.pow(1 - p, 2.2);
+      const a = pocket(target) + (1 - e) * Math.PI * 2 * 9;
+      let r, y;
+      if (p < 0.7) { r = 0.36; y = 0.105; }
+      else if (p < 0.86) { const q = (p - 0.7) / 0.16; r = lerp(0.36, 0.215, q * q); y = lerp(0.105, 0.074, q); if (Math.floor(q * 10) > ticks) { ticks = Math.floor(q * 10); tone(2600 + Math.random() * 800, 0.02, 0.02, 'square'); } }
+      else { const q = (p - 0.86) / 0.14; r = 0.215 + Math.abs(Math.sin(q * 18)) * 0.012 * (1 - q); y = 0.074 + Math.abs(Math.sin(q * 18)) * 0.01 * (1 - q); }
+      ballAt(a, r, y);
+      if (p >= 1) { spinT = -1; ballOff = 0; const f = done; done = null; if (f) f(); }
+    });
+    const spin = (num, onDone) => { target = ORDER.indexOf(num); spinT = 0; ticks = 0; omega = 3.2; done = onDone; hiss(0.6, 0.03, 0, 2500); };
+    // the croupier behind the table
+    const croupier = person({ shirt: '#f4f1ea', vest: '#121212', bow: '#9a0f1f', hair: '#2a1a0e', skin: SKINS[2], seated: false });
+    croupier.position.set(-0.3, 0.03, -1.0); scene.add(croupier);
+    animated.push(t => { croupier.userData.head.rotation.y = -0.4 + Math.sin(t * 0.4) * 0.2; croupier.userData.reach('L', -0.18, -0.01, 0.42); croupier.userData.reach('R', 0.16, -0.01, 0.45); });
+    return {
+      seat: { pos: new THREE.Vector3(0.22, 0.78, 1.22), target: new THREE.Vector3(0.12, -0.02, -0.12) },
+      wheelCam: { pos: new THREE.Vector3(WX + 0.25, 0.62, WZ + 0.62), target: new THREE.Vector3(WX, 0.06, WZ) },
+      dealFrom: { x: 0, z: -0.5 }, muck: { x: -0.4, z: -0.5 }, drinkSpot: { x: 1.02, z: 0.5 }, barYaw: 1.38, barPitch: 0.06,
+      cells, cellAt, RED, spin, chair, fitWidth: 2.45, fitTall: { x: 0.38, z: 0.03, width: 1.62 },
     };
   }
   function rrStadium(g, cx, cy, a, b) { g.beginPath(); g.moveTo(cx - a + b, cy - b); g.lineTo(cx + a - b, cy - b); g.arc(cx + a - b, cy, b, -Math.PI / 2, Math.PI / 2); g.lineTo(cx - a + b, cy + b); g.arc(cx - a + b, cy, b, Math.PI / 2, Math.PI * 1.5); g.stroke(); }
