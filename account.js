@@ -114,11 +114,16 @@
     const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
     if (!user) {
       dlg.innerHTML = `<h2>Sign in</h2>
-        <p>Sign in with your email to keep your chips on every device. We'll email you a link; no password needed.</p>
+        <p>Sign in with your email to keep your chips on every device. We'll email you a link and a code; no password needed.</p>
         <form id="signinForm">
           <label class="fld">Email<input type="email" id="signinEmail" required autocomplete="email" placeholder="you@example.com"></label>
           <div class="acct-msg" id="signinMsg" role="status"></div>
           <div class="rule-actions"><button type="button" class="ghostbtn" data-act="close">Not now</button><button type="submit" class="primary">Email me a sign-in link</button></div>
+        </form>
+        <form id="codeSignin" hidden>
+          <label class="fld">Code from the email<input type="text" id="otpInput" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456"></label>
+          <div class="acct-msg" id="otpMsg" role="status"></div>
+          <div class="rule-actions"><button type="submit" class="primary">Sign in with code</button></div>
         </form>
         <p class="sub">Chips you have as a guest stay on this device and are kept separate from your account.</p>`;
       dlg.querySelector('#signinForm').onsubmit = e => {
@@ -126,7 +131,21 @@
         const email = dlg.querySelector('#signinEmail').value.trim(), msg = dlg.querySelector('#signinMsg');
         msg.textContent = 'Sending…';
         client().then(c => c.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } }))
-          .then(({ error }) => { msg.textContent = error ? errText(error) : `Check ${email} for the sign-in link. Open it on this device.`; })
+          .then(({ error }) => {
+            if (error) { msg.textContent = errText(error); return; }
+            msg.textContent = `Sent to ${email}. Open the link on this device, or type the code from the email below (handy if the email is on your phone).`;
+            const f = dlg.querySelector('#codeSignin');
+            f.hidden = false; dlg.querySelector('#otpInput').focus();
+            f.onsubmit = ev => {
+              ev.preventDefault();
+              const token = dlg.querySelector('#otpInput').value.replace(/\s/g, ''), om = dlg.querySelector('#otpMsg');
+              if (!token) return;
+              om.textContent = 'Checking…';
+              client().then(c => c.auth.verifyOtp({ email, token, type: 'email' }))
+                .then(({ error: err }) => { om.textContent = err ? (/expired|invalid/i.test(err.message) ? "That code didn't work or has expired. Send a new email and try again." : errText(err)) : 'Signed in!'; })
+                .catch(err2 => (om.textContent = errText(err2)));
+            };
+          })
           .catch(err => (msg.textContent = errText(err)));
       };
     } else {
