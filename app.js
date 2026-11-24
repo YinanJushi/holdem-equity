@@ -7,9 +7,9 @@
   const CATS = CAT_NAMES;
   const SB = 1, BB = 2;
   const RULE_KEY = 'ol-holdem-rules';
-  const DEF_RULES = { opp: 3, stackBB: 100, ante: 0, potLimit: false, style: 'mixed' };
+  const DEF_RULES = { opp: 3, stackBB: 100, ante: 0, potLimit: false, style: 'mixed', level: 'normal' };
   const savedRules = window.UI ? UI.store.load(RULE_KEY, DEF_RULES) : null;
-  let RULES = savedRules || { ...DEF_RULES };
+  let RULES = { ...DEF_RULES, ...(savedRules || {}) };
   const startStack = () => RULES.stackBB * BB;
   // Opponent styles: call = calling-threshold multiplier (lower calls more), aggr = betting tendency, bluff = bluff frequency
   const STYLES = [
@@ -27,6 +27,7 @@
     session: { hands: 0, wins: 0, profit: 0 },
     prev: Array(7).fill(null), styles: [], button: null,
     raiseTo: 0, raiseDec: -1, curAdvice: null,
+    you: { acts: 0, raises: 0, folds: 0, faced: 0 },   // your tendencies this session (Hard opponents watch these)
   };
   let G = null; // betting state for the current hand (Play mode only)
   const cache = new Map();
@@ -158,7 +159,7 @@
       heroWaiting: false, decId: 0, aiCache: new Map(), buyin,
     };
     // everyone sits with the same stack, so there are never side pots
-    for (let i = 0; i < N; i++) G.players.push({ stack: buyin, bet: 0, total: 0, folded: false, allin: false, last: '', rs: 0, style: i ? S.styles[i - 1] : null });
+    for (let i = 0; i < N; i++) G.players.push({ stack: buyin, bet: 0, total: 0, folded: false, allin: false, last: '', rs: 0, style: i ? S.styles[i - 1] : null, pfR: 0, pfCall: false, pBet: 0, pRaise: 0 });
     if (RULES.ante) G.players.forEach(p => { const a = Math.min(RULES.ante, p.stack); p.stack -= a; p.total += a; G.pot += a; });
     savePending();
     const btn = S.button;
@@ -203,13 +204,14 @@
     }
     if (type === 'fold') { p.folded = true; p.last = 'Fold'; }
     else if (type === 'check') p.last = 'Check';
-    else if (type === 'call') { put(i, toCall); p.last = p.allin ? `All-in ${p.total}` : `Call ${toCall}`; }
+    else if (type === 'call') { if (boardLen() === 0 && G.curBet > BB) p.pfCall = true; put(i, toCall); p.last = p.allin ? `All-in ${p.total}` : `Call ${toCall}`; }
     else {
       const was = G.curBet;
       put(i, to - p.bet);
       if (to - was >= G.minRaise) G.minRaise = to - was;
       G.curBet = Math.max(G.curBet, to);
       p.rs++;
+      if (boardLen() === 0) p.pfR++; else { p.pBet++; if (was > 0) p.pRaise++; }
       p.last = p.allin ? `All-in ${p.total}` : was === 0 ? `Bet ${to}` : `Raise to ${to}`;
       G.need = new Set(canActIdx().filter(j => j !== i));
     }
@@ -306,7 +308,151 @@
     G.aiCache.set(k, e);
     return e;
   }
+  // ---------- smarter opponents (Normal / Hard) ----------
+  // Preflop strength of every two-card hand, as a percentile (0 = the very best hands, 1 = the worst).
+  const PF = (() => {
+    const chen = (a, b, suited) => {     // a >= b, ranks 0..12
+      const top = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8, 10][a];
+      if (a === b) return Math.max(5, top * 2);
+      let sc = top + (suited ? 2 : 0);
+      const gap = a - b - 1;
+      sc -= [0, 1, 2, 4, 5][Math.min(4, gap)];
+      if (gap <= 1 && a < 10) sc += 1;
+      return sc;
+    };
+    const cls = [];
+    for (let a = 0; a < 13; a++) for (let b = 0; b <= a; b++) for (const su of a === b ? [false] : [true, false])
+      cls.push({ a, b, su, sc: chen(a, b, su), n: a === b ? 6 : su ? 4 : 12 });
+    cls.sort((x, y) => y.sc - x.sc);
+    let acc = 0; const pct = new Map();
+    for (const c of cls) { pct.set(`${c.a}|${c.b}|${c.su}`, (acc + c.n / 2) / 1326); acc += c.n; }
+    const out = new Float32Array(52 * 52);
+    for (let x = 0; x < 52; x++) for (let y = 0; y < 52; y++) {
+      if (x === y) continue;
+      const ra = Math.max(x >> 2, y >> 2), rb = Math.min(x >> 2, y >> 2), su = (x & 3) === (y & 3) && ra !== rb;
+      out[x * 52 + y] = pct.get(`${ra}|${rb}|${su}`);
+    }
+    return out;
+  })();
+  const pfPct = (x, y) => PF[x * 52 + y];
+  // how wide a player's range still is, read from what they've done this hand
+  function readRange(j, viewer) {
+    const p = G.players[j], hard = RULES.level === 'hard';
+    let rr = 0.25;                                   // how often you raise (Hard watches; Normal assumes a typical player)
+    if (j === 0 && hard && S.you.acts >= 6) rr = Math.min(0.6, Math.max(0.05, S.you.raises / S.you.acts));
+    const loose = j === 0 ? rr / 0.25 : (p.style ? p.style.aggr / 0.55 : 1);
+    let top = 0.75;
+    if (p.pfR >= 2) top = 0.07 * loose; else if (p.pfR === 1) top = 0.2 * loose;
+    else if (p.pfCall) top = 0.38; else if (j === G.bb) top = 0.9;
+    const bluffy = j === 0 ? Math.min(0.55, 0.18 + rr * 0.6) : p.style ? p.style.bluff + 0.15 : 0.25;
+    return { top: Math.min(1, top), bets: p.pBet, raises: p.pRaise, bluffy };
+  }
+  // does this sample hand fit what the player has shown? (weight 0..1)
+  const rbuf = new Int32Array(7);
+  function fits(h1, h2, R, board) {
+    let w = pfPct(h1, h2) <= R.top ? 1 : 0.12;
+    if (board.length >= 3 && (R.bets || R.raises)) {
+      rbuf[0] = h1; rbuf[1] = h2; for (let k = 0; k < board.length; k++) rbuf[2 + k] = board[k];
+      const cat = evalN(rbuf, 2 + board.length) >> 20;
+      let fd = false; { const sc = [0, 0, 0, 0]; for (let k = 0; k < 2 + board.length; k++) sc[rbuf[k] & 3]++; fd = sc.some(v => v >= 4); }
+      if (R.bets && !(cat >= 1 || fd)) w *= R.bluffy;
+      if (R.raises && cat < 2) w *= 0.35;
+    }
+    return w;
+  }
+  // equity of player i against what the others have shown (Monte Carlo with range-weighted opponent hands)
+  function rangeEquity(i, iters = 700) {
+    const me = S.opps[i - 1], board = boardCards(), live = G.players.map((q, j) => j).filter(j => j !== i && !G.players[j].folded);
+    if (!live.length) return 1;
+    const ranges = live.map(j => readRange(j, i));
+    const dead = new Uint8Array(52); me.forEach(c => (dead[c] = 1)); board.forEach(c => (dead[c] = 1));
+    const deck = []; for (let c = 0; c < 52; c++) if (!dead[c]) deck.push(c);
+    const buf = new Int32Array(7), need = 5 - board.length;
+    let eq = 0;
+    for (let it = 0; it < iters; it++) {
+      const used = new Set(), hands = [];
+      const pick = () => { let c; do c = deck[(Math.random() * deck.length) | 0]; while (used.has(c)); used.add(c); return c; };
+      for (let o = 0; o < live.length; o++) {
+        let h1, h2;
+        for (let tries = 0; tries < 24; tries++) {
+          h1 = pick(); h2 = pick();
+          if (Math.random() < fits(h1, h2, ranges[o], board) || tries === 23) break;
+          used.delete(h1); used.delete(h2);
+        }
+        hands.push(h1, h2);
+      }
+      for (let k = 0; k < board.length; k++) buf[2 + k] = board[k];
+      for (let k = 0; k < need; k++) buf[2 + board.length + k] = pick();
+      buf[0] = me[0]; buf[1] = me[1];
+      const mine = evalN(buf, 7);
+      let lose = false, ties = 0;
+      for (let o = 0; o < live.length && !lose; o++) { buf[0] = hands[2 * o]; buf[1] = hands[2 * o + 1]; const v = evalN(buf, 7); if (v > mine) lose = true; else if (v === mine) ties++; }
+      if (!lose) eq += 1 / (ties + 1);
+    }
+    return eq / iters;
+  }
+  // a draw worth chasing: four to a flush, or four in a row (open-ended)
+  function hasDraw(i) {
+    const cs = [...S.opps[i - 1], ...boardCards()]; if (cs.length >= 7) return false;
+    const sc = [0, 0, 0, 0]; cs.forEach(c => sc[c & 3]++); if (sc.some(v => v === 4)) return true;
+    let m = 0; cs.forEach(c => (m |= 1 << (c >> 2))); if (m & (1 << 12)) m |= 1;
+    for (let h = 0; h <= 9; h++) if (((m >> h) & 15) === 15) return true;
+    return false;
+  }
+  function smartDecide(i) {
+    const p = G.players[i], st = p.style, L = boardLen(), hard = RULES.level === 'hard';
+    const live = G.players.filter((q, j) => j !== i && !q.folded).length;
+    const toCall = G.curBet - p.bet, pot = G.pot, r = Math.random();
+    const potTo = f => Math.round(G.curBet + f * (pot + toCall));
+    const capRaise = m => (m.type === 'raise' && p.rs >= 2 ? { type: toCall ? 'call' : 'check' } : m);
+    // late position: few players still to act after this one
+    const after = G.need.size - 1, late = after <= 1;
+    if (L === 0) {
+      const pc = pfPct(S.opps[i - 1][0], S.opps[i - 1][1]);
+      const open = 0.12 + st.aggr * 0.1 + (late ? 0.1 : 0) - (live - 1) * 0.012;
+      const raised = G.curBet > BB;
+      if (!raised) {
+        if (pc < open && r < 0.85 + st.aggr * 0.15) return capRaise({ type: 'raise', to: BB * (2.5 + Math.random()) + BB * G.players.filter((q, j) => j !== G.bb && !q.folded && q.bet === BB).length });
+        if (toCall === 0) return { type: 'check' };
+        if (pc < open * 1.6 / st.call || (i === G.sb && pc < 0.5)) return { type: 'call' };
+        if (late && r < st.bluff * 0.6) return capRaise({ type: 'raise', to: BB * 3 });   // a steal now and then
+        return { type: 'fold' };
+      }
+      const big = G.curBet / BB;
+      if (pc < 0.05 || (pc < 0.09 && r < st.aggr * 0.5)) return capRaise({ type: 'raise', to: G.curBet * 3 });
+      const callTop = (0.3 / st.call) / Math.sqrt(big / 3) * (i === G.bb ? 1.4 : 1);
+      if (pc < callTop) return { type: 'call' };
+      if (r < st.bluff * 0.15 && big <= 3) return capRaise({ type: 'raise', to: G.curBet * 3 });
+      return { type: 'fold' };
+    }
+    const e = rangeEquity(i), draw = hasDraw(i);
+    if (toCall === 0) {
+      if (e > 0.85 && r < 0.25) return { type: 'check' };                       // slow-play a monster now and then
+      if (e > 0.62) return capRaise({ type: 'raise', to: potTo(e > 0.78 ? 0.75 + Math.random() * 0.25 : 0.5 + Math.random() * 0.2) });
+      if (draw && r < 0.35 + st.aggr * 0.3) return capRaise({ type: 'raise', to: potTo(0.5) });   // semi-bluff
+      // bluff: more in position and against fewer players
+      const bluffP = st.bluff * (late ? 1.5 : 0.7) / live * (hard ? 1.2 : 1);
+      if (e < 0.35 && r < bluffP) return capRaise({ type: 'raise', to: potTo(hard ? 0.66 : 0.5) });
+      if (e > 0.5 && r < st.aggr * 0.4) return capRaise({ type: 'raise', to: potTo(0.4) });
+      return { type: 'check' };
+    }
+    let need = toCall / (pot + toCall);
+    // Hard reads you: someone who raises a lot gets called lighter, a tight player gets more respect
+    if (hard && G.toAct >= 0 && G.players[0].pBet + G.players[0].pRaise > 0 && S.you.acts >= 6) {
+      const rr = S.you.raises / S.you.acts; need *= rr > 0.3 ? 0.85 : rr < 0.12 ? 1.15 : 1;
+    }
+    if (e > 0.72 && r < 0.4 + st.aggr * 0.5) return capRaise({ type: 'raise', to: G.curBet * (2.5 + Math.random()) });
+    if (draw && e > need * 0.8 && r < st.aggr * 0.35) return capRaise({ type: 'raise', to: G.curBet * 3 });   // semi-bluff raise
+    if (e >= need * st.call * (late ? 0.95 : 1)) return { type: 'call' };
+    if (draw && toCall <= pot * 0.35) return { type: 'call' };                   // cheap draw: worth a look
+    if (hard && r < st.bluff * 0.2 && live === 1 && toCall <= pot * 0.5) return capRaise({ type: 'raise', to: G.curBet * 3 });
+    return { type: 'fold' };
+  }
   function aiDecide(i) {
+    if (RULES.level === 'normal' || RULES.level === 'hard') return smartDecide(i);
+    return easyDecide(i);
+  }
+  function easyDecide(i) {
     const p = G.players[i], st = p.style, L = boardLen();
     const n = G.players.filter((q, j) => j !== i && !q.folded).length;
     const e = aiEquity(i), ratio = e * (n + 1);
@@ -342,6 +488,7 @@
     const p = G.players[0], toCall = G.curBet - p.bet, L = boardLen();
     if (type === 'fold') G.foldInfo = { l: L, need: toCall > 0 ? (toCall / (G.pot + toCall)) * 100 : null, idx: activeIdx() };
     const adv = S.curAdvice;
+    S.you.acts++; if (type === 'raise') S.you.raises++; if (type === 'fold' && toCall > 0) S.you.folds++; if (toCall > 0) S.you.faced++;
     act(0, type, to);
     G.log.push({ l: L, mine: p.last, kind: moveKind(type), facing: toCall > 0, adv: adv ? adv.act : null, match: adv ? moveKind(adv.move.type) === moveKind(type) : null });
     G.heroWaiting = false;
@@ -1148,7 +1295,7 @@
 
   // ---------- events ----------
   function rulesText() {
-    return `${RULES.opp} opponent${RULES.opp > 1 ? 's' : ''} · ${RULES.stackBB} BB · ${RULES.potLimit ? 'Pot-limit' : 'No-limit'}${RULES.ante ? ' · Ante' : ''}`;
+    return `${RULES.opp} opponent${RULES.opp > 1 ? 's' : ''} · ${(RULES.level || 'normal')[0].toUpperCase() + (RULES.level || 'normal').slice(1)} · ${RULES.stackBB} BB · ${RULES.potLimit ? 'Pot-limit' : 'No-limit'}${RULES.ante ? ' · Ante' : ''}`;
   }
   function openRules(first) {
     UI.rulesDialog({
@@ -1161,6 +1308,7 @@
         { key: 'stackBB', name: 'Starting stack', hint: `Blinds are ${SB}/${BB}. Everyone starts each hand with this many chips.`, options: [{ v: 50, label: '50 BB (100)' }, { v: 100, label: '100 BB (200)' }, { v: 200, label: '200 BB (400)' }] },
         { key: 'potLimit', name: 'Betting', hint: 'No-limit: bet any amount up to all-in. Pot-limit: the biggest bet or raise is the size of the pot.', options: [{ v: false, label: 'No-limit' }, { v: true, label: 'Pot-limit' }] },
         { key: 'ante', name: 'Ante', hint: 'An ante is a small forced bet from every player, which makes each pot bigger.', options: [{ v: 0, label: 'None' }, { v: 1, label: '1 chip each' }] },
+        { key: 'level', name: 'Difficulty', hint: 'Easy: opponents only look at their own cards. Normal: they read your betting. Hard: they also adapt to how you play.', options: [{ v: 'easy', label: 'Easy' }, { v: 'normal', label: 'Normal' }, { v: 'hard', label: 'Hard' }] },
         { key: 'style', name: 'Opponents play', options: [{ v: 'mixed', label: 'Mixed' }, { v: 'tight', label: 'Tight' }, { v: 'loose', label: 'Loose' }, { v: 'aggressive', label: 'Aggressive' }] },
       ],
       preview: v => `Tight players only play strong hands. Loose players call a lot. Aggressive players bet and raise often. Mixed gives each opponent a random style.`,
