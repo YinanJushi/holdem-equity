@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="style.css?v=27">
 </head>
 <body class="statspage">
 <header class="top">
@@ -31,6 +31,7 @@
   <section class="st-intro">
     <h1>Your stats</h1>
     <p id="walletLine"></p>
+    <button class="ghostbtn st-resetall" id="resetAll">Reset all stats</button>
   </section>
 
   <section class="st-game" id="holdem">
@@ -69,15 +70,15 @@
       </div>
     </div>
   </section>
-  <p class="st-note">Stats and chips are saved in this browser only. Clearing site data resets them.</p>
+  <p class="st-note" id="stNote"></p>
 </main>
 
 <div id="tip" class="tip" role="status" hidden></div>
 <footer class="foot">For practice and hand review.</footer>
 
-<script src="ui.js?v=26"></script>
-<script src="config.js?v=26"></script>
-<script src="account.js?v=26"></script>
-<script src="stats.js?v=26"></script>
+<script src="ui.js?v=27"></script>
+<script src="config.js?v=27"></script>
+<script src="account.js?v=27"></script>
+<script src="stats.js?v=27"></script>
 </body>
 </html>

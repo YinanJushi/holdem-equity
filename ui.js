@@ -244,12 +244,21 @@
   window.addEventListener('storage', e => { if (e.key === WALLET_KEY) { w = loadWallet() || w; if (backend === localBackend) renderWallet(); } });
   setInterval(renderWallet, 60000);
 
-  // ---------- stats: every finished hand, kept on this device ----------
+  // ---------- stats: every finished hand; on this device for guests, with the account when signed in ----------
   const STATS_KEY = g => 'ol-stats-' + g, MAX_REC = 1000;
+  let statsBackend = null;
   const stats = {
-    add(game, rec) { const a = this.get(game); a.push(rec); while (a.length > MAX_REC) a.shift(); store.save(STATS_KEY(game), a); },
-    get(game) { try { const v = JSON.parse(localStorage.getItem(STATS_KEY(game)) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } },
-    clear(game) { try { localStorage.removeItem(STATS_KEY(game)); } catch (e) { } },
+    GAMES: ['holdem', 'bj', 'slots', 'wheel'],
+    add(game, rec) { if (statsBackend) return statsBackend.add(game, rec); const a = this.localGet(game); a.push(rec); while (a.length > MAX_REC) a.shift(); store.save(STATS_KEY(game), a); },
+    get(game) { return statsBackend ? statsBackend.get(game) : this.localGet(game); },
+    clear(game) { if (statsBackend) return statsBackend.clear(game); this.localClear(game); this.changed(); },
+    // this device's guest stats
+    localGet(game) { try { const v = JSON.parse(localStorage.getItem(STATS_KEY(game)) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } },
+    localClear(game) { try { localStorage.removeItem(STATS_KEY(game)); } catch (e) { } },
+    useBackend(b) { statsBackend = b; this.changed(); },
+    synced: () => !!statsBackend,
+    loading: () => !!(statsBackend && statsBackend.loading),
+    changed() { window.dispatchEvent(new Event('ol-stats')); },
   };
 
   // small notice at the bottom of the screen

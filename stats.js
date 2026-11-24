@@ -195,13 +195,25 @@
       (w.canClaim() ? `Your daily ${w.DAILY.toLocaleString('en-US')} chips are ready to claim at the top.` : `You can claim ${w.DAILY.toLocaleString('en-US')} more chips in ${h}h ${m}m (once a day).`);
   }
 
+  const where = () => UI.stats.synced() ? 'from your account on every device' : 'on this device';
   document.querySelectorAll('[data-reset]').forEach(b => (b.onclick = () => {
     const g = b.dataset.reset;
     const name = g === 'bj' ? 'Blackjack' : g === 'slots' ? 'Slots and prize wheel' : "Texas Hold'em";
-    if (!confirm(`Delete all your ${name} stats on this device? This can't be undone.`)) return;
+    if (!confirm(`Delete all your ${name} stats ${where()}? Your chips stay as they are. This can't be undone.`)) return;
     UI.stats.clear(g); if (g === 'slots') UI.stats.clear('wheel'); render();
   }));
+  $('#resetAll').onclick = () => {
+    if (!confirm(`Delete ALL your stats (Hold'em, Blackjack, Slots and the prize wheel) ${where()}? Your chips stay as they are. This can't be undone.`)) return;
+    if (UI.stats.synced()) UI.stats.clear(null); else UI.stats.GAMES.forEach(g => UI.stats.clear(g));
+    render(); UI.toast('All stats reset.');
+  };
+  function note() {
+    $('#stNote').textContent = UI.stats.synced()
+      ? (UI.stats.loading() ? 'Loading your stats from your account…' : 'Your stats are saved with your account, so they follow you to any device you sign in on.')
+      : 'You are playing as a guest, so stats are saved in this browser only. Sign in to keep them with your account on every device.';
+  }
+  window.addEventListener('ol-stats', () => render());
   UI.wallet.onChange(walletLine);
-  function render() { walletLine(); holdem(); blackjack(); slots(); }
+  function render() { walletLine(); note(); holdem(); blackjack(); slots(); }
   render();
 })();

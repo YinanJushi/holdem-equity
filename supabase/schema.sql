@@ -146,6 +146,59 @@ begin
   return public.wallet_state(w);
 end $$;
 
+-- ---------- stats: every finished hand, kept with the account ----------
+-- one row per account and game ('holdem', 'bj', 'slots', 'wheel'); recs is the list of hands, newest last, at most 1,000
+create table if not exists public.player_stats (
+  user_id    uuid references auth.users (id) on delete cascade,
+  game       text not null check (game in ('holdem', 'bj', 'slots', 'wheel')),
+  recs       jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, game)
+);
+alter table public.player_stats enable row level security;
+drop policy if exists "read own stats" on public.player_stats;
+create policy "read own stats" on public.player_stats for select to authenticated using (auth.uid() = user_id);
+
+-- all of this account's stats as { game: [records] }
+create or replace function public.get_stats()
+returns json language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_object_agg(game, recs), '{}'::jsonb)::json from public.player_stats where user_id = auth.uid();
+$$;
+
+-- add one finished hand; the oldest drops off past 1,000
+create or replace function public.add_stat(p_game text, p_rec jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  if p_rec is null or jsonb_typeof(p_rec) <> 'object' or length(p_rec::text) > 4000 then raise exception 'bad record'; end if;
+  insert into public.player_stats (user_id, game, recs) values (auth.uid(), p_game, jsonb_build_array(p_rec))
+  on conflict (user_id, game) do update
+     set recs = case when jsonb_array_length(player_stats.recs) >= 1000 then (player_stats.recs - 0) || jsonb_build_array(p_rec)
+                     else player_stats.recs || jsonb_build_array(p_rec) end,
+         updated_at = now();
+end $$;
+
+-- bring in stats played before signing in, only when the account has none for that game yet
+create or replace function public.import_stats(p_game text, p_recs jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  if p_recs is null or jsonb_typeof(p_recs) <> 'array' or jsonb_array_length(p_recs) > 1000 or length(p_recs::text) > 2000000 then
+    raise exception 'bad records';
+  end if;
+  insert into public.player_stats (user_id, game, recs) values (auth.uid(), p_game, p_recs)
+  on conflict (user_id, game) do update set recs = excluded.recs, updated_at = now()
+   where jsonb_array_length(player_stats.recs) = 0;
+end $$;
+
+-- reset one game's stats, or all of them when p_game is null (chips are not touched)
+create or replace function public.clear_stats(p_game text default null)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  delete from public.player_stats where user_id = auth.uid() and (p_game is null or game = p_game);
+end $$;
+
 revoke all on function public.wallet_state(public.wallets) from public, anon, authenticated;
 revoke all on function public.get_wallet(text)      from public, anon;
 revoke all on function public.claim_daily()         from public, anon;
@@ -156,3 +209,11 @@ grant execute on function public.get_wallet(text)     to authenticated;
 grant execute on function public.claim_daily()        to authenticated;
 grant execute on function public.redeem_code(text)    to authenticated;
 grant execute on function public.apply_delta(numeric) to authenticated;
+revoke all on function public.get_stats()                from public, anon;
+revoke all on function public.add_stat(text, jsonb)      from public, anon;
+revoke all on function public.import_stats(text, jsonb)  from public, anon;
+revoke all on function public.clear_stats(text)          from public, anon;
+grant execute on function public.get_stats()               to authenticated;
+grant execute on function public.add_stat(text, jsonb)     to authenticated;
+grant execute on function public.import_stats(text, jsonb) to authenticated;
+grant execute on function public.clear_stats(text)         to authenticated;

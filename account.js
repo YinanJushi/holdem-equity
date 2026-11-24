@@ -71,6 +71,52 @@
     return b;
   }
 
+  // ---------- cloud stats: kept with the account, cached on this device for instant reading ----------
+  function makeCloudStats(uid) {
+    const KEY = 'ol-cloud-stats-' + uid, MAX = 1000;
+    let data = UI.store.load(KEY, {}) || {}, pending = [], cleared = new Set(), q = Promise.resolve(), readyRes;
+    const ready = new Promise(r => (readyRes = r));
+    const save = () => UI.store.save(KEY, data);
+    const trim = a => { while (a.length > MAX) a.shift(); return a; };
+    let warned = false;
+    const send = (fn, args) => { q = q.then(() => ready).then(() => rpc(fn, args)).catch(e => { if (!warned) { warned = true; UI.toast('Could not save stats to your account: ' + errText(e)); } }); };
+    const s = {
+      loading: true,
+      get: g => (data[g] || []).slice(),
+      add(g, rec) {
+        data[g] = trim((data[g] || []).concat([rec])); save();
+        if (s.loading) pending.push([g, rec]);
+        send('add_stat', { p_game: g, p_rec: rec });
+      },
+      clear(g) {
+        const games = g ? [g] : UI.stats.GAMES;
+        games.forEach(x => { delete data[x]; cleared.add(x); UI.stats.localClear(x); });
+        pending = pending.filter(p => !games.includes(p[0]));
+        save(); UI.stats.changed();
+        send('clear_stats', { p_game: g || null });
+      },
+      start() {
+        return rpc('get_stats').then(async srv => {
+          srv = srv || {};
+          // stats played as a guest on this device move into the account (only for games the account has none of)
+          for (const g of UI.stats.GAMES) {
+            const local = UI.stats.localGet(g);
+            if (local.length && !(srv[g] || []).length && !cleared.has(g)) {
+              try { await rpc('import_stats', { p_game: g, p_recs: local.slice(-MAX) }); srv[g] = local.slice(-MAX); UI.stats.localClear(g); } catch (e) { }
+            }
+          }
+          const next = {};
+          UI.stats.GAMES.forEach(g => {
+            const mine = pending.filter(p => p[0] === g).map(p => p[1]);
+            next[g] = trim((cleared.has(g) ? [] : (srv[g] || [])).concat(mine));
+          });
+          data = next; pending = []; s.loading = false; save(); readyRes(); UI.stats.changed();
+        }).catch(e => { s.loading = false; readyRes(); UI.stats.changed(); UI.toast('Could not load your stats: ' + errText(e)); });
+      },
+    };
+    return s;
+  }
+
   // arriving from a password-reset email: ask for a new password once signed in
   try { if (/type=recovery/.test(location.hash)) sessionStorage.setItem('ol-set-pw', '1'); } catch (e) { }
   // a stored session means we start on the cloud wallet right away, before the library loads
@@ -78,7 +124,8 @@
   try { stored = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null'); } catch (e) { }
   const storedUser = stored && (stored.user || (stored.currentSession && stored.currentSession.user));
   let user = storedUser || null, cloud = null;
-  if (user && user.id) { cloud = makeCloud(user.id); UI.wallet.useBackend(cloud); }
+  let cloudStats = null;
+  if (user && user.id) { cloud = makeCloud(user.id); UI.wallet.useBackend(cloud); cloudStats = makeCloudStats(user.id); UI.stats.useBackend(cloudStats); }
 
   client().then(c => {
     c.auth.onAuthStateChange((event, session) => {
@@ -93,8 +140,9 @@
       if (s) {
         user = s.user;
         if (!cloud) { cloud = makeCloud(user.id); UI.wallet.useBackend(cloud); }
-        cloud.start();
-      } else if (cloud) { cloud = null; user = null; UI.wallet.useLocal(); }
+        if (!cloudStats) { cloudStats = makeCloudStats(user.id); UI.stats.useBackend(cloudStats); }
+        cloud.start(); cloudStats.start();
+      } else if (cloud) { cloud = null; user = null; cloudStats = null; UI.wallet.useLocal(); UI.stats.useBackend(null); }
       paintButton();
       let reset = false;
       try { reset = sessionStorage.getItem('ol-set-pw') === '1'; } catch (e) { }
@@ -213,7 +261,7 @@
   function signedIn(dlg, note) {
     dlg.innerHTML = `<h2>Your account</h2>
       ${note ? `<p class="acct-note">${note}</p>` : ''}
-      <p>Signed in as <b>${esc(user.email || '')}</b>. Your chips sync across every device you sign in on.</p>
+      <p>Signed in as <b>${esc(user.email || '')}</b>. Your chips and stats sync across every device you sign in on.</p>
       <form id="codeForm" class="code-form">
         <label class="fld">Secret code<input type="text" id="codeInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Enter a code"></label>
         <button type="submit" class="primary">Redeem</button>
