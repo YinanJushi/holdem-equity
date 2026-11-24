@@ -88,11 +88,30 @@ begin
   return public.wallet_state(w);
 end $$;
 
+-- is n a prime number? (trial division; n is at most 12 digits, so this stays fast)
+create or replace function public.is_prime(n bigint)
+returns boolean language plpgsql immutable set search_path = public as $$
+declare i bigint := 5;
+begin
+  if n < 2 then return false; end if;
+  if n < 4 then return true; end if;
+  if n % 2 = 0 or n % 3 = 0 then return false; end if;
+  while i * i <= n loop
+    if n % i = 0 or n % (i + 2) = 0 then return false; end if;
+    i := i + 6;
+  end loop;
+  return true;
+end $$;
+
+-- any prime number works as a code; all primes together count as ONE code, so each account gets it once
+insert into public.secret_codes (code_hash, amount) values ('prime-number', 1000) on conflict (code_hash) do nothing;
+
 -- a secret code: each code once per account; at most 10 tries per hour per account
 create or replace function public.redeem_code(p_code text)
 returns json language plpgsql security definer set search_path = public as $$
 declare
-  h   text := encode(extensions.digest(lower(trim(coalesce(p_code, ''))), 'sha256'), 'hex');
+  c   text := lower(trim(coalesce(p_code, '')));
+  h   text := encode(extensions.digest(c, 'sha256'), 'hex');
   amt int;
   w   public.wallets;
 begin
@@ -101,6 +120,8 @@ begin
     return json_build_object('error', 'Too many tries. Try again in an hour.');
   end if;
   insert into public.code_attempts (user_id) values (auth.uid());
+  -- a whole number of up to 12 digits that is prime → the shared "prime-number" code
+  if c ~ '^[0-9]{1,12}$' and public.is_prime(c::bigint) then h := 'prime-number'; end if;
   select amount into amt from public.secret_codes where code_hash = h and active;
   if amt is null then return json_build_object('error', 'That code isn''t valid.'); end if;
   if exists (select 1 from public.code_redemptions where user_id = auth.uid() and code_hash = h) then
@@ -129,6 +150,7 @@ revoke all on function public.wallet_state(public.wallets) from public, anon, au
 revoke all on function public.get_wallet(text)      from public, anon;
 revoke all on function public.claim_daily()         from public, anon;
 revoke all on function public.redeem_code(text)     from public, anon;
+revoke all on function public.is_prime(bigint)      from public, anon, authenticated;
 revoke all on function public.apply_delta(numeric)  from public, anon;
 grant execute on function public.get_wallet(text)     to authenticated;
 grant execute on function public.claim_daily()        to authenticated;
