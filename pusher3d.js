@@ -12,7 +12,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=88';
+import { headerChrome, onQuality } from './chrome3d.js?v=92';
 
 const COIN = 5, GOLD = 5, $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#pzHost');
@@ -34,7 +34,7 @@ function start() {
 
   // ---------- the machine's layout (metres; z points toward you) ----------
   const W = 0.36, FRONT = 0.3, BACK = -0.72, WIN = 0.15;
-  const R = 0.03, TH = 0.01;                                   // coin radius and thickness
+  const R = 0.028, TH = 0.009;                                   // coin radius and thickness
   const P1 = { h: 0.06, d: 0.4 }, SLAB = { y0: 0.064, y1: 0.15, z1: -0.3 };   // lower pusher; the upper deck slab above its back half
   const P2 = { h: 0.04, d: 0.22 }, SCRAPER = { y0: 0.194, z1: -0.5 };        // upper pusher; the scraper above its back half
   const DROP = { y: 0.44, z: -0.4 }, GATE_Y = 0.37;
@@ -65,11 +65,14 @@ function start() {
   function addCoin(x, y, z, gold, opts = {}) {
     if (coins.length >= MAXC) return null;
     const q = opts.q || new THREE.Quaternion().setFromEuler(new THREE.Euler((Math.random() - 0.5) * (opts.tumble || 0.3), Math.random() * 6, (Math.random() - 0.5) * (opts.tumble || 0.3)));
-    const d = RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setLinearDamping(0.4).setAngularDamping(0.9).setCcdEnabled(true);
+    const d = RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setLinearDamping(0.4).setAngularDamping(0.9);
+    const falling = !opts.q && !opts.sleep;
+    if (falling) d.setCcdEnabled(true);
+    if (opts.sleep) d.setSleeping(true);
     if (opts.vy) d.setLinvel(opts.vx || 0, opts.vy, opts.vz || 0);
     const body = world.createRigidBody(d);
     world.createCollider(RAPIER.ColliderDesc.roundCylinder(TH / 2 - 0.002, R - 0.002, 0.002).setDensity(gold ? 9 : 8).setFriction(0.32).setRestitution(0.08), body);
-    const c = { body, gold, star: !!opts.star, gate: !!opts.gate, vy: 0, paid: false };
+    const c = { body, gold, star: !!opts.star, gate: !!opts.gate, vy: 0, paid: false, ccd: falling };
     coins.push(c); return c;
   }
   const removeCoin = i => { world.removeRigidBody(coins[i].body); coins.splice(i, 1); };
@@ -206,7 +209,7 @@ function start() {
   // ---------- the super jackpot: three star coins in the tray release a flood of coins ----------
   // About one coin in 220 is a purple star coin. Each one pushed into the paying tray lights a star; the third
   // star releases the jackpot. The jackpot starts at 40 coins and grows by one for every 12 coins dropped (up to 180).
-  const JKEY = 'ol-pz-jp', STAR_P = 1 / 220, JP_BASE = 40, JP_EVERY = 12, JP_MAX = 180;
+  const JKEY = 'ol-pz-jp', STAR_P = 1 / 220, JP_BASE = 25, JP_EVERY = 16, JP_MAX = 160;
   let JP = (() => { try { const v = JSON.parse(localStorage.getItem(JKEY) || 'null'); if (v && Number.isFinite(v.stars) && Number.isFinite(v.since)) return v; } catch (e) { /* default */ } return { stars: 0, since: 0 }; })();
   const jpSize = () => Math.min(JP_MAX, JP_BASE + Math.floor(JP.since / JP_EVERY));
   const saveJP = () => { if (!sim) try { localStorage.setItem(JKEY, JSON.stringify(JP)); } catch (e) { /* ignore */ } };
@@ -227,6 +230,7 @@ function start() {
     const n = jpSize();
     JP = { stars: 0, since: 0 }; saveJP();
     wallUp = Math.max(wallUp, 25);
+    setTimeout(() => toppleTower(), sim ? 0 : 1500);
     // the flood: waves of silver coins across both decks, with a gold coin now and then
     const base = rainQ.length ? rainQ[rainQ.length - 1].at : 0;
     for (let i = 0; i < n; i++) rainQ.push({ at: base + 0.4 + i * 0.03 + Math.floor(i / 30) * 0.5, gold: i % 25 === 24, wide: true });
@@ -260,7 +264,7 @@ function start() {
       pending -= COIN; dropped += COIN; drops++;
     }
     const gold = drops % 20 === 0, star = !gold && Math.random() < STAR_P;
-    if (!free || sim) { JP.since++; if (!sim && JP.since % JP_EVERY === 0) { saveJP(); paintMeter(); } }
+    if (!free || sim) { JP.since++; if (!sim && JP.since % JP_EVERY === 0) { saveJP(); paintMeter(); } towerDrops++; if (towerDrops % TOWER_EVERY === 0) growTower(); }
     const c = addCoin(aimX + (Math.random() - 0.5) * 0.006, DROP.y, DROP.z + (Math.random() - 0.5) * 0.01, gold, { gate: true, vy: -0.4, star });
     if (c && star && !sim) { burst(c.body.translation().x, DROP.y, DROP.z, 25, 0.5, [0.9, 0.5, 1.6]); pop(tr('STAR COIN!'), 'star'); }
     if (c && !sim) { beep(1800); info(); document.body.classList.add('pz-played'); window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-drop' } })); }
@@ -268,15 +272,108 @@ function start() {
 
   // ---------- the bonus lamp ----------
   const BONUS = [
-    { k: 'shower', p: 0.24, big: 'COIN SHOWER', small: '6 free coins' },
-    { k: 'gold', p: 0.16, big: 'GOLD RUSH', small: '2 gold coins' },
+    { k: 'shower', p: 0.16, big: 'COIN SHOWER', small: '6 free coins' },
+    { k: 'gold', p: 0.12, big: 'GOLD RUSH', small: '2 gold coins' },
+    { k: 'topple', p: 0.08, big: 'TOWER FALL', small: 'the coin tower comes down' },
     { k: 'walls', p: 0.15, big: 'FUNNEL WALLS', small: 'walls guide the corners in for 15 seconds' },
     { k: 'jackpot', p: 0.025, big: 'JACKPOT!', small: '20 coins + 3 gold' },
     { k: 'none', p: 1, big: 'SO CLOSE', small: 'try the gate again' },
   ];
   let rolling = 0, rollOut = null, gateReady = 0;
   const GATE_CD = 14;   // seconds the gate needs to recharge after a bonus
-  const rainQ = [];
+  const rainQ = [], towers = [];
+  // a coin tower: coins stacked flat, one on top of the other, on the deck just in front of the lower pusher.
+  // Each coin is placed exactly level with a hair of space under it and starts asleep, so the stack stands still
+  // until the pusher (or a falling coin) touches it; then it wakes and topples.
+  // ---------- coin towers ----------
+  // A tall stack of thin discs is hard for any physics engine to keep standing coin by coin, so a tower is one
+  // rigid column (it slides, wobbles and tips as a whole, like a real stacked tower) that bursts into its separate
+  // coins once it leans past about 25 degrees or goes over the edge. It is drawn coin by coin all along.
+  // It stands on the bare deck: the coins lying where it goes are taken into the tower (none are lost).
+  const UPV = new THREE.Vector3(0, 1, 0);
+  const tRing = new THREE.Mesh(new THREE.RingGeometry(R * 1.25, R * 1.6, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.6, 0.5), transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+  tRing.rotation.x = -Math.PI / 2; tRing.visible = false; scene.add(tRing);
+  const tLabel = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 96; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false })); sp.scale.set(0.15, 0.056, 1); sp.visible = false; scene.add(sp); let last = -1; sp.userData.set = n => { if (n === last) return; last = n; const g = c.getContext('2d'); g.clearRect(0, 0, 256, 96); g.fillStyle = 'rgba(20,6,10,.85)'; g.beginPath(); g.roundRect(6, 6, 244, 84, 42); g.fill(); g.strokeStyle = '#f2c14e'; g.lineWidth = 4; g.stroke(); g.fillStyle = '#ffe08a'; g.font = '800 50px "Libre Franklin", "PingFang SC", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(`${n} ${tr('high')}`, 128, 50); t.needsUpdate = true; }; return sp; })();
+  function buildTower(x0, z0, h) {
+    const near = (p, x, z) => p.y < 0.08 && p.y > -0.01 && (p.x - x) ** 2 + (p.z - z) ** 2 < (R * 2.2) ** 2;
+    let best = null;
+    for (let k = 0; k < 12; k++) {
+      const x = Math.max(-W + 0.06, Math.min(W - 0.06, x0 + (k ? (Math.random() - 0.5) * 0.14 : 0))), z = Math.max(0.05, Math.min(FRONT - 0.09, z0 + (k ? (Math.random() - 0.5) * 0.08 : 0)));
+      if (towers.some(t => (t.x - x) ** 2 + (t.z - z) ** 2 < (R * 3) ** 2)) continue;
+      let n = 0; for (const c of coins) if (near(c.body.translation(), x, z)) n++;
+      if (!best || n < best.n) best = { x, z, n };
+    }
+    if (!best) return;
+    const { x, z } = best;
+    let taken = 0, gold = 0, spill = 0;
+    for (let i = coins.length - 1; i >= 0; i--) { const c = coins[i]; if (!c.star && near(c.body.translation(), x, z)) { if (taken < 6) { taken++; if (c.gold) gold++; } else spill++; removeCoin(i); } }
+    // coins beyond the first few drop back onto the pile around the tower (none are lost)
+    for (let i = 0; i < spill; i++) { const a = Math.random() * Math.PI * 2, r = R * (2.6 + Math.random() * 1.5); addCoin(Math.max(-W + R, Math.min(W - R, x + Math.cos(a) * r)), 0.08 + i * 0.012, Math.min(FRONT - 0.02, z + Math.sin(a) * r), false, { tumble: 1 }); }
+    const n = Math.min(TOWER_MAX, h + taken);
+    const golds = new Set([n - 1]); for (let i = 0; i < gold; i++) golds.add(i);
+    towers.push({ x, z, n, shown: 0, t: 0, body: null, golds, yaws: Array.from({ length: n }, () => Math.random() * 6), born: tp });
+  }
+  // the column goes into the physics once it is fully built
+  const TOWER_EVERY = 18, TOWER_START = 10, TOWER_MAX = 40;
+  let towerDrops = 0, rebuildAt = 0;
+  const mainTower = () => towers.find(T => T.body && !T.free) || null;
+  function setColumn(T) {
+    // (re)make the column's collider for its current height, keeping its foot on the deck
+    if (T.col) world.removeCollider(T.col, false);
+    const hh = T.n * TH / 2, p = T.body.translation(), dy = hh - (T.hh || hh);
+    T.col = world.createCollider(RAPIER.ColliderDesc.roundCylinder(hh - 0.002, R - 0.002, 0.002).setDensity(8).setFriction(0.18).setRestitution(0.02), T.body);
+    if (dy) T.body.setTranslation({ x: p.x, y: p.y + dy, z: p.z }, true);
+    T.hh = hh;
+  }
+  // one more coin lands on top of the tower; at the top height it comes down by itself
+  function growTower() {
+    const T = mainTower(); if (!T) return;
+    if (T.n >= TOWER_MAX) { toppleTower(); return; }
+    T.n++; T.yaws.push(Math.random() * 6); T.golds.delete(T.n - 2); if (T.n % 10 === 0) T.golds.add(T.n - 1);
+    setColumn(T); saveTower();
+    if (!sim) { const p = T.body.translation(); burst(p.x, p.y + T.hh, p.z, 8, 0.3); clink(0.8); }
+  }
+  // push the tower over: it tips toward the front edge and bursts into its coins
+  function toppleTower() {
+    const T = mainTower(); if (!T) return false;
+    T.free = true; T.body.setEnabledRotations(true, true, true, true);
+    T.body.setAngvel({ x: 3.2, y: 0, z: (Math.random() - 0.5) * 1.2 }, true);
+    T.body.setLinvel({ x: 0, y: 0.05, z: 0.15 }, true);
+    if (!sim) { showBanner(tr('TOWER FALL'), `${T.n} ${tr('coins')}`); fanfare(true); shake = Math.max(shake, 0.8); }
+    return true;
+  }
+  const saveTower = () => { const T = mainTower(); JP.tower = T ? { n: T.n, x: +T.body.translation().x.toFixed(3), z: +T.body.translation().z.toFixed(3) } : null; saveJP(); };
+  function raiseTower(T) {
+    const hh = T.n * TH / 2;
+    const b = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(T.x, hh + 0.0005, T.z).setLinearDamping(0.5).setAngularDamping(1.5).setCcdEnabled(true));
+    b.setEnabledRotations(false, true, false, true);   // it stays upright while it slides across the deck
+    T.body = b; T.hh = hh; setColumn(T); saveTower();
+  }
+  const tq = new THREE.Quaternion(), tv = new THREE.Vector3(), tl = new THREE.Vector3();
+  function towerCoinPose(T, i, outP, outQ) {
+    const yawQ = new THREE.Quaternion().setFromAxisAngle(UPV, T.yaws[i]);
+    if (!T.body) { outP.set(T.x, TH / 2 + i * TH, T.z); outQ.copy(yawQ); return; }
+    const p = T.body.translation(), q = T.body.rotation();
+    tq.set(q.x, q.y, q.z, q.w);
+    tl.set(0, -T.hh + TH / 2 + i * TH, 0).applyQuaternion(tq);
+    outP.set(p.x + tl.x, p.y + tl.y, p.z + tl.z); outQ.copy(tq).multiply(yawQ);
+  }
+  // the tower bursts into its coins, each moving the way the tower was moving
+  function breakTower(k) {
+    const T = towers[k], v = T.body.linvel(), w = T.body.angvel(), p0 = T.body.translation();
+    const P = new THREE.Vector3(), Q = new THREE.Quaternion();
+    const parts = [];
+    for (let i = 0; i < T.n; i++) { towerCoinPose(T, i, P, Q); parts.push([P.clone(), Q.clone()]); }
+    world.removeRigidBody(T.body); towers.splice(k, 1);
+    if (!towers.some(t => !t.free)) { rebuildAt = tp + 6; JP.tower = null; saveJP(); }
+    parts.forEach(([pp, qq], i) => {
+      // velocity of this point of the spinning column, plus a little scatter
+      const rx = pp.x - p0.x, ry = pp.y - p0.y, rz = pp.z - p0.z;
+      const c = addCoin(pp.x, pp.y, pp.z, T.golds.has(i), { q: qq, vx: v.x + (w.y * rz - w.z * ry) + (Math.random() - 0.5) * 0.08, vy: v.y + (w.z * rx - w.x * rz) + 0.02, vz: v.z + (w.x * ry - w.y * rx) + (Math.random() - 0.5) * 0.08 });
+      if (c) c.body.setAngvel({ x: (Math.random() - 0.5) * 6, y: (Math.random() - 0.5) * 6, z: (Math.random() - 0.5) * 6 }, true);
+    });
+    if (!sim) { burst(p0.x, p0.y, p0.z, 40, 0.8, [1.2, 0.9, 0.4]); clink(2, true); clink(1.5); shake = Math.max(shake, 0.5); pop(tr('TOWER DOWN!'), 'gold'); }
+  }
   function pickBonus() { let r = Math.random(); for (const b of BONUS) { if (r < b.p) return b; r -= b.p; } return BONUS[BONUS.length - 1]; }
   function applyBonus(b) {
     const rain = (n, gold) => { const base = rainQ.length ? rainQ[rainQ.length - 1].at : 0; for (let i = 0; i < n; i++) rainQ.push({ at: base + (i + 1) * 0.09, gold }); };
@@ -284,6 +381,7 @@ function start() {
     else if (b.k === 'gold') rain(2, true);
     else if (b.k === 'walls') wallUp = 15;
     else if (b.k === 'jackpot') { rain(20, false); rain(3, true); wallUp = 15; }
+    else if (b.k === 'topple') { if (!toppleTower()) rain(6, false); }
     if (sim) return;
     window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: b.k } }));
     lamp.redraw(tr(b.big), tr(b.small), b.k === 'none' ? '#9a8a7a' : b.k === 'jackpot' ? '#ff5ab0' : '#ffd36a');
@@ -314,11 +412,28 @@ function start() {
       while (rainQ.length && rainQ[0].at <= rainT) { const r = rainQ.shift(); const zz = r.wide ? -0.25 + Math.random() * 0.5 : -0.2 + Math.random() * 0.4; addCoin((Math.random() - 0.5) * (W * 2 - 0.1), (r.wide ? 0.5 : 0.42) + Math.random() * 0.08, zz, r.gold, { tumble: 3, vy: r.wide ? -0.6 : -0.2 }); if (!sim) burst(0, 0.4, 0, r.wide ? 1 : 3, 0.3); }
       if (!rainQ.length) rainT = 0;
     }
+    if (rebuildAt && tp > rebuildAt) { rebuildAt = 0; if (!towers.some(t => !t.free)) buildTower(0, 0.17, TOWER_START); }
+    for (const T of towers) {
+      if (T.body) continue;
+      T.t += dt;
+      const want = Math.min(T.n, Math.floor(T.t / 0.05));
+      while (T.shown < want) { T.shown++; if (!sim) { const y = T.shown * TH; burst(T.x, y, T.z, T.shown === T.n ? 25 : 3, 0.25, T.golds.has(T.shown - 1) ? [1.2, 0.85, 0.3] : [1, 1, 1]); beep(900 + (T.shown / T.n) * 1500); } }
+      if (T.shown >= T.n) raiseTower(T);
+    }
     world.step();
+    // a tower that leans too far, or slides off the edge, bursts into its coins
+    for (let k = towers.length - 1; k >= 0; k--) {
+      const T = towers[k]; if (!T.body) continue;
+      const q = T.body.rotation(), p = T.body.translation();
+      tv.set(0, 1, 0).applyQuaternion(tq.set(q.x, q.y, q.z, q.w));
+      if (!T.free && p.z > FRONT - 0.07) { T.free = true; T.body.setEnabledRotations(true, true, true, true); }   // near the edge it may tip
+      if (tv.y < Math.cos(0.45) || p.z > FRONT - 0.005 || p.y < T.hh - 0.02) breakTower(k);
+    }
     const gx = gateX(tp);
     for (let i = coins.length - 1; i >= 0; i--) {
       const c = coins[i], p = c.body.translation();
       if (c.gate && p.y < GATE_Y) { c.gate = false; if (Math.abs(p.x - gx) < 0.018) gateHit(p.x); }
+      if (c.ccd && p.y < 0.24 && p.y > -0.02) { const v = c.body.linvel(); if (Math.abs(v.y) < 0.15) { c.body.enableCcd(false); c.ccd = false; } }
       if (!sim && !c.body.isSleeping()) {
         const vy = c.body.linvel().y;
         if (c.vy < -0.35 && vy > c.vy * 0.4) clink(Math.min(2, -c.vy));
@@ -335,6 +450,9 @@ function start() {
     if (jammed) return;
     try {
       const list = coins.filter(c => !c.paid).map(c => { const p = c.body.translation(), q = c.body.rotation(); return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, c.star ? 2 : c.gold ? 1 : 0].map(v => Math.round(v * 1e4) / 1e4); });
+      const P = new THREE.Vector3(), Q = new THREE.Quaternion();
+      towers.forEach(T => { if (T.free || !T.body) for (let i = 0; i < (T.body ? T.n : T.shown); i++) { towerCoinPose(T, i, P, Q); list.push([P.x, P.y, P.z, Q.x, Q.y, Q.z, Q.w, T.golds.has(i) ? 1 : 0].map(v => Math.round(v * 1e4) / 1e4)); } });
+      saveTower();
       localStorage.setItem(BOARD, JSON.stringify({ t: tp, list }));
     } catch (e) { /* private mode: the pile just won't be kept */ }
   }
@@ -346,11 +464,12 @@ function start() {
     saved.list.forEach(a => { if (Array.isArray(a) && a.length === 8 && a.every(Number.isFinite)) addCoin(a[0], a[1] + 0.0005, a[2], a[7] === 1, { q: new THREE.Quaternion(a[3], a[4], a[5], a[6]), star: a[7] === 2 }); });
     for (let i = 0; i < 20; i++) physStep();
   } else {
-    for (let i = 0; i < 95; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.01 + (i % 4) * 0.012, 0.02 + Math.random() * (FRONT - 0.1), Math.random() < 0.05);
-    for (let i = 0; i < 14; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.075, -0.28 + Math.random() * 0.05, false);
-    for (let i = 0; i < 22; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.165 + (i % 2) * 0.012, -0.33 - Math.random() * 0.07, Math.random() < 0.05);
+    for (let i = 0; i < 160; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.01 + (i % 5) * 0.011, 0.02 + Math.random() * (FRONT - 0.08), Math.random() < 0.05);
+    for (let i = 0; i < 22; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.075, -0.28 + Math.random() * 0.05, false);
+    for (let i = 0; i < 36; i++) addCoin((Math.random() - 0.5) * (W * 2 - 0.08), 0.165 + (i % 2) * 0.012, -0.33 - Math.random() * 0.07, Math.random() < 0.05);
     for (let i = 0; i < 240; i++) physStep();
   }
+  { const st = JP.tower; buildTower(st ? st.x : 0, st ? st.z : 0.17, st ? Math.max(TOWER_START, Math.min(TOWER_MAX, st.n | 0)) : TOWER_START); const T = towers[towers.length - 1]; if (T && st) { T.n = Math.max(TOWER_START, Math.min(TOWER_MAX, st.n | 0)); T.yaws = Array.from({ length: T.n }, () => Math.random() * 6); T.golds = new Set([T.n - 1]); } }
   sim = null;
   setInterval(savePile, 8000); window.addEventListener('pagehide', savePile);
   document.documentElement.classList.remove('t3d-wait');
@@ -380,8 +499,23 @@ function start() {
       m4.compose(v3.set(p.x, p.y, p.z), qt.set(q.x, q.y, q.z, q.w), one);
       if (c.star && nst < 40) starI.setMatrixAt(nst++, m4); else if (c.gold) goldI.setMatrixAt(ng++, m4); else silverI.setMatrixAt(ns++, m4);
     }
+    for (const T of towers) {
+      const shown = T.body ? T.n : T.shown;
+      for (let i = 0; i < shown; i++) {
+        towerCoinPose(T, i, v3, qt); m4.compose(v3, qt, one);
+        if (T.golds.has(i)) { if (ng < MAXC) goldI.setMatrixAt(ng++, m4); } else if (ns < MAXC) silverI.setMatrixAt(ns++, m4);
+      }
+    }
     silverI.count = ns; goldI.count = ng; starI.count = nst;
     silverI.instanceMatrix.needsUpdate = true; goldI.instanceMatrix.needsUpdate = true; starI.instanceMatrix.needsUpdate = true;
+  }
+  function drawTowerMarks(t) {
+    const T = towers.find(x => !x.free) || null;
+    tRing.visible = tLabel.visible = !!T;
+    if (!T) return;
+    const p = T.body ? T.body.translation() : { x: T.x, y: 0, z: T.z }, top = T.body ? p.y + T.hh : T.shown * TH;
+    tRing.position.set(p.x, 0.002, p.z); tRing.material.opacity = 0.45 + Math.sin(t * 4) * 0.25;
+    tLabel.position.set(p.x, top + 0.04, p.z); tLabel.userData.set(T.body ? T.n : T.shown);
   }
   const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.28, 0.2, 1.45); composer.addPass(bloom); composer.addPass(new OutputPass());
@@ -411,7 +545,7 @@ function start() {
   }
   new ResizeObserver(resize).observe(host); resize();
   new ResizeObserver(resize).observe($('#pzBar'));
-  onQuality(q => { const hi = q === 'high'; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; resize(); });
+  onQuality(q => { const hi = q === 'high'; world.numSolverIterations = hi ? 6 : 4; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; resize(); });
   const clock = new THREE.Clock(); let acc = 0, t = 0, rollTick = 0;
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.1, clock.getDelta()); t += dt; acc += dt;
@@ -423,7 +557,7 @@ function start() {
     if (jammed) { composer.render(); return; }
     p1Mesh.position.copy(pusher1.translation()); p2Mesh.position.copy(pusher2.translation());
     FW.list.forEach((f, i) => { fwMeshes[i].position.copy(f.b.translation()); fwMeshes[i].visible = wallH > 0.02; fwMeshes[i].material.opacity = 0.35 + 0.45 * wallH; });
-    drawCoins();
+    drawCoins(); drawTowerMarks(t);
     // the gate, the chute and the aim marker
     ring.position.x = gateX(tp);
     if (tp >= gateReady) ringM.color.setRGB(2.2 + Math.sin(t * 12) * 0.6, 1.6, 0.4); else { const k = 1 - (gateReady - tp) / (GATE_CD + 1.6); ringM.color.setRGB(0.25 + k * 0.5, 0.18 + k * 0.35, 0.1); }
@@ -474,6 +608,11 @@ function start() {
     coins: () => coins.length,
     superJackpot() { JP.stars = 2; starIn(0, FRONT); },
     jp: () => ({ ...JP, size: jpSize() }),
+    topple() { return toppleTower(); },
+    grow(n = 1) { for (let i = 0; i < n; i++) growTower(); },
+    shape() { const col = coins[0].body.collider(0); return { hh: col.halfHeight(), r: col.radius(), round: col.roundRadius(), lu: world.lengthUnit, nf: world.integrationParameters.contact_natural_frequency, err: world.integrationParameters.normalizedAllowedLinearError, pred: world.integrationParameters.normalizedPredictionDistance }; },
+    towerInfo() { return towers.map(T => { if (!T.body) return { building: T.shown + '/' + T.n }; const p = T.body.translation(), q = T.body.rotation(); tv.set(0, 1, 0).applyQuaternion(tq.set(q.x, q.y, q.z, q.w)); return { n: T.n, x: +p.x.toFixed(3), z: +p.z.toFixed(3), tilt: +(Math.acos(Math.min(1, tv.y)) * 57.3).toFixed(1) }; }); },
+    column(x = 0, z = 0.08) { return coins.map(c => c.body.translation()).filter(p => (p.x - x) ** 2 + (p.z - z) ** 2 < 0.0004).map(p => +p.y.toFixed(3)).sort((a, b) => a - b); },
     bonus(k) { if (rolling > 0) return; rollOut = BONUS.find(b => b.k === k) || BONUS[0]; rolling = 1.6; },
     where: () => { const r = { upper: 0, p2top: 0, p1top: 0, deck: 0, deckLayers: [0, 0, 0, 0, 0] }; coins.forEach(c => { const p = c.body.translation(); if (p.y > 0.19) r.p2top++; else if (p.y > 0.145) r.upper++; else if (p.z < fz1(tp) - 0.005 && p.y > 0.055) r.p1top++; else { r.deck++; r.deckLayers[Math.min(4, Math.floor(p.y / TH))]++; } }); return r; },
   };
