@@ -10,6 +10,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { headerChrome, onQuality } from './chrome3d.js?v=58';
 
 const REELS = 5, N = 12, ALPHA = (Math.PI * 2) / N;                 // faces per drum, angle per face
 const FACE = 1, GAP = 0.09, AP = FACE / (2 * Math.tan(ALPHA / 2));   // face height, gap between reels, drum apothem
@@ -509,6 +510,9 @@ function create(host) {
     buttons.spin.g.position.set(small ? 0.2 : 0.05, 0.17, small ? 0.46 : 0.32);
   }
   new ResizeObserver(resize).observe(host);
+  // the site header folds into the machine view; graphics quality follows the shared setting
+  headerChrome(host, 'cab3d-on');
+  onQuality(q => { const hi = q === 'high'; renderer.setPixelRatio(hi ? Math.min(2, window.devicePixelRatio || 1) : 1); bloom.enabled = hi; resize(); });
   resize();
 
   // ---------- pointer: tilt the view, hover and press the buttons ----------

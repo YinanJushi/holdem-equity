@@ -1,6 +1,6 @@
 // Texas Hold'em in 3D: turns the table description from app.js into seated opponents, cards, chips and labels.
 // "Pick cards" mode needs the flat table (you click card spots), so the 3D view steps aside there.
-import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=56';
+import { createCasino, barButton, tableChrome, analysisToggle } from './casino3d.js?v=58';
 
 const host = document.getElementById('table');
 const C = host ? createCasino(host, 'holdem') : null;
@@ -9,6 +9,14 @@ if (C) {
   window.OL_CASINO = C;
   barButton(C.wrap, C);
   const press = id => () => { const el = document.getElementById(id); if (el) el.click(); };
+  // phones: keep the bet bar short; the bet sizes and slider open from a toggle
+  const foot = document.querySelector('#betBar .bb-foot');
+  if (foot && !document.getElementById('sizeToggle')) {
+    const t = document.createElement('button'); t.type = 'button'; t.id = 'sizeToggle'; t.className = 'ghostbtn size-toggle';
+    const paintT = () => { const open = document.body.classList.contains('t3-sizes'); t.textContent = open ? 'Hide bet sizes' : 'Bet sizes'; t.setAttribute('aria-expanded', String(open)); };
+    t.onclick = () => { document.body.classList.toggle('t3-sizes'); paintT(); };
+    foot.prepend(t); paintT();
+  }
   tableChrome(C, [
     { icon: 'rules', label: 'Rules', onClick: press('rulesBtn') },
     { icon: 'cards', label: 'Card backs', onClick: press('deckBtn') },
@@ -90,8 +98,8 @@ if (C) {
       if (s.bet > 0) L.push({ key: 'betl' + s.j, x: bp.x, y: 0.0, z: bp.z + 0.05, html: String(s.bet), cls: 'small' });
     });
     // your chips
-    if (st.heroBet > 0) { stacks.push({ key: R + 'bet0', n: st.heroBet, x: -0.12, z: 0.27, fromX: -0.27, fromZ: 0.56, toX: POT.x, toZ: POT.z }); L.push({ key: 'betl0', x: -0.12, y: 0, z: 0.32, html: String(st.heroBet), cls: 'small' }); }
-    if (st.heroStack > 0) stacks.push({ key: 'stack0', n: st.heroStack, x: -0.27, z: 0.56 });
+    if (st.heroBet > 0) { stacks.push({ key: R + 'bet0', n: st.heroBet, x: -0.12, z: 0.27, fromX: -0.2, fromZ: 0.6, toX: POT.x, toZ: POT.z }); L.push({ key: 'betl0', x: -0.12, y: 0, z: 0.32, html: String(st.heroBet), cls: 'small' }); }
+    if (st.heroStack > 0) stacks.push({ key: 'stack0', n: st.heroStack, x: -0.2, z: 0.6 });
     // the pot, pushed to the winner at the end
     if (st.pot > 0) {
       let px = POT.x, pz = POT.z;

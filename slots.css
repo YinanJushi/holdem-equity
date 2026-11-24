@@ -256,3 +256,7 @@ body.party .cabinet { animation: partyGlow .5s ease-in-out infinite alternate; }
 .st-table-in { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 12px; }
 .st-table-in th, .st-table-in td { text-align: left; padding: 3px 6px; border-bottom: 1px solid rgba(34,25,21,.12); }
 @media (prefers-reduced-motion: reduce) { .win-tier, .win-tier.up, .flapper.flap, body.party .cabinet { animation: none !important; } }
+
+/* the site header folds into the 3D machine view */
+body.cab3d-on .top { display: none; }
+body.cab3d-on .slots-layout { padding-top: 12px; }

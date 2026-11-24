@@ -669,3 +669,10 @@ body.t3d-on .t3-msg { top: 54px; }
 body.t3d-on #table #msg { visibility: visible !important; position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 /* until the 3D view is ready, don't flash the flat table */
 html.t3d-wait #table > :not(.t3-host) { visibility: hidden; }
+
+.size-toggle { display: none; }
+@media (max-width: 640px) {
+  body.t3d-on .size-toggle { display: inline-flex; padding: 7px 12px; font-size: 13px; }
+  body.t3d-on:not(.t3-sizes) #raiseWrap { display: none; }
+  body.t3d-on #betBar .bb-foot .hint { display: none; }
+}
