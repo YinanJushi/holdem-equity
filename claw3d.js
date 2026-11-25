@@ -12,7 +12,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=107';
+import { headerChrome, onQuality } from './chrome3d.js?v=108';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -342,7 +342,7 @@ function start() {
     tone(1400, 0.08); tone(1800, 0.1); say(tr('Move the claw, then press Drop')); paint();
     G.got = false; window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-play' } }));
   }
-  function dropClaw() { if (G.state !== 'aim') return; G.state = 'lower'; G.t = 0; motor(true); paint(); if (!G.sim) say(tr('Here goes…')); }
+  function dropClaw() { if (G.state !== 'aim') return; G.state = 'lower'; G.t = 0; G.slackT = 0; motor(true); paint(); if (!G.sim) say(tr('Here goes…')); }
   function step(dt) {
     // carriage: eases toward the stick direction (during aim) or a target (carry / home)
     let tx = null, tz = null;
@@ -361,9 +361,15 @@ function start() {
     G.t += dt;
     if (G.state === 'aim') { G.timer -= dt; if (G.timer <= 0) dropClaw(); }
     else if (G.state === 'lower') {
-      G.rope = Math.min(ROPE_MAX, G.rope + 0.2 * dt);
-      // stop when the head can't go further (the cable goes slack) or at the bottom
-      if (G.rope - dist > 0.012 || G.rope >= ROPE_MAX) { G.state = 'close'; G.t = 0; setGrip(CLOSED, G.grip); tone(300, 0.15, 0.04, 'square'); }
+      // the cable keeps paying out after the claw touches the pile: the heavy head and its open prongs sink and dig
+      // in under their own weight, pushing prizes aside, until the head has rested on the slack cable for a moment
+      // (like a real machine's slack-cable switch) or the cable runs out. Then the prongs close.
+      const slack = G.rope - dist;
+      if (slack < 0.05) G.rope = Math.min(ROPE_MAX, G.rope + 0.2 * dt);
+      G.slackT = slack > 0.015 ? (G.slackT || 0) + dt : 0;
+      if (G.slackT > 0.6 || G.rope >= ROPE_MAX) { G.state = 'settle'; G.t = 0; G.slackT = 0; }
+    } else if (G.state === 'settle') {
+      if (G.t > 0.3) { G.state = 'close'; G.t = 0; setGrip(CLOSED, G.grip); tone(300, 0.15, 0.04, 'square'); }
     } else if (G.state === 'close') { if (G.t > 0.6) { G.state = 'raise'; G.t = 0; } }
     else if (G.state === 'raise') {
       G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt);
