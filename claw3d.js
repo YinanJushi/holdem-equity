@@ -50,7 +50,7 @@ function start() {
   const X = FIGURE ? 0.42 : 0.28, ZB = FIGURE ? -0.36 : -0.26, ZF = FIGURE ? 0.32 : 0.24, TOP = 0.52;
   const CW = X * 2 + 0.14, CD = ZF - ZB + 0.16, CZ = (ZF + ZB) / 2;   // outside of the cabinet
   const CH = { x0: -X, x1: -X + 0.17, z0: ZF - 0.17, z1: ZF };          // the prize chute (front-left)
-  const HEAD = { r: 0.032, h: 0.04 }, FING = TAKO ? { n: 2, len: 0.075, r: 0.008 } : FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
+  const HEAD = { r: 0.032, h: 0.04 }, FING = TAKO ? { n: 3, len: 0.075, r: 0.008 } : FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
   // a three-prong claw's wire prong, side view (x outward, y up; the hinge is at the top): it bows out, then hooks in
   // a UFO-catcher arm, side view (x outward, hinge at the top): it angles out, then an elbow turns the finger in
   const ARM = [[0, FING.len / 2], [0.016, -FING.len / 2 + FING.len * 0.32], [-FING.len * 0.13, -FING.len / 2 + 0.004]];
@@ -58,9 +58,9 @@ function start() {
   const ROPE_MIN = 0.05, ROPE_MAX = 0.46;
   // takoyaki machine: the funnel scoop (half-cone: top radius, bottom radius, height) and the plate. PL: centre x/z,
   // half-size, top surface height, 5x5 holes at spacing sp, hole radius rh and depth d, shield height above the plate
-  const FUN = { rt: 0.072, rb: 0.014, h: 0.088 };
-  const PL = { x: 0.14, z: -0.01, half: 0.134, y: 0.06, n: 5, sp: 0.052, rh: 0.022, d: 0.016, shield: 0.07 };
-  const BALL_R = 0.02, ROPE_DROP = 0.23;   // a ping-pong ball is 40 mm; the scoop lowers to here over the plate before it opens
+  const FUN = { rt: 0.08, rb: 0.014, h: 0.095 };
+  const PL = { x: 0.14, z: -0.01, half: 0.134, y: 0.06, n: 5, sp: 0.052, rh: 0.022, d: 0.016, shield: 0.035 };
+  const BALL_R = 0.02, ROPE_DROP = 0.1;   // a ping-pong ball is 40 mm; the scoop lowers to here over the plate before it opens
   const HOLES = []; for (let i = 0; i < PL.n; i++) for (let j = 0; j < PL.n; j++) HOLES.push({ x: PL.x + (i - (PL.n - 1) / 2) * PL.sp, z: PL.z + (j - (PL.n - 1) / 2) * PL.sp, kind: 'plain' });
 
   // ---------- materials ----------
@@ -127,7 +127,7 @@ function start() {
       const edge = Math.max(Math.abs(x - PL.x), Math.abs(z - PL.z)); if (edge > PL.half - 0.012) h = Math.max(h, 0.008);
       hfH[a * (HF + 1) + b] = h;   // the grid is square and the holes symmetric, so row/column order doesn't matter
     }
-    world.createCollider(RAPIER.ColliderDesc.heightfield(HF, HF, hfH, { x: PL.half * 2, y: 1, z: PL.half * 2 }).setTranslation(PL.x, PL.y, PL.z).setFriction(0.4).setRestitution(0.35));
+    world.createCollider(RAPIER.ColliderDesc.heightfield(HF, HF, hfH, { x: PL.half * 2, y: 1, z: PL.half * 2 }).setTranslation(PL.x, PL.y, PL.z).setFriction(0.4).setRestitution(0.55));
     fixedBox(PL.half, (PL.y - PL.d - 0.004) / 2, PL.half, PL.x, (PL.y - PL.d - 0.004) / 2, PL.z, 0.4);
     const sh = PL.y + PL.shield;   // shield walls, from the floor up
     [[PL.x, PL.z - PL.half - 0.003, PL.half + 0.006, 0.003], [PL.x, PL.z + PL.half + 0.003, PL.half + 0.006, 0.003], [PL.x - PL.half - 0.003, PL.z, 0.003, PL.half + 0.006], [PL.x + PL.half + 0.003, PL.z, 0.003, PL.half + 0.006]]
@@ -151,15 +151,15 @@ function start() {
     const fb = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(hp.x + o.x * FING.r, hp.y - HEAD.h / 2 - (TAKO ? 0 : FING.len / 2), hp.z + o.z * FING.r).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setAngularDamping(2).setCcdEnabled(true));
     // local -x points toward the centre of the claw
     if (CLAW === 'funnel') {
-      // half a cone, hinged at the top near the centre: six flat slats laid round the slope (local origin = hinge,
-      // the cone's axis is at x = -FING.r). Closed, the two halves make a cup; opened, the bottom splits apart.
-      const N = 6, sl = new THREE.Vector3(), tg = new THREE.Vector3(), nm = new THREE.Vector3(), mt = new THREE.Matrix4(), qq = new THREE.Quaternion();
+      // one petal (a third of a cone), hinged at the top near the centre: flat slats laid round the slope (local origin
+      // = hinge, the cone's axis is at x = -FING.r). Closed, the three petals make a cup; opened, the bottom splits apart.
+      const N = 4, SPAN = Math.PI * 2 / FING.n, sl = new THREE.Vector3(), tg = new THREE.Vector3(), nm = new THREE.Vector3(), mt = new THREE.Matrix4(), qq = new THREE.Quaternion();
       const slant = Math.hypot(FUN.rt - FUN.rb, FUN.h), rm = (FUN.rt + FUN.rb) / 2;
       for (let k = 0; k < N; k++) {
-        const ps = -Math.PI / 2 + (k + 0.5) * Math.PI / N, c = Math.cos(ps), sn = Math.sin(ps);
+        const ps = -SPAN / 2 + (k + 0.5) * SPAN / N, c = Math.cos(ps), sn = Math.sin(ps);
         sl.set((FUN.rt - FUN.rb) * c, FUN.h, (FUN.rt - FUN.rb) * sn).normalize(); tg.set(-sn, 0, c); nm.crossVectors(sl, tg);
         mt.makeBasis(nm, sl, tg); qq.setFromRotationMatrix(mt);
-        world.createCollider(RAPIER.ColliderDesc.cuboid(0.0018, slant / 2, FUN.rt * Math.PI / N * 0.6).setTranslation(-FING.r + rm * c, -FUN.h / 2, rm * sn).setRotation({ x: qq.x, y: qq.y, z: qq.z, w: qq.w }).setDensity(1500).setFriction(0.5).setCollisionGroups(FG), fb);
+        world.createCollider(RAPIER.ColliderDesc.cuboid(0.0018, slant / 2, FUN.rt * SPAN / N * 0.6).setTranslation(-FING.r + rm * c, -FUN.h / 2, rm * sn).setRotation({ x: qq.x, y: qq.y, z: qq.z, w: qq.w }).setDensity(1500).setFriction(0.5).setCollisionGroups(FG), fb);
       }
     } else if (CLAW === 'two') {
       // a UFO-catcher arm: a flat bar angled out, an elbow, then a finger turned inward with a rubber pad on its tip
@@ -422,7 +422,7 @@ function start() {
   function clearPlate() { let k = 0; for (const b of balls) { const t = b.body.translation(); if (onPlate(t) || t.y < -0.05) { const c = k++ % 40, s2 = { x: -X + 0.04 + (c % 5) * 0.048, z: ZB + 0.05 + Math.floor(c / 5) * 0.054 }; b.body.setTranslation({ x: s2.x, y: 0.24 + Math.floor(k / 40) * 0.05, z: s2.z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); b.hole = null; b.t = 0; } } }
   if (TAKO) {
     pickHoles();
-    for (let i = 0; i < 140; i++) { const s2 = pitSpot(); addBall(s2.x, 0.06 + (i % 10) * 0.045, s2.z); if (i % 10 === 9) for (let k = 0; k < 70; k++) world.step(); }   // poured in ten at a time, each at its own height
+    for (let i = 0; i < 230; i++) { const s2 = pitSpot(); addBall(s2.x, 0.12 + (i % 10) * 0.045, s2.z); if (i % 10 === 9) for (let k = 0; k < 55; k++) world.step(); }   // poured in ten at a time, each at its own height
   }
   for (let i = 0; i < 240; i++) world.step();
   putBack();
@@ -459,7 +459,7 @@ function start() {
     paintHoles();
     // a little sign on the shield
     const sign = canvasTex(256, 64, g2 => { g2.fillStyle = '#f2c14e'; g2.font = '800 24px "Libre Franklin", Arial'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText('GOLD 120 · RED 10', 128, 34); });
-    const sg = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.05), new THREE.MeshBasicMaterial({ map: sign, transparent: true })); sg.position.set(PL.x, PL.y + PL.shield - 0.03, PL.z + PL.half + 0.007); scene.add(sg);
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.04), new THREE.MeshBasicMaterial({ map: sign, transparent: true })); sg.position.set(PL.x, PL.y + PL.shield - 0.02, PL.z + PL.half + 0.007); scene.add(sg);
   }
   // the hole in the floor where the chute is (drawn dark over the velvet)
   const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.z1 - CH.z0), new THREE.MeshBasicMaterial({ color: '#050203' })); hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, 0.0005, (CH.z0 + CH.z1) / 2); if (CHUTE) scene.add(hole);
@@ -589,9 +589,9 @@ function start() {
     const g = new THREE.Group();
     if (CLAW === 'funnel') {
       // half a cone of polished steel with a gold rim, matching the slats in the physics
-      const lg = new THREE.LatheGeometry([new THREE.Vector2(FUN.rb, -FUN.h), new THREE.Vector2(FUN.rt, 0)], 24, 0, Math.PI); lg.translate(-FING.r, 0, 0);
+      const SPAN = Math.PI * 2 / FING.n, lg = new THREE.LatheGeometry([new THREE.Vector2(FUN.rb, -FUN.h), new THREE.Vector2(FUN.rt, 0)], 16, Math.PI / 2 - SPAN / 2, SPAN); lg.translate(-FING.r, 0, 0);
       const cone = new THREE.Mesh(lg, funnelM); cone.castShadow = true; g.add(cone);
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(FUN.rt, 0.0025, 6, 24, Math.PI), gold); rim.rotation.x = Math.PI / 2; rim.rotation.z = -Math.PI / 2; rim.position.x = -FING.r; g.add(rim);
+      const rg = new THREE.TorusGeometry(FUN.rt, 0.0025, 6, 16, SPAN); rg.rotateZ(-SPAN / 2); rg.rotateX(Math.PI / 2); rg.translate(-FING.r, 0, 0); g.add(new THREE.Mesh(rg, gold));
       const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.02, 10), gold); hinge.rotation.x = Math.PI / 2; g.add(hinge);
     } else if (CLAW === 'two') {
       for (let k = 1; k < ARM.length; k++) {
