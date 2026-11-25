@@ -949,3 +949,6 @@ body.cl-aiming .cl-timer { display: block; }
 .cl-deck figcaption span { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
 .cl-rar { display: block; font: 700 12px var(--sans); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 2px; }
 .cl-win .r-common { color: #d8d0c0; } .cl-win .r-rare { color: #7fb4ff; } .cl-win .r-limited { color: #ffd36a; } .cl-win .r-legendary { color: #e3a6ff; text-shadow: 0 0 10px #c060ff; }
+.cl-sup { display: inline-block; padding: 1px 7px; border-radius: 999px; background: linear-gradient(90deg, #ffd36a, #ff9a2e); color: #2a1200; font-weight: 800; letter-spacing: .06em; font-size: 11px; animation: clPulse 1s ease-in-out infinite; }
+body.cl-super .cl-host { box-shadow: inset 0 0 60px rgba(255,200,90,.35); }
+#clInfo { cursor: default; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }

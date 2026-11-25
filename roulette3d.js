@@ -1,7 +1,7 @@
 // Roulette at a 3D table: click the felt to place chips, Spin, and the ball decides.
 // European single zero: straight up pays 35 to 1, dozens and columns 2 to 1, red/black, odd/even and low/high 1 to 1.
 import * as THREE from 'three';
-import { createCasino, barButton, tableChrome } from './casino3d.js?v=112';
+import { createCasino, barButton, tableChrome } from './casino3d.js?v=113';
 
 const $ = s => document.querySelector(s);
 const host = document.getElementById('table');

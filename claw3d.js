@@ -13,7 +13,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=112';
+import { headerChrome, onQuality } from './chrome3d.js?v=113';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -429,12 +429,14 @@ function start() {
   // Even a strong play isn't a sure thing: SLIP is the chance it eases to MID strength at the top, and the swing on
   // the way to the chute can still shake a prize loose. COMBO: bonus for each extra prize dropped in the same play.
   const TUNE = { TARGET: 0.9, STRONG_AT: 50, LUCKY: 0.06, BANK_MAX: 300, GRIP: 0.1, WEAK: 0.15, LOOSE: 0.3, SLIP: 0.3, MID: 0.4, COMBO: 50, P_STRONG: null };
+  let superClaw = false;   // the owner's super claw (see the code box below): full grip all the way, outside the payout bank
   let bank = (() => { try { return +localStorage.getItem('ol-claw-bank' + SUFFIX) || 0; } catch (e) { return 0; } })();
   const saveBank = () => { if (!G.sim) try { localStorage.setItem('ol-claw-bank' + SUFFIX, String(Math.round(bank))); } catch (e) { /* ignore */ } };
   function newPlay() {
-    bank = Math.min(TUNE.BANK_MAX, bank + COST * TUNE.TARGET);
+    if (!superClaw) bank = Math.min(TUNE.BANK_MAX, bank + COST * TUNE.TARGET);
     G.strong = TUNE.P_STRONG != null ? Math.random() < TUNE.P_STRONG : (bank >= TUNE.STRONG_AT || Math.random() < TUNE.LUCKY);
     G.grip = TUNE.GRIP * (0.85 + Math.random() * 0.3);   // this play's motor strength
+    if (superClaw) { G.strong = true; G.grip = TUNE.GRIP * 4; }
     G.playWins = 0;
     G.state = 'aim'; G.timer = 30; saveBank();
   }
@@ -483,7 +485,7 @@ function start() {
     else if (G.state === 'raise') {
       G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt);
       // at the top the grip relaxes on most plays: what's held loosely may slip on the way
-      if (G.rope <= ROPE_MIN + 0.001) { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; }
+      if (G.rope <= ROPE_MIN + 0.001) { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; }
     } else if (G.state === 'carry') { if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5) { G.state = 'release'; G.t = 0; setGrip(OPEN, 0.08); tone(500, 0.12, 0.04, 'square'); } }
     else if (G.state === 'release') { if (G.t > 1.0) { G.state = 'home'; G.t = 0; } }
     else if (G.state === 'home') { if (Math.hypot(0.12 - G.cx, -0.02 - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, 0.05); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
@@ -505,7 +507,7 @@ function start() {
     // a second (third…) prize in the same play earns the combo bonus
     G.playWins = (G.playWins || 0) + 1;
     const bonus = G.playWins >= 2 && G.state !== 'idle' ? TUNE.COMBO : 0, v = p.value + bonus;
-    bank -= v; saveBank();
+    if (!superClaw) { bank -= v; saveBank(); }
     if (G.sim) { G.simWon += v; G.simWins++; G.simKinds[p.kind] = (G.simKinds[p.kind] || 0) + 1; return; }
     pending += v; wonTotal += v; G.got = true;
     collection[p.kind] = (collection[p.kind] || 0) + 1; try { localStorage.setItem('ol-claw-col' + SUFFIX, JSON.stringify(collection)); } catch (e) { /* ignore */ }
@@ -531,7 +533,7 @@ function start() {
     $('#clInsert').disabled = G.state !== 'idle';
     $('#clDrop').disabled = G.state !== 'aim';
     $('#clInsert').innerHTML = `${tr('Play')} <b>${COST}</b>`;
-    $('#clInfo').innerHTML = `${tr('Plays')} <b>${plays}</b> · ${tr('Won')} <b>${wonTotal}</b>`;
+    $('#clInfo').innerHTML = `${superClaw ? `<span class="cl-sup">${tr('SUPER')}</span> ` : ''}${tr('Plays')} <b>${plays}</b> · ${tr('Won')} <b>${wonTotal}</b>`;
     document.body.classList.toggle('cl-aiming', G.state === 'aim');
   }
   $('#clInsert').onclick = () => { audio(); insert(); };
@@ -548,6 +550,37 @@ function start() {
     }
     d.onclick = e => { if (e.target.closest('[data-close]')) d.close(); }; d.showModal();
   };
+  // ---------- the owner's code: long-press or double-click the plays/won pill to open a hidden box; the right code
+  // turns on the super claw for this visit. Only a SHA-256 hash of the code is in the site (the same owner code as
+  // the coin pusher, OL_CONFIG.pusherCodeHash), never the code itself.
+  const codeHash = ((window.OL_CONFIG || {}).pusherCodeHash || '').trim().toLowerCase();
+  let codeTries = 0, codeLockUntil = 0, pressT = 0;
+  const sha256 = async text => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))].map(x => x.toString(16).padStart(2, '0')).join('');
+  function openCodeBox() {
+    if (superClaw) { setSuper(false); return; }
+    let d = document.getElementById('clCode'); if (!d) { d = document.createElement('dialog'); d.id = 'clCode'; d.className = 'rules'; document.body.appendChild(d); }
+    d.innerHTML = `<h2>${tr('Enter code')}</h2><form method="dialog" class="pz-codeform"><input type="password" id="clCodeIn" autocomplete="off" aria-label="${tr('Code')}"><p class="sub" id="clCodeMsg" role="status"></p><div class="rule-actions"><button type="button" class="ghostbtn" data-close>${tr('Cancel')}</button><button type="submit" class="primary">${tr('OK')}</button></div></form>`;
+    const msgEl = d.querySelector('#clCodeMsg'), input = d.querySelector('#clCodeIn');
+    d.querySelector('[data-close]').onclick = () => d.close();
+    d.querySelector('form').onsubmit = async e => {
+      e.preventDefault();
+      if (!codeHash) { msgEl.textContent = tr('No code has been set up for this machine yet.'); return; }
+      if (Date.now() < codeLockUntil) { msgEl.textContent = tr('Too many tries. Wait a minute.'); return; }
+      if ((await sha256(input.value.trim())) !== codeHash) { codeTries++; if (codeTries >= 5) { codeTries = 0; codeLockUntil = Date.now() + 60000; } msgEl.textContent = tr('That code is not right.'); input.select(); return; }
+      d.close(); setSuper(true);
+    };
+    d.showModal(); setTimeout(() => input.focus(), 50);
+  }
+  function setSuper(on) {
+    superClaw = on; document.body.classList.toggle('cl-super', on);
+    if (on) { if (G.state === 'aim') { G.strong = true; G.grip = TUNE.GRIP * 4; } say(tr('SUPER CLAW ON')); voice('Super claw!', '超级强力爪！'); fanfare(); bulbsHot = 3; }
+    else say(tr('Super claw off'));
+    paint();
+  }
+  const infoEl = $('#clInfo');
+  infoEl.addEventListener('dblclick', openCodeBox);
+  infoEl.addEventListener('pointerdown', () => { clearTimeout(pressT); pressT = setTimeout(openCodeBox, 900); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => infoEl.addEventListener(ev, () => clearTimeout(pressT)));
   const cBtn = $('#clClaw');
   if (cBtn) { cBtn.textContent = tr(CLAW === 'two' ? 'Claw: 2 arms' : 'Claw: 3 prongs'); cBtn.onclick = () => { if (!['idle', 'aim'].includes(G.state) || G.state === 'aim') { say(tr('Change the claw between plays')); return; } try { localStorage.setItem('ol-claw-type', CLAW === 'two' ? 'three' : 'two'); } catch (e) { /* ignore */ } flush(); location.reload(); }; }
   const mBtn = $('#clMachine');
@@ -619,6 +652,7 @@ function start() {
     if (deckMatCache.deck_holo) { deckMatCache.deck_holo.face.emissiveIntensity = 0.4 + Math.max(0, Math.sin(t * 2.4)) * 0.6; deckMatCache.deck_holo.face.iridescenceIOR = 1.3 + Math.sin(t) * 0.2; }
     goldChipM.forEach(m => { m.emissiveIntensity = 0.3 + Math.max(0, Math.sin(t * 2.2)) * 0.5; });
     bulbs.forEach((b, i) => { const on = bulbsHot > 0 ? (i + Math.floor(t * 30)) % 2 === 0 : G.state === 'idle' ? (i + Math.floor(t * 5)) % 3 === 0 : (i + Math.floor(t * 12)) % 2 === 0; b.material.color.setRGB(on ? 1.5 : 0.4, on ? 1.1 : 0.28, on ? 0.45 : 0.1); });
+    chrome.emissive.setRGB(superClaw ? 0.55 + Math.sin(t * 6) * 0.25 : 0, superClaw ? 0.35 + Math.sin(t * 6) * 0.15 : 0, 0);
     ledM.color.setRGB(1.1 + Math.sin(t * 3) * 0.2, 0.8, 0.34);
     animView(); controls.update();
   }
