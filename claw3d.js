@@ -823,7 +823,7 @@ function start() {
   function paintTakoHud() {
     if (!TAKO) return;
     const P = TAKO_PRIZES[takoPick], have = stars[takoPick] || 0, left = Math.max(0, plainCount - plainFilled), pct = plainCount ? Math.round(plainFilled / plainCount * 100) : 0;
-    takoHud.innerHTML = `<span class="ct-star">${'★'.repeat(have)}${'☆'.repeat(Math.max(0, P.need - have))}</span><span class="ct-bar"><i style="width:${fullPlate ? 100 : pct}%"></i></span><span class="ct-txt">${fullPlate ? tr('Full plate: next ball wins!') : tr('{0} holes to the full-plate win', left).replace('{0}', left)} · ${tr('Lines')} ${doneLines.size}</span>`;
+    takoHud.innerHTML = `<span class="ct-star">${'★'.repeat(have)}${'☆'.repeat(Math.max(0, P.need - have))}</span><span class="ct-bar"><i style="width:${fullPlate ? 100 : pct}%"></i></span><span class="ct-n">${fullPlate ? tr('Full!') : `${plainFilled}/${plainCount}`} · ${tr('Lines')} ${doneLines.size}</span><span class="ct-txt">${fullPlate ? tr('Full plate: next ball wins!') : tr('{0} holes to the full-plate win', left).replace('{0}', left)} · ${tr('Lines')} ${doneLines.size}</span>`;
     takoHud.classList.toggle('hot', fullPlate);
   }
   function paint() {
@@ -897,7 +897,7 @@ function start() {
   if (TAKO) {
     applyTheme(takoPick); paintFig(); paintTakoHud();
     fBtn.onclick = () => { if (G.state !== 'idle' || prizeAnim) { say(tr('Change the prize between plays')); return; } const ids = Object.keys(TAKO_PRIZES); takoPick = ids[(ids.indexOf(takoPick) + 1) % ids.length]; try { localStorage.setItem('ol-tako-pick', takoPick); } catch (e) { /* ignore */ } applyTheme(takoPick); paintFig(); paintTakoHud(); };
-    const placeHud = () => { const b = $('#clBar').getBoundingClientRect(); takoHud.style.bottom = Math.max(8, innerHeight - b.top + 6) + 'px'; };
+    const placeHud = () => { if (innerWidth <= 640) { takoHud.style.bottom = ''; return; } const b = $('#clBar').getBoundingClientRect(); takoHud.style.bottom = Math.max(8, innerHeight - b.top + 6) + 'px'; };   // on phones it sits small at the top instead
     new ResizeObserver(placeHud).observe($('#clBar')); addEventListener('resize', placeHud); placeHud();
   }
   if (TAKO && rBtn) rBtn.onclick = () => { if (G.state !== 'idle' || clearT > 0) { say(tr('The attendant can reset the plate between plays')); return; } clearPlate(); say(tr('The attendant cleared the plate')); };
