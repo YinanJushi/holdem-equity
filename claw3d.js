@@ -13,8 +13,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=146';
-import { headerChrome, onQuality } from './chrome3d.js?v=146';
+import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=147';
+import { headerChrome, onQuality } from './chrome3d.js?v=147';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -713,6 +713,9 @@ function start() {
     fBtn.onclick = () => { if (G.state !== 'idle') { say(tr('Change the figure between plays')); return; } const ids = Object.keys(FIGS); figPick = ids[(ids.indexOf(figPick) + 1) % ids.length]; try { localStorage.setItem('ol-claw-fig', figPick); } catch (e) { /* ignore */ } placeBox(); paintFig(); applyTheme(figPick); };
     rBtn.onclick = () => { if (G.state !== 'idle') { say(tr('The attendant can reset the box between plays')); return; } placeBox(); say(tr('The attendant set the box back on the bridge')); };
     const credit = document.createElement('p'); credit.className = 'cl-credit'; credit.translate = false; credit.textContent = window.I18N && I18N.lang === 'zh' ? FIG_CREDIT_ZH : FIG_CREDIT; host.appendChild(credit);
+    // keep the credit just above the button bar, however many rows the bar wraps onto
+    const placeCredit = () => { const b = $('#clBar').getBoundingClientRect(); credit.style.bottom = Math.max(8, innerHeight - b.top + 6) + 'px'; };
+    new ResizeObserver(placeCredit).observe($('#clBar')); addEventListener('resize', placeCredit); placeCredit();
   }
   // joystick: drag inside the pad; or arrow keys / WASD
   const pad = $('#clPad'), knob = $('#clKnob');
