@@ -91,10 +91,10 @@ function start() {
   const BOX = [0.18, 0.068, 0.13];   // the figure box lies flat: long side across the bars, window up
   // six bars: two high ones in the middle the box rests on, then two lower ones stepping down on each side. No fences:
   // shift the box far enough and it tips into a gap or slides off the outside, and either way it's yours.
-  const BARS = [[-0.225, -0.036], [-0.135, -0.018], [-0.045, 0], [0.045, 0], [0.135, -0.018], [0.225, -0.036]].map(([x, dy]) => ({ x, y: BR.y + dy }));
+  const BARS = [[-0.29, -0.04], [-0.175, -0.02], [-0.06, 0], [0.06, 0], [0.175, -0.02], [0.29, -0.04]].map(([x, dy]) => ({ x, y: BR.y + dy }));
   if (FIGURE) {
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-    BARS.forEach(b => world.createCollider(RAPIER.ColliderDesc.cylinder((BR.z1 - BR.z0) / 2, BR.r).setTranslation(b.x, b.y, (BR.z0 + BR.z1) / 2).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setFriction(0.35).setCollisionGroups((0x0004 << 16) | 0xfffd)));   // the claw's feet slip between the bars
+    BARS.forEach(b => world.createCollider(RAPIER.ColliderDesc.cylinder((BR.z1 - BR.z0) / 2, BR.r).setTranslation(b.x, b.y, (BR.z0 + BR.z1) / 2).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setFriction(0.35)));   // solid: the claw's feet hit the bars like real steel, so the gaps are wide enough to drop into
   }
   // glass walls and the chute's inner walls (acrylic)
   fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, -X - 0.01, 0.3, (ZF + ZB) / 2, 0.2); fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, X + 0.01, 0.3, (ZF + ZB) / 2, 0.2);
@@ -114,7 +114,7 @@ function start() {
   const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(START.x, TOP - ROPE_MIN, START.z).setLinearDamping(0.6).setCcdEnabled(true));
   headBody.setEnabledRotations(false, false, false, true);
   world.createCollider((CLAW === 'two' ? RAPIER.ColliderDesc.cuboid(FING.r + 0.012, HEAD.h / 2, 0.024) : RAPIER.ColliderDesc.cylinder(HEAD.h / 2, HEAD.r)).setDensity(CLAW === 'two' ? 2400 : 3000).setFriction(0.3), headBody);
-  const FG = (0x0002 << 16) | 0xfff9;   // prongs don't collide with each other or with the figure machine's bars
+  const FG = (0x0002 << 16) | 0xfffd;   // prongs don't collide with each other
   const fingers = Array.from({ length: FING.n }, (_, i) => {
     const th = FING.n === 2 ? i * Math.PI : i * Math.PI * 2 / 3 + Math.PI / 6, o = { x: Math.cos(th), z: Math.sin(th) };
     const hp = headBody.translation();
@@ -373,7 +373,7 @@ function start() {
       const b = new THREE.Mesh(new THREE.CylinderGeometry(BR.r, BR.r, BR.z1 - BR.z0 + 0.02, 20), barMat); b.rotation.x = Math.PI / 2; b.position.set(bar.x, bar.y, (BR.z0 + BR.z1) / 2); b.castShadow = true; scene.add(b);
       [BR.z0, BR.z1].forEach(z => { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, bar.y + 0.12, 12), barMat); post.position.set(bar.x, (bar.y - 0.12) / 2, z); scene.add(post); });
     });
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.58, BR.z1 - BR.z0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.5, 1.2), transparent: true, opacity: 0.35, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(0, -0.11, (BR.z0 + BR.z1) / 2); scene.add(glow);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.7, BR.z1 - BR.z0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.5, 1.2), transparent: true, opacity: 0.35, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(0, -0.11, (BR.z0 + BR.z1) / 2); scene.add(glow);
   }
   // the hole in the floor where the chute is (drawn dark over the velvet)
   const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.z1 - CH.z0), new THREE.MeshBasicMaterial({ color: '#050203' })); hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, 0.0005, (CH.z0 + CH.z1) / 2); if (!FIGURE) scene.add(hole);
