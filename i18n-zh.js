@@ -989,7 +989,10 @@ Object.assign(I18N.dict, {
 "Win all three kinds of cocktail from the claw machine.": "在抓娃娃机集齐三种鸡尾酒。",
 "Lucky Chip": "幸运筹码",
 "Win the golden lucky chip from the claw machine.": "在抓娃娃机抓到黄金幸运筹码。",
-"Drop two prizes in one play for a +{0} combo bonus. The golden lucky chip is the jackpot.": "一次抓下两个奖品，额外奖励 +{0}。黄金幸运筹码是大奖。"
+"Drop two prizes in one play for a {0} combo bonus. The golden lucky chip is the jackpot.": "一次抓下两个奖品，额外奖励 {0}。黄金幸运筹码是大奖。",
+"View": "视角",
+"Change view (or drag the machine)": "切换视角（也可以直接拖动机器）",
+"Drag the joystick or use the arrow keys · Space drops the claw · drag the machine to look around": "拖动摇杆或用方向键移动 · 空格键下爪 · 拖动机器可换角度看"
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],

@@ -12,7 +12,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=108';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { headerChrome, onQuality } from './chrome3d.js?v=109';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -28,10 +29,10 @@ function start() {
   renderer.domElement.className = 'cl-canvas'; host.appendChild(renderer.domElement);
   headerChrome(host, 'cl-on');
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#0c0507');
-  const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.6;
+  const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.45;
   const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 30);
-  scene.add(new THREE.HemisphereLight('#ffe8cc', '#2a0a10', 0.55));
-  const key = new THREE.SpotLight('#fff3e0', 2.4, 3, 0.7, 0.8, 1.4); key.position.set(0.05, 0.62, 0.12); key.target.position.set(0, 0, -0.02); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0004; scene.add(key, key.target);
+  scene.add(new THREE.HemisphereLight('#ffe8cc', '#2a0a10', 0.42));
+  const key = new THREE.SpotLight('#fff3e0', 1.8, 3, 0.7, 0.8, 1.4); key.position.set(0.05, 0.62, 0.12); key.target.position.set(0, 0, -0.02); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0004; scene.add(key, key.target);
 
   // ---------- sizes (metres) ----------
   const X = 0.28, ZB = -0.26, ZF = 0.24, TOP = 0.52;            // inside of the prize box
@@ -65,7 +66,7 @@ function start() {
   // glass walls and the chute's inner walls (acrylic)
   fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, -X - 0.01, 0.3, (ZF + ZB) / 2, 0.2); fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, X + 0.01, 0.3, (ZF + ZB) / 2, 0.2);
   fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZB - 0.01, 0.2); fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZF + 0.01, 0.2);
-  const CHW = 0.27;   // chute wall height above the floor (tall, like a real prize hole: you have to lift prizes over it)
+  const CHW = 0.11;   // chute wall height: lower than the pile, so a shove or an avalanche can tip prizes in by luck
   fixedBox(0.004, CHW / 2, (CH.z1 - CH.z0) / 2, CH.x1 + 0.004, CHW / 2, (CH.z0 + CH.z1) / 2, 0.2);
   fixedBox((CH.x1 - CH.x0) / 2, CHW / 2, 0.004, (CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.004, 0.2);
   // the bin under the chute catches what falls
@@ -218,6 +219,9 @@ function start() {
     prizes.push(p); return p;
   }
   const randomSpot = () => { let x, z; do { x = (Math.random() * 2 - 1) * (X - 0.04); z = ZB + 0.04 + Math.random() * (ZF - ZB - 0.08); } while (x < CH.x1 + 0.04 && z > CH.z0 - 0.04); return { x, z }; };
+  function putBack() {
+    for (const p of prizes) { const t2 = p.body.translation(); if (t2.y < 0.02 && t2.x < CH.x1 + 0.005 && t2.z > CH.z0 - 0.005 || t2.y < -0.05) { const r = randomSpot(); p.body.setTranslation({ x: r.x, y: 0.3, z: r.z }, true); p.body.setLinvel({ x: 0, y: 0, z: 0 }, true); } }
+  }
   // a fixed mix of prizes, piled up (each one won is restocked with the same kind)
   const STOCK_MIX = { chip: 40, chips: 20, dice: 15, cards: 15, rocks: 13, highball: 13, martini: 13, cash: 9, champagne: 5, bar: 3, golden: 1 };
   const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
@@ -225,8 +229,10 @@ function start() {
   for (let i = 0; i < STOCK.length; i += 16) {
     STOCK.slice(i, i + 16).forEach((k, j) => { const s = randomSpot(); spawnPrize(k, s.x, 0.1 + (j % 4) * 0.05 + i * 0.002, s.z); });
     for (let k = 0; k < 120; k++) world.step();
+    putBack();
   }
-  for (let i = 0; i < 120; i++) world.step();
+  for (let i = 0; i < 240; i++) world.step();
+  putBack();
 
   // ---------- the cabinet (looks) ----------
   // base with a sloping control deck, prize door, glass box with gold pillars, a lit marquee
@@ -248,7 +254,7 @@ function start() {
   [[-X - 0.003, 0, 1], [X + 0.003, 0, 1]].forEach(([x]) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(ZF - ZB, 0.56), glass); p.rotation.y = Math.PI / 2; p.position.set(x, 0.27, (ZF + ZB) / 2); scene.add(p); });
   const frontGlass = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, 0.56), glass); frontGlass.position.set(0, 0.27, ZF + 0.003); scene.add(frontGlass);
   // gold corner pillars with LED strips
-  const ledM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.3, 0.95, 0.4) });
+  const ledM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.8, 0.34) });
   [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
     const px = sx * (X + 0.012), pz = sz > 0 ? ZF + 0.012 : ZB - 0.012;
     const p = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.58, 0.024), gold); p.position.set(px, 0.27, pz); p.castShadow = true; scene.add(p);
@@ -449,8 +455,19 @@ function start() {
 
   // ---------- camera and rendering ----------
   const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.22, 0.25, 1.1); composer.addPass(bloom); composer.addPass(new OutputPass());
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.15, 0.25, 1.15); composer.addPass(bloom); composer.addPass(new OutputPass());
   const look = new THREE.Vector3(0, 0.18, 0);
+  // drag to look around the machine (pinch or scroll to zoom); the View button steps through set angles
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enablePan = false; controls.enableDamping = true; controls.dampingFactor = 0.08; controls.rotateSpeed = 0.6;
+  controls.minPolarAngle = 0.12; controls.maxPolarAngle = 1.62; controls.minAzimuthAngle = -1.5; controls.maxAzimuthAngle = 1.5;
+  controls.target = look;
+  const VIEWS = [{ az: 0, el: 0.16 }, { az: -0.85, el: 0.3 }, { az: 0, el: 1.25 }, { az: 0.85, el: 0.3 }];   // front, left, top, right
+  let view = 0, homeDist = 1, viewAnim = null;
+  const viewPos = (v, d) => new THREE.Vector3(Math.sin(v.az) * Math.cos(Math.atan(v.el)) , Math.sin(Math.atan(v.el)), Math.cos(v.az) * Math.cos(Math.atan(v.el))).multiplyScalar(d).add(look);
+  function goView(i, instant) { view = i; const to = viewPos(VIEWS[i], homeDist * (i === 2 ? 0.95 : 1)); if (instant) { camera.position.copy(to); viewAnim = null; } else viewAnim = { from: camera.position.clone(), to, t: 0 }; }
+  function animView() { if (!viewAnim) return; viewAnim.t = Math.min(1, viewAnim.t + 0.04); const k = 1 - Math.pow(1 - viewAnim.t, 3); camera.position.lerpVectors(viewAnim.from, viewAnim.to, k); if (viewAnim.t >= 1) viewAnim = null; }
+  controls.addEventListener('start', () => { viewAnim = null; });
   function resize() {
     const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return;
     renderer.setSize(w, h, false); composer.setSize(w, h); camera.aspect = w / h;
@@ -462,8 +479,12 @@ function start() {
     const dist = Math.max(W / 2 / Math.tan(hf / 2), H / 2 / Math.tan(vf / 2) / (1 - bar - top));
     const half = dist * Math.tan(vf / 2);
     look.set(0, CY - (bar - top) * half, 0);
-    camera.position.set(0, look.y + dist * 0.16, dist);
+    homeDist = Math.hypot(dist, dist * 0.16);
+    controls.minDistance = homeDist * 0.35; controls.maxDistance = homeDist * 1.5;
+    goView(view, true);
   }
+  const viewBtn = $('#clView');
+  if (viewBtn) viewBtn.onclick = () => goView((view + 1) % VIEWS.length);
   new ResizeObserver(resize).observe(host); resize();
   onQuality(q => { const hi = q === 'high'; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; });
   const m4q = new THREE.Quaternion(); let bulbsHot = 0;
@@ -479,9 +500,9 @@ function start() {
     stick.rotation.set(input.z * 0.35, 0, -input.x * 0.35);
     if (bulbsHot > 0) bulbsHot -= 1 / 60;
     goldChipM.forEach(m => { m.emissiveIntensity = 0.3 + Math.max(0, Math.sin(t * 2.2)) * 0.5; });
-    bulbs.forEach((b, i) => { const on = bulbsHot > 0 ? (i + Math.floor(t * 30)) % 2 === 0 : G.state === 'idle' ? (i + Math.floor(t * 5)) % 3 === 0 : (i + Math.floor(t * 12)) % 2 === 0; b.material.color.setRGB(on ? 1.8 : 0.45, on ? 1.35 : 0.3, on ? 0.55 : 0.1); });
-    ledM.color.setRGB(1.3 + Math.sin(t * 3) * 0.25, 0.95, 0.4);
-    camera.position.x = Math.sin(t * 0.25) * 0.012; camera.lookAt(look);
+    bulbs.forEach((b, i) => { const on = bulbsHot > 0 ? (i + Math.floor(t * 30)) % 2 === 0 : G.state === 'idle' ? (i + Math.floor(t * 5)) % 3 === 0 : (i + Math.floor(t * 12)) % 2 === 0; b.material.color.setRGB(on ? 1.5 : 0.4, on ? 1.1 : 0.28, on ? 0.45 : 0.1); });
+    ledM.color.setRGB(1.1 + Math.sin(t * 3) * 0.2, 0.8, 0.34);
+    animView(); controls.update();
   }
   const clock = new THREE.Clock(); let acc = 0, t = 0;
   renderer.setAnimationLoop(() => {
