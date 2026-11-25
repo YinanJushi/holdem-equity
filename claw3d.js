@@ -13,7 +13,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=109';
+import { headerChrome, onQuality } from './chrome3d.js?v=110';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -250,6 +250,8 @@ function start() {
   const chuteLed = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.1, 0.4), toneMapped: false });
   [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.004, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.004]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.003, d), chuteLed); r.position.set(x, CHW + 0.0045, z); scene.add(r); });
   const back = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, 0.56), new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.8 })); back.position.set(0, 0.27, ZB - 0.002); scene.add(back);
+  // the cabinet's back wall (seen when you turn the machine round)
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(X * 2 + 0.05, 0.58, 0.014), lacquer); backWall.position.set(0, 0.27, ZB - 0.011); scene.add(backWall);
   const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.06, roughness: 0.02, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide });
   [[-X - 0.003, 0, 1], [X + 0.003, 0, 1]].forEach(([x]) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(ZF - ZB, 0.56), glass); p.rotation.y = Math.PI / 2; p.position.set(x, 0.27, (ZF + ZB) / 2); scene.add(p); });
   const frontGlass = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, 0.56), glass); frontGlass.position.set(0, 0.27, ZF + 0.003); scene.add(frontGlass);
@@ -460,7 +462,7 @@ function start() {
   // drag to look around the machine (pinch or scroll to zoom); the View button steps through set angles
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enablePan = false; controls.enableDamping = true; controls.dampingFactor = 0.08; controls.rotateSpeed = 0.6;
-  controls.minPolarAngle = 0.12; controls.maxPolarAngle = 1.62; controls.minAzimuthAngle = -1.5; controls.maxAzimuthAngle = 1.5;
+  controls.minPolarAngle = 0.1; controls.maxPolarAngle = 1.62;   // all the way round; just not under the floor
   controls.target = look;
   const VIEWS = [{ az: 0, el: 0.16 }, { az: -0.85, el: 0.3 }, { az: 0, el: 1.25 }, { az: 0.85, el: 0.3 }];   // front, left, top, right
   let view = 0, homeDist = 1, viewAnim = null;
@@ -481,10 +483,12 @@ function start() {
     look.set(0, CY - (bar - top) * half, 0);
     homeDist = Math.hypot(dist, dist * 0.16);
     controls.minDistance = homeDist * 0.35; controls.maxDistance = homeDist * 1.5;
-    goView(view, true);
+    // first time: the front view; after that keep whatever angle you turned it to
+    if (!resize.done) { resize.done = true; goView(0, true); }
+    else { const dir = camera.position.clone().sub(look).normalize(); camera.position.copy(look).addScaledVector(dir, Math.min(controls.maxDistance, Math.max(controls.minDistance, homeDist))); }
   }
   const viewBtn = $('#clView');
-  if (viewBtn) viewBtn.onclick = () => goView((view + 1) % VIEWS.length);
+  if (viewBtn) viewBtn.onclick = () => goView(0);   // back to the front
   new ResizeObserver(resize).observe(host); resize();
   onQuality(q => { const hi = q === 'high'; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; });
   const m4q = new THREE.Quaternion(); let bulbsHot = 0;
