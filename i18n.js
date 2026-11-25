@@ -10,7 +10,7 @@
   const collect = (() => { try { return localStorage.getItem('ol-i18n-collect') === '1'; } catch (e) { return false; } })();
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
   const I18N = window.I18N = { lang, dict: {}, rules: [], misses: new Set(), t, set, apply };
-  if (lang === 'zh' || collect) document.write('<script src="i18n-zh.js?v=103"><\/script>');
+  if (lang === 'zh' || collect) document.write('<script src="i18n-zh.js?v=105"><\/script>');
 
   let saveT = 0;
   function miss(k) {

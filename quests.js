@@ -28,6 +28,8 @@
     { id: 'sl_big', game: 'slots', n: 1, reward: 250, text: 'Win 10 times your bet on one slot spin' },
     { id: 'pz_drops', game: 'pusher', n: 30, reward: 150, text: 'Drop 30 coins in the coin pusher' },
     { id: 'pz_bonus', game: 'pusher', n: 1, reward: 250, text: 'Get a bonus from the Lucky Gate' },
+    { id: 'cl_plays', game: 'claw', n: 5, reward: 150, text: 'Play the claw machine 5 times' },
+    { id: 'cl_win', game: 'claw', n: 1, reward: 200, text: 'Win a prize from the claw machine' },
     { id: 'drink', game: 'any', n: 1, reward: 100, text: 'Order a drink at any table' },
     { id: 'games3', game: 'any', n: 3, reward: 300, text: 'Play 3 different games today' },
   ];
@@ -47,6 +49,8 @@
     { id: 'pz_gold', icon: '●', reward: 150, name: 'Gold Digger', text: 'Push a gold coin into the coin pusher tray.' },
     { id: 'pz_jackpot', icon: '✦', reward: 800, name: 'Pusher Jackpot', text: 'Hit the JACKPOT on the coin pusher bonus lamp.' },
     { id: 'pz_super', icon: '★', reward: 1000, name: 'Coin Flood', text: 'Win the coin pusher SUPER JACKPOT (three star coins).' },
+    { id: 'cl_gold', icon: '▰', reward: 500, name: 'Golden Grab', text: 'Win a gold bar from the claw machine.' },
+    { id: 'cl_bunnies', icon: '♡', reward: 300, name: 'Bunny Family', text: 'Win all three bunnies from the claw machine.' },
     { id: 'high_roller', icon: '$', reward: 300, name: 'High Roller', text: 'Bet 1,000 chips or more at once.' },
     { id: 'bartender', icon: '🍸', reward: 200, name: 'Regular at the Bar', text: 'Order 5 drinks.' },
     { id: 'explorer', icon: '⌂', reward: 500, name: 'Grand Tour', text: 'Play every game in the lounge.' },
@@ -54,7 +58,7 @@
     { id: 'days7', icon: '7', reward: 500, name: 'Week Regular', text: 'Play on 7 different days.' },
     { id: 'rich', icon: '¥', reward: 0, name: 'Big Stack', text: 'Have 20,000 chips at once.' },
   ];
-  const GAMES = ['bj', 'holdem', 'baccarat', 'roulette', 'slots', 'pusher'];
+  const GAMES = ['bj', 'holdem', 'baccarat', 'roulette', 'slots', 'pusher', 'claw'];
 
   // ---------- today's missions ----------
   function seedPick(day) {
@@ -167,6 +171,12 @@
         if (d.k !== 'none') bump('pz_bonus');
         if (d.k === 'jackpot') unlock('pz_jackpot');
         if (d.k === 'super') unlock('pz_super');
+      } else if (d.type === 'claw-play') {
+        played('claw', 0); bump('cl_plays');
+      } else if (d.type === 'claw-win') {
+        bump('cl_win'); won(d.value);
+        if (d.kind === 'bar') unlock('cl_gold');
+        if (d.bunnies >= 3) unlock('cl_bunnies');
       } else if (d.type === 'drink') {
         bump('drink'); A.drinks = (A.drinks || 0) + 1; save(AKEY, A); if (A.drinks >= 5) unlock('bartender');
       }

@@ -1,0 +1,460 @@
+// Lucky Claw: a casino-style claw machine in 3D (three.js + Rapier physics).
+// The claw head hangs from the gantry on a springy cable, so it swings as the carriage starts and stops. Three
+// prongs are hinged to the head and driven by motors; the motor's strength is the grip, decided for each play
+// (most plays loosen a little once the prize is lifted, some hold tight all the way), which is how real machines
+// set their payout. Prizes: plush rabbits, poker-chip stacks, cash bundles, gold bars and big casino dice.
+// Drop a prize down the chute in the front-left corner to win its value.
+import * as THREE from 'three';
+import RAPIER from '@dimforge/rapier3d-compat';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { headerChrome, onQuality } from './chrome3d.js?v=105';
+
+const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
+const host = $('#clHost');
+const COST = 25;
+let renderer = null;
+try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
+if (renderer && host) Promise.all([RAPIER.init(), loadRabbits()]).then(([, rabbits]) => start(rabbits)).catch(e => { console.error(e); document.documentElement.classList.remove('t3d-wait'); });
+else document.documentElement.classList.remove('t3d-wait');
+
+// the three plush rabbits (Quaternius, CC0)
+function loadRabbits() {
+  const loader = new GLTFLoader();
+  const files = ['models/rabbit-grey.glb', 'models/rabbit-cyan.glb', 'models/rabbit-pigtails.glb'];
+  return Promise.all(files.map(f => new Promise(res => loader.load(f, g => res(g), undefined, () => res(null)))));
+}
+
+function start(rabbitGltfs) {
+  document.body.classList.add('cl-on');
+  renderer.toneMapping = THREE.NeutralToneMapping; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.domElement.className = 'cl-canvas'; host.appendChild(renderer.domElement);
+  headerChrome(host, 'cl-on');
+  const scene = new THREE.Scene(); scene.background = new THREE.Color('#0c0507');
+  const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.6;
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 30);
+  scene.add(new THREE.HemisphereLight('#ffe8cc', '#2a0a10', 0.55));
+  const key = new THREE.SpotLight('#fff3e0', 2.4, 3, 0.7, 0.8, 1.4); key.position.set(0.05, 0.62, 0.12); key.target.position.set(0, 0, -0.02); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0004; scene.add(key, key.target);
+
+  // ---------- sizes (metres) ----------
+  const X = 0.28, ZB = -0.26, ZF = 0.24, TOP = 0.52;            // inside of the prize box
+  const CH = { x0: -X, x1: -0.11, z0: 0.07, z1: ZF };          // the prize chute (front-left)
+  const HEAD = { r: 0.032, h: 0.04 }, FING = { len: 0.085, r: 0.028 };
+  const ROPE_MIN = 0.07, ROPE_MAX = 0.46;
+
+  // ---------- materials ----------
+  const canvasTex = (w, h, draw, srgb = true) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
+  const gold = new THREE.MeshStandardMaterial({ color: '#d4a444', metalness: 1, roughness: 0.25, envMapIntensity: 1 });
+  const chrome = new THREE.MeshStandardMaterial({ color: '#b8bcc6', metalness: 1, roughness: 0.28, envMapIntensity: 0.9 });
+  const lacquer = new THREE.MeshPhysicalMaterial({ color: '#6e0d1d', metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const blackGloss = new THREE.MeshPhysicalMaterial({ color: '#120a0c', metalness: 0.3, roughness: 0.3, clearcoat: 1 });
+  const velvetTex = canvasTex(256, 256, g => { g.fillStyle = '#5a0a16'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,120,140'},${Math.random() * 0.08})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); } });
+  velvetTex.wrapS = velvetTex.wrapT = THREE.RepeatWrapping; velvetTex.repeat.set(3, 3);
+  const velvet = new THREE.MeshStandardMaterial({ map: velvetTex, roughness: 0.95 });
+  const backTex = canvasTex(512, 512, g => {
+    const gr = g.createRadialGradient(256, 200, 20, 256, 256, 380); gr.addColorStop(0, '#3a0c18'); gr.addColorStop(1, '#12040a'); g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+    g.strokeStyle = 'rgba(242,193,78,.35)'; g.lineWidth = 2; for (let r = 40; r < 400; r += 36) { g.beginPath(); g.arc(256, 560, r, Math.PI, Math.PI * 2); g.stroke(); }
+    ['♠', '♥', '♦', '♣'].forEach((s, i) => { g.fillStyle = i % 3 ? 'rgba(242,193,78,.22)' : 'rgba(255,90,110,.22)'; g.font = '120px Georgia, serif'; g.textAlign = 'center'; g.fillText(s, 90 + i * 110, 150 + (i % 2) * 60); });
+    g.fillStyle = 'rgba(255,230,170,.6)'; g.font = 'italic 700 46px Georgia, serif'; g.fillText('Odds Lounge', 256, 330);
+  });
+
+  // ---------- physics world ----------
+  const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  world.lengthUnit = 0.05; world.timestep = 1 / 120; world.numSolverIterations = 8;
+  const fixedBox = (hx, hy, hz, x, y, z, fr = 0.6) => world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(fr).setRestitution(0.05));
+  // floor around the chute hole
+  fixedBox((X - CH.x1) / 2, 0.02, (ZF - ZB) / 2, CH.x1 + (X - CH.x1) / 2, -0.02, (ZF + ZB) / 2);
+  fixedBox((CH.x1 - CH.x0) / 2, 0.02, (CH.z0 - ZB) / 2, (CH.x0 + CH.x1) / 2, -0.02, (CH.z0 + ZB) / 2);
+  // glass walls and the chute's inner walls (acrylic)
+  fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, -X - 0.01, 0.3, (ZF + ZB) / 2, 0.2); fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, X + 0.01, 0.3, (ZF + ZB) / 2, 0.2);
+  fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZB - 0.01, 0.2); fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZF + 0.01, 0.2);
+  const CHW = 0.07;   // chute wall height above the floor
+  fixedBox(0.004, CHW / 2, (CH.z1 - CH.z0) / 2, CH.x1 + 0.004, CHW / 2, (CH.z0 + CH.z1) / 2, 0.2);
+  fixedBox((CH.x1 - CH.x0) / 2, CHW / 2, 0.004, (CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.004, 0.2);
+  // the bin under the chute catches what falls
+  fixedBox(X, 0.01, 0.2, -0.1, -0.24, 0.15, 0.6);
+
+  // ---------- the claw: carriage (kinematic), head on a springy cable, three motorised prongs ----------
+  const carriage = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0.12, TOP, -0.02));
+  const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0.12, TOP - ROPE_MIN, -0.02).setLinearDamping(0.6).setCcdEnabled(true));
+  headBody.setEnabledRotations(false, true, false, true);
+  world.createCollider(RAPIER.ColliderDesc.cylinder(HEAD.h / 2, HEAD.r).setDensity(3000).setFriction(0.3), headBody);
+  const FG = (0x0002 << 16) | 0xfffd;   // prongs don't collide with each other
+  const fingers = [0, 1, 2].map(i => {
+    const th = i * Math.PI * 2 / 3 + Math.PI / 6, o = { x: Math.cos(th), z: Math.sin(th) };
+    const hp = headBody.translation();
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -th);
+    const fb = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(hp.x + o.x * FING.r, hp.y - HEAD.h / 2 - FING.len / 2, hp.z + o.z * FING.r).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setAngularDamping(2).setCcdEnabled(true));
+    // the prong: a bar with a hooked tip pointing inward (local -x is toward the centre)
+    world.createCollider(RAPIER.ColliderDesc.cuboid(0.0045, FING.len / 2, 0.009).setDensity(3000).setFriction(1.0).setCollisionGroups(FG), fb);
+    world.createCollider(RAPIER.ColliderDesc.cuboid(0.011, 0.004, 0.009).setTranslation(-0.009, -FING.len / 2 + 0.004, 0).setDensity(3000).setFriction(1.2).setCollisionGroups(FG), fb);
+    const jd = RAPIER.JointData.revoluteWithAxes({ x: o.x * FING.r, y: -HEAD.h / 2, z: o.z * FING.r }, { x: 0, y: FING.len / 2, z: 0 }, { x: -o.z, y: 0, z: o.x }, { x: 0, y: 0, z: 1 });
+    const j = world.createImpulseJoint(jd, headBody, fb, true);
+    j.setContactsEnabled(false); j.setLimits(-0.62, 0.7);
+    return { body: fb, joint: j, th };
+  });
+  // the prong motors are stiff, but their torque is capped: the cap (N·m) is the grip strength
+  const setGrip = (target, torque) => fingers.forEach(f => { f.joint.configureMotorPosition(target, 4000, 130); f.joint.setMotorMaxForce(torque); });
+  const OPEN = 0.55, CLOSED = -0.5;
+  setGrip(OPEN, 0.05);
+
+  // ---------- prizes ----------
+  const prizes = [];   // { kind, body, obj, value, name, mixer }
+  const KINDS = {
+    rabbitGrey: { name: 'Grey bunny', value: 40 }, rabbitCyan: { name: 'Mint bunny', value: 50 }, rabbitPig: { name: 'Pigtail bunny', value: 60 },
+    chips: { name: 'Chip stack', value: 60 }, dice: { name: 'Lucky dice', value: 50 }, cash: { name: 'Cash bundle', value: 150 }, bar: { name: 'Gold bar', value: 250 },
+  };
+  // rabbit models: scale each to about 9 cm tall, standing on its feet
+  const rabbitProto = rabbitGltfs.map(g => {
+    if (!g) return null;
+    const root = g.scene; root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
+    const s = 0.125 / Math.max(size.y, 1e-6);
+    const holder = new THREE.Group(); root.scale.setScalar(s); root.position.set(-(box.min.x + box.max.x) / 2 * s, -box.min.y * s - 0.062, -(box.min.z + box.max.z) / 2 * s); holder.add(root);
+    root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+    return { holder, anims: g.animations };
+  });
+  const chipFace = (base, stripe) => canvasTex(128, 128, g => { g.fillStyle = base; g.beginPath(); g.arc(64, 64, 64, 0, 7); g.fill(); g.fillStyle = stripe; for (let i = 0; i < 8; i++) { g.save(); g.translate(64, 64); g.rotate(i * Math.PI / 4); g.fillRect(-6, -64, 12, 16); g.restore(); } g.strokeStyle = stripe; g.lineWidth = 3; g.beginPath(); g.arc(64, 64, 38, 0, 7); g.stroke(); });
+  const chipSets = [['#c8102e', '#fff'], ['#1f4fb8', '#fff'], ['#151515', '#f2c14e'], ['#1e8a4a', '#fff']].map(([a, b]) => { const f = chipFace(a, b); const edge = canvasTex(128, 8, g => { g.fillStyle = a; g.fillRect(0, 0, 128, 8); g.fillStyle = b; for (let i = 0; i < 8; i++) g.fillRect(i * 16 + 4, 0, 7, 8); }); return [new THREE.MeshStandardMaterial({ map: edge, roughness: 0.4 }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35 }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35 })]; });
+  const noteTex = canvasTex(256, 128, g => {
+    g.fillStyle = '#d9e8cf'; g.fillRect(0, 0, 256, 128); g.strokeStyle = '#3f6a3a'; g.lineWidth = 6; g.strokeRect(6, 6, 244, 116);
+    g.fillStyle = '#3f6a3a'; g.font = '800 40px Georgia, serif'; g.textAlign = 'center'; g.fillText('100', 52, 52); g.fillText('100', 204, 104);
+    g.beginPath(); g.ellipse(128, 64, 34, 40, 0, 0, 7); g.fillStyle = '#b8d3a8'; g.fill(); g.fillStyle = '#3f6a3a'; g.font = '700 46px Georgia, serif'; g.fillText('♠', 128, 80);
+    g.font = '700 14px Georgia, serif'; g.fillText('ODDS LOUNGE', 128, 116);
+  });
+  const noteEdge = new THREE.MeshStandardMaterial({ color: '#c4ccb8', roughness: 0.9 });
+  const noteTop = new THREE.MeshStandardMaterial({ map: noteTex, color: '#c8d0c0', roughness: 0.8 });
+  const bandM = new THREE.MeshStandardMaterial({ color: '#f2c14e', roughness: 0.5 });
+  const barGeo = (() => { const s = new THREE.Shape(), b = 0.049, t = 0.039, h = 0.03; s.moveTo(-b, -h / 2); s.lineTo(b, -h / 2); s.lineTo(t, h / 2); s.lineTo(-t, h / 2); s.closePath(); const g = new THREE.ExtrudeGeometry(s, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.0025, bevelSize: 0.002, bevelSegments: 2 }); g.translate(0, 0, -0.02); return g; })();
+  const barM = new THREE.MeshStandardMaterial({ color: '#f0b83a', metalness: 1, roughness: 0.18, envMapIntensity: 1.2, emissive: '#5a3a08', emissiveIntensity: 0.2 });
+  const pipTex = canvasTex(128, 128, g => { g.fillStyle = '#d9102e'; g.fillRect(0, 0, 128, 128); });
+  const diceFace = n => canvasTex(128, 128, g => { g.fillStyle = '#d9102e'; g.fillRect(0, 0, 128, 128); g.fillStyle = '#fff'; const P = { 1: [[64, 64]], 2: [[34, 34], [94, 94]], 3: [[30, 30], [64, 64], [98, 98]], 4: [[34, 34], [94, 34], [34, 94], [94, 94]], 5: [[30, 30], [98, 30], [64, 64], [30, 98], [98, 98]], 6: [[34, 28], [94, 28], [34, 64], [94, 64], [34, 100], [94, 100]] }[n]; P.forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 11, 0, 7); g.fill(); }); });
+  const diceMats = [1, 6, 2, 5, 3, 4].map(n => new THREE.MeshPhysicalMaterial({ map: diceFace(n), roughness: 0.15, clearcoat: 1, transmission: 0 }));
+  void pipTex;
+
+  function spawnPrize(kind, x, y, z) {
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * 6, 0));
+    const d = RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setLinearDamping(0.4).setAngularDamping(0.8).setCcdEnabled(true);
+    const body = world.createRigidBody(d);
+    let obj, mixer = null;
+    const col = desc => world.createCollider(desc, body);
+    if (kind.startsWith('rabbit')) {
+      // a plush: soft body (ball) and head (ball), grippy and light
+      col(RAPIER.ColliderDesc.ball(0.036).setTranslation(0, -0.024, 0).setDensity(250).setFriction(1.1).setRestitution(0.05));
+      col(RAPIER.ColliderDesc.ball(0.03).setTranslation(0, 0.03, 0).setDensity(250).setFriction(1.1).setRestitution(0.05));
+      const proto = rabbitProto[{ rabbitGrey: 0, rabbitCyan: 1, rabbitPig: 2 }[kind]];
+      if (proto) {
+        obj = new THREE.Group(); const inst = cloneSkinned(proto.holder); obj.add(inst);
+        const idle = proto.anims.find(a => /idle/i.test(a.name)) || proto.anims[0];
+        if (idle) { mixer = new THREE.AnimationMixer(inst); const act = mixer.clipAction(idle); act.play(); act.time = Math.random() * idle.duration; mixer.timeScale = 0.6; }
+      } else { obj = new THREE.Mesh(new THREE.SphereGeometry(0.03, 20, 14), new THREE.MeshStandardMaterial({ color: '#ddd' })); }
+    } else if (kind === 'chips') {
+      col(RAPIER.ColliderDesc.cylinder(0.022, 0.036).setDensity(500).setFriction(0.7));
+      obj = new THREE.Group(); const set = chipSets[Math.floor(Math.random() * chipSets.length)];
+      for (let i = 0; i < 6; i++) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.0072, 32), set); m.position.set((Math.random() - 0.5) * 0.002, -0.018 + i * 0.0073, (Math.random() - 0.5) * 0.002); m.rotation.y = Math.random() * 6; m.castShadow = m.receiveShadow = true; obj.add(m); }
+    } else if (kind === 'cash') {
+      col(RAPIER.ColliderDesc.cuboid(0.052, 0.015, 0.026).setDensity(300).setFriction(0.8));
+      obj = new THREE.Group();
+      const stack = new THREE.Mesh(new RoundedBoxGeometry(0.104, 0.03, 0.052, 2, 0.003), [noteEdge, noteEdge, noteTop, noteEdge, noteEdge, noteEdge]); stack.castShadow = stack.receiveShadow = true; obj.add(stack);
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.032, 0.054), bandM); obj.add(band);
+    } else if (kind === 'bar') {
+      col(RAPIER.ColliderDesc.cuboid(0.047, 0.015, 0.022).setDensity(500).setFriction(0.6));
+      obj = new THREE.Mesh(barGeo, barM); obj.castShadow = obj.receiveShadow = true;
+    } else {
+      col(RAPIER.ColliderDesc.roundCuboid(0.021, 0.021, 0.021, 0.004).setDensity(400).setFriction(0.6));
+      obj = new THREE.Mesh(new RoundedBoxGeometry(0.05, 0.05, 0.05, 3, 0.005), diceMats); obj.castShadow = obj.receiveShadow = true;
+    }
+    scene.add(obj);
+    const p = { kind, body, obj, mixer, ...KINDS[kind] };
+    prizes.push(p); return p;
+  }
+  const randomSpot = () => { let x, z; do { x = (Math.random() * 2 - 1) * (X - 0.04); z = ZB + 0.04 + Math.random() * (ZF - ZB - 0.08); } while (x < CH.x1 + 0.04 && z > CH.z0 - 0.04); return { x, z }; };
+  // a fixed mix of prizes (each one won is restocked with the same kind)
+  const STOCK = ['rabbitGrey', 'rabbitGrey', 'rabbitGrey', 'rabbitCyan', 'rabbitCyan', 'rabbitPig', 'chips', 'chips', 'chips', 'cash', 'cash', 'bar', 'dice', 'dice'];
+  STOCK.forEach((k, i) => { const s = randomSpot(); spawnPrize(k, s.x, 0.08 + (i % 4) * 0.07, s.z); });
+  for (let i = 0; i < 240; i++) world.step();
+
+  // ---------- the cabinet (looks) ----------
+  // base with a sloping control deck, prize door, glass box with gold pillars, a lit marquee
+  const base = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.5, 0.66, 4, 0.02), lacquer); base.position.set(0, -0.27, -0.01); base.receiveShadow = true; scene.add(base);
+  const floorM = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.01, ZF - ZB), velvet); floorM.position.set(0, -0.005, (ZF + ZB) / 2); floorM.receiveShadow = true; scene.add(floorM);
+  // the hole in the floor where the chute is (drawn dark over the velvet)
+  const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.z1 - CH.z0), new THREE.MeshBasicMaterial({ color: '#050203' })); hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, 0.0005, (CH.z0 + CH.z1) / 2); scene.add(hole);
+  const acrylic = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.18, roughness: 0.05, clearcoat: 1, depthWrite: false });
+  const cw1 = new THREE.Mesh(new THREE.BoxGeometry(0.006, CHW, CH.z1 - CH.z0), acrylic); cw1.position.set(CH.x1 + 0.003, CHW / 2, (CH.z0 + CH.z1) / 2); scene.add(cw1);
+  const cw2 = new THREE.Mesh(new THREE.BoxGeometry(CH.x1 - CH.x0, CHW, 0.006), acrylic); cw2.position.set((CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.003); scene.add(cw2);
+  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.008, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.008]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.006, d), gold); r.position.set(x, CHW, z); scene.add(r); });
+  const chuteSign = canvasTex(256, 64, g => { g.fillStyle = '#f2c14e'; g.font = '800 40px "Libre Franklin", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('PRIZE', 128, 34); });
+  const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshBasicMaterial({ map: chuteSign, transparent: true })); cs.position.set((CH.x0 + CH.x1) / 2, CHW * 0.6, CH.z0 - 0.007); cs.rotation.y = Math.PI; scene.add(cs);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, 0.56), new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.8 })); back.position.set(0, 0.27, ZB - 0.002); scene.add(back);
+  const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.06, roughness: 0.02, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide });
+  [[-X - 0.003, 0, 1], [X + 0.003, 0, 1]].forEach(([x]) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(ZF - ZB, 0.56), glass); p.rotation.y = Math.PI / 2; p.position.set(x, 0.27, (ZF + ZB) / 2); scene.add(p); });
+  const frontGlass = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, 0.56), glass); frontGlass.position.set(0, 0.27, ZF + 0.003); scene.add(frontGlass);
+  // gold corner pillars with LED strips
+  const ledM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.3, 0.95, 0.4) });
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
+    const px = sx * (X + 0.012), pz = sz > 0 ? ZF + 0.012 : ZB - 0.012;
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.58, 0.024), gold); p.position.set(px, 0.27, pz); p.castShadow = true; scene.add(p);
+    if (sz > 0) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.54, 0.006), ledM); l.position.set(px - sx * 0.013, 0.27, pz + 0.013); scene.add(l); }
+  });
+  // roof and marquee
+  const roof = new THREE.Mesh(new RoundedBoxGeometry(0.72, 0.04, 0.68, 3, 0.01), lacquer); roof.position.set(0, 0.57, -0.01); scene.add(roof);
+  const marqueeTex = canvasTex(1024, 256, g => {
+    g.fillStyle = '#0a0406'; g.fillRect(0, 0, 1024, 256);
+    const gr = g.createLinearGradient(0, 60, 0, 200); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#e0a23a');
+    g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Lucky Claw', 512, 120);
+    g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText('♠  ♥  ODDS LOUNGE  ♦  ♣', 512, 212);
+  });
+  const marquee = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.05), [blackGloss, blackGloss, blackGloss, blackGloss, new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false }), blackGloss]);
+  marquee.position.set(0, 0.67, ZF - 0.01); scene.add(marquee);
+  const mframe = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.18, 0.04), gold); mframe.position.set(0, 0.67, ZF - 0.025); scene.add(mframe);
+  const bulbs = []; for (let i = 0; i < 26; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.007, 10, 8), new THREE.MeshBasicMaterial({ color: '#fff' })); const u = i / 26; const per = 2 * (0.7 + 0.16); let d = u * per, x, y; if (d < 0.7) { x = -0.35 + d; y = 0.75; } else if ((d -= 0.7) < 0.16) { x = 0.35; y = 0.75 - d; } else if ((d -= 0.16) < 0.7) { x = 0.35 - d; y = 0.59; } else { d -= 0.7; x = -0.35; y = 0.59 + d; } b.position.set(x, y, ZF + 0.018); scene.add(b); bulbs.push(b); }
+  // control deck
+  const deck = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.03, 0.16, 3, 0.01), blackGloss); deck.position.set(0, -0.04, ZF + 0.09); deck.rotation.x = 0.22; scene.add(deck);
+  const stick = new THREE.Group(); stick.position.set(0.14, -0.02, ZF + 0.09); scene.add(stick);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.05, 12), chrome); shaft.position.y = 0.025; stick.add(shaft);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.016, 24, 16), new THREE.MeshPhysicalMaterial({ color: '#d9102e', roughness: 0.15, clearcoat: 1 })); ball.position.y = 0.052; stick.add(ball);
+  const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.024, 0.012, 32), new THREE.MeshPhysicalMaterial({ color: '#f2c14e', roughness: 0.2, clearcoat: 1, emissive: '#7a4a10', emissiveIntensity: 0.4 })); btn.position.set(0.25, -0.022, ZF + 0.1); scene.add(btn);
+  const slotPlate = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.008), chrome); slotPlate.position.set(0.25, -0.18, ZF + 0.098); scene.add(slotPlate);
+  // prize door (front, under the chute)
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.01), new THREE.MeshStandardMaterial({ color: '#050203' })); door.position.set(-0.16, -0.24, ZF + 0.105); scene.add(door);
+  const doorFrame = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.006, 8, 4, Math.PI * 2), gold); doorFrame.rotation.z = Math.PI / 4; doorFrame.scale.set(1.08, 0.82, 1); doorFrame.position.set(-0.16, -0.24, ZF + 0.11); scene.add(doorFrame);
+  // gantry: rails, bridge, carriage, cable and the claw head with prongs (drawn from the physics)
+  const brass = new THREE.MeshStandardMaterial({ color: '#c99a4a', metalness: 1, roughness: 0.3 });
+  [-1, 1].forEach(sx => { const r = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, ZF - ZB), brass); r.position.set(sx * (X - 0.01), TOP + 0.02, (ZF + ZB) / 2); scene.add(r); });
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.014, 0.024), brass); scene.add(bridge);
+  const carM = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.03, 0.05, 2, 0.006), lacquer); scene.add(carM);
+  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.0016, 0.0016, 1, 6), new THREE.MeshStandardMaterial({ color: '#2a2a2a', metalness: 0.6, roughness: 0.4 })); scene.add(cable);
+  const aimRing = new THREE.Mesh(new THREE.RingGeometry(0.03, 0.036, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.2, 0.5), transparent: true, opacity: 0.7, depthTest: false, toneMapped: false }));
+  aimRing.rotation.x = -Math.PI / 2; aimRing.renderOrder = 5; scene.add(aimRing);
+  const headM = new THREE.Group(); scene.add(headM);
+  const hm = new THREE.Mesh(new THREE.CylinderGeometry(HEAD.r, HEAD.r * 0.85, HEAD.h, 28), chrome); hm.castShadow = true; headM.add(hm);
+  const hcap = new THREE.Mesh(new THREE.SphereGeometry(HEAD.r * 0.9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), gold); hcap.position.y = HEAD.h / 2; headM.add(hcap);
+  const hring = new THREE.Mesh(new THREE.TorusGeometry(HEAD.r, 0.003, 8, 28), gold); hring.rotation.x = Math.PI / 2; hring.position.y = -HEAD.h / 2 + 0.004; headM.add(hring);
+  const fingerMeshes = fingers.map(() => {
+    const g = new THREE.Group();
+    const bar = new THREE.Mesh(new RoundedBoxGeometry(0.009, FING.len, 0.018, 2, 0.003), chrome); bar.castShadow = true; g.add(bar);
+    const tip = new THREE.Mesh(new RoundedBoxGeometry(0.022, 0.008, 0.018, 2, 0.003), gold); tip.position.set(-0.009, -FING.len / 2 + 0.004, 0); g.add(tip);
+    const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.0065, 10, 8), gold); knuckle.position.y = FING.len / 2; g.add(knuckle);
+    scene.add(g); return g;
+  });
+  // the room: dark lounge with soft bokeh lights
+  const room = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 8), new THREE.MeshStandardMaterial({ color: '#12060a', side: THREE.BackSide })); room.position.y = 1.5; scene.add(room);
+  const bokehTex = canvasTex(64, 64, g => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
+  for (let i = 0; i < 40; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bokehTex, color: new THREE.Color().setHSL(Math.random() < 0.6 ? 0.1 : 0.95, 0.8, 0.5 + Math.random() * 0.2), transparent: true, opacity: 0.35, depthWrite: false })); sp.position.set((Math.random() - 0.5) * 6, -0.5 + Math.random() * 2.5, -1.5 - Math.random() * 2); sp.scale.setScalar(0.1 + Math.random() * 0.25); scene.add(sp); }
+
+  // ---------- sound ----------
+  let actx = null;
+  const audio = () => { if (!UI.soundOn()) return null; try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) { return null; } return actx; };
+  function tone(f, d = 0.12, v = 0.05, type = 'sine', slide = 0) { const a = audio(); if (!a) return; const t = a.currentTime, o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(f * slide, t + d); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + 0.02); }
+  let motorO = null;
+  function motor(on) { const a = audio(); if (!a) return; if (on && !motorO) { const o = a.createOscillator(), g = a.createGain(); o.type = 'sawtooth'; o.frequency.value = 70; g.gain.value = 0.012; o.connect(g).connect(a.destination); o.start(); motorO = { o, g }; } else if (!on && motorO) { motorO.o.stop(); motorO = null; } }
+  const fanfare = () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.25, 0.08, 'triangle'), i * 90));
+  function voice(en, zh) { try { if (!UI.soundOn() || !window.speechSynthesis) return; const z = window.I18N && I18N.lang === 'zh', u = new SpeechSynthesisUtterance(z ? zh : en); u.lang = z ? 'zh-CN' : 'en-US'; u.rate = 1.05; u.pitch = 1.2; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { /* none */ } }
+
+  // ---------- the game ----------
+  // states: idle (insert to play) → aim (move, timer) → lower → close → raise → carry → release → home
+  const G = { state: 'idle', t: 0, timer: 0, rope: ROPE_MIN, cx: 0.12, cz: -0.02, vx: 0, vz: 0, grip: 0, hold: 0, strong: false, sim: false };
+  // Payout control, the way real prize machines do it: every play puts 90% of its cost into a "bank", every prize
+  // won takes its value out, and the claw only keeps a strong grip all the way to the chute when the bank can pay
+  // for a prize (plus a small random chance). On the other plays it relaxes at the top (LOOSE angle, WEAK torque)
+  // and the prize usually slips. So over many plays about 90% of what goes in comes back out, however well you aim.
+  // GRIP: the closing torque cap in N·m. P_STRONG: forces the share of strong plays (testing only; null = bank).
+  const TUNE = { TARGET: 0.9, STRONG_AT: 50, LUCKY: 0.06, BANK_MAX: 300, GRIP: 0.05, WEAK: 0.15, LOOSE: 0.3, P_STRONG: null };
+  let bank = (() => { try { return +localStorage.getItem('ol-claw-bank') || 0; } catch (e) { return 0; } })();
+  const saveBank = () => { if (!G.sim) try { localStorage.setItem('ol-claw-bank', String(Math.round(bank))); } catch (e) { /* ignore */ } };
+  function newPlay() {
+    bank = Math.min(TUNE.BANK_MAX, bank + COST * TUNE.TARGET);
+    G.strong = TUNE.P_STRONG != null ? Math.random() < TUNE.P_STRONG : (bank >= TUNE.STRONG_AT || Math.random() < TUNE.LUCKY);
+    G.grip = TUNE.GRIP * (0.85 + Math.random() * 0.3);   // this play's motor strength
+    G.state = 'aim'; G.timer = 30; saveBank();
+  }
+  const input = { x: 0, z: 0 };
+  const HOME = { x: CH.x0 + 0.075, z: CH.z0 + 0.08 };   // over the chute
+  let pending = 0, wonTotal = 0, plays = 0;
+  const flush = () => { if (pending) { UI.wallet.add(pending); pending = 0; } };
+  setInterval(flush, 1500); window.addEventListener('pagehide', flush);
+  function insert() {
+    if (G.state !== 'idle') return;
+    if (UI.wallet.chips + pending < COST) { say(tr('Not enough chips. Claim your daily chips at the top.')); return; }
+    pending -= COST; plays++;
+    newPlay();
+    tone(1400, 0.08); tone(1800, 0.1); say(tr('Move the claw, then press Drop')); paint();
+    G.got = false; window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-play' } }));
+  }
+  function dropClaw() { if (G.state !== 'aim') return; G.state = 'lower'; G.t = 0; motor(true); paint(); if (!G.sim) say(tr('Here goes…')); }
+  function step(dt) {
+    // carriage: eases toward the stick direction (during aim) or a target (carry / home)
+    let tx = null, tz = null;
+    if (G.state === 'aim') { const sp = 0.22; G.vx += ((input.x * sp) - G.vx) * Math.min(1, dt * 6); G.vz += ((input.z * sp) - G.vz) * Math.min(1, dt * 6); }
+    else if (G.state === 'carry' || G.state === 'home') { const T = G.state === 'carry' ? HOME : { x: 0.12, z: -0.02 }; tx = T.x; tz = T.z; const dx = T.x - G.cx, dz = T.z - G.cz, d = Math.hypot(dx, dz), sp = Math.min(0.2, d * 3); G.vx += ((d > 1e-4 ? dx / d * sp : 0) - G.vx) * Math.min(1, dt * 5); G.vz += ((d > 1e-4 ? dz / d * sp : 0) - G.vz) * Math.min(1, dt * 5); }
+    else { G.vx *= Math.max(0, 1 - dt * 8); G.vz *= Math.max(0, 1 - dt * 8); }
+    G.cx = Math.max(-X + 0.04, Math.min(X - 0.04, G.cx + G.vx * dt)); G.cz = Math.max(ZB + 0.04, Math.min(ZF - 0.04, G.cz + G.vz * dt));
+    carriage.setNextKinematicTranslation({ x: G.cx, y: TOP, z: G.cz });
+    // the cable: a stiff spring that only pulls (so the head swings like a pendulum)
+    const a = { x: G.cx, y: TOP, z: G.cz }, h = headBody.translation(), v = headBody.linvel(), m = headBody.mass();
+    const dx = h.x - a.x, dy = h.y - a.y, dz = h.z - a.z, dist = Math.hypot(dx, dy, dz) || 1e-6, ux = dx / dist, uy = dy / dist, uz = dz / dist;
+    const stretch = dist - G.rope;
+    if (stretch > 0) { const vr = v.x * ux + v.y * uy + v.z * uz, f = (-900 * stretch - 40 * vr) * m * dt; headBody.applyImpulse({ x: ux * f, y: uy * f, z: uz * f }, true); }
+    // a little air drag on the swing
+    headBody.applyImpulse({ x: -v.x * 0.4 * m * dt, y: 0, z: -v.z * 0.4 * m * dt }, true);
+    G.t += dt;
+    if (G.state === 'aim') { G.timer -= dt; if (G.timer <= 0) dropClaw(); }
+    else if (G.state === 'lower') {
+      G.rope = Math.min(ROPE_MAX, G.rope + 0.2 * dt);
+      // stop when the head can't go further (the cable goes slack) or at the bottom
+      if (G.rope - dist > 0.012 || G.rope >= ROPE_MAX) { G.state = 'close'; G.t = 0; setGrip(CLOSED, G.grip); tone(300, 0.15, 0.04, 'square'); }
+    } else if (G.state === 'close') { if (G.t > 0.6) { G.state = 'raise'; G.t = 0; } }
+    else if (G.state === 'raise') {
+      G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt);
+      // at the top the grip relaxes on most plays: what's held loosely may slip on the way
+      if (G.rope <= ROPE_MIN + 0.001) { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); G.state = 'carry'; G.t = 0; }
+    } else if (G.state === 'carry') { if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5) { G.state = 'release'; G.t = 0; setGrip(OPEN, 0.08); tone(500, 0.12, 0.04, 'square'); } }
+    else if (G.state === 'release') { if (G.t > 1.0) { G.state = 'home'; G.t = 0; } }
+    else if (G.state === 'home') { if (Math.hypot(0.12 - G.cx, -0.02 - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, 0.05); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
+    world.step();
+    void tx; void tz;
+    // prizes that fall down the chute are won; anything that escapes is put back
+    for (let i = prizes.length - 1; i >= 0; i--) {
+      const p = prizes[i], t = p.body.translation();
+      if (t.y < -0.08) {
+        if (t.x < CH.x1 + 0.02 && t.z > CH.z0 - 0.02) win(p);
+        world.removeRigidBody(p.body); scene.remove(p.obj); prizes.splice(i, 1);
+        // the same kind of prize is restocked from the top, so the mix in the machine stays the same
+        const s = randomSpot(); spawnPrize(p.kind, s.x, 0.4, s.z);
+      }
+    }
+  }
+  const collection = (() => { try { return JSON.parse(localStorage.getItem('ol-claw-col') || '{}') || {}; } catch (e) { return {}; } })();
+  function win(p) {
+    bank -= p.value; saveBank();
+    if (G.sim) { G.simWon += p.value; G.simWins++; G.simKinds[p.kind] = (G.simKinds[p.kind] || 0) + 1; return; }
+    pending += p.value; wonTotal += p.value; G.got = true;
+    collection[p.kind] = (collection[p.kind] || 0) + 1; try { localStorage.setItem('ol-claw-col', JSON.stringify(collection)); } catch (e) { /* ignore */ }
+    fanfare(); voice('Got it!', '抓到啦！');
+    showWin(p);
+    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, bunnies: ['rabbitGrey', 'rabbitCyan', 'rabbitPig'].filter(k => collection[k]).length } }));
+    paint();
+  }
+
+  // ---------- screen: status, win card, controls ----------
+  const msg = document.createElement('div'); msg.className = 'cl-msg'; msg.setAttribute('role', 'status'); host.appendChild(msg);
+  const say = h => { msg.textContent = h; };
+  const winCard = document.createElement('div'); winCard.className = 'cl-win'; winCard.hidden = true; host.appendChild(winCard);
+  function showWin(p) {
+    winCard.innerHTML = `<small>${tr('You won')}</small><b>${tr(p.name)}</b><em>+${p.value}</em>`;
+    winCard.hidden = false; winCard.classList.remove('go'); void winCard.offsetWidth; winCard.classList.add('go');
+    clearTimeout(showWin.t); showWin.t = setTimeout(() => { winCard.hidden = true; }, 2600);
+  }
+  function paint() {
+    $('#clInsert').disabled = G.state !== 'idle';
+    $('#clDrop').disabled = G.state !== 'aim';
+    $('#clInsert').innerHTML = `${tr('Play')} <b>${COST}</b>`;
+    $('#clInfo').innerHTML = `${tr('Plays')} <b>${plays}</b> · ${tr('Won')} <b>${wonTotal}</b>`;
+    document.body.classList.toggle('cl-aiming', G.state === 'aim');
+  }
+  $('#clInsert').onclick = () => { audio(); insert(); };
+  $('#clDrop').onclick = () => { audio(); dropClaw(); };
+  $('#clCol').onclick = () => {
+    let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
+    d.innerHTML = `<h2>${tr('Prize collection')}</h2><p class="sub">${tr('Everything you have won from the claw machine.')}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
+    d.onclick = e => { if (e.target.closest('[data-close]')) d.close(); }; d.showModal();
+  };
+  // joystick: drag inside the pad; or arrow keys / WASD
+  const pad = $('#clPad'), knob = $('#clKnob');
+  let padId = null;
+  const padMove = e => { const r = pad.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2; let dx = (e.clientX - cx) / (r.width / 2), dy = (e.clientY - cy) / (r.height / 2); const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; } input.x = dx; input.z = dy; knob.style.transform = `translate(${dx * 28}px, ${dy * 28}px)`; };
+  pad.addEventListener('pointerdown', e => { padId = e.pointerId; pad.setPointerCapture(e.pointerId); audio(); padMove(e); });
+  pad.addEventListener('pointermove', e => { if (padId === e.pointerId) padMove(e); });
+  const padEnd = () => { padId = null; input.x = 0; input.z = 0; knob.style.transform = ''; };
+  pad.addEventListener('pointerup', padEnd); pad.addEventListener('pointercancel', padEnd);
+  const keys = new Set();
+  const keyInput = () => { input.x = (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0); input.z = (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0); };
+  document.addEventListener('keydown', e => {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(e.code)) { keys.add(e.code); keyInput(); e.preventDefault(); }
+    if (e.code === 'Space' && e.target.tagName !== 'BUTTON') { e.preventDefault(); audio(); if (G.state === 'idle') insert(); else dropClaw(); }
+  });
+  document.addEventListener('keyup', e => { keys.delete(e.code); keyInput(); });
+
+  // ---------- camera and rendering ----------
+  const composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.22, 0.25, 1.1); composer.addPass(bloom); composer.addPass(new OutputPass());
+  const look = new THREE.Vector3(0, 0.18, 0);
+  function resize() {
+    const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return;
+    renderer.setSize(w, h, false); composer.setSize(w, h); camera.aspect = w / h;
+    // fit the whole cabinet (marquee to control deck) above the button bar, on any screen shape
+    const tall = w / h < 1; camera.fov = tall ? 50 : 38; camera.updateProjectionMatrix();
+    const vf = THREE.MathUtils.degToRad(camera.fov), hf = 2 * Math.atan(Math.tan(vf / 2) * camera.aspect);
+    const bar = Math.min(0.3, (tall ? 190 : 100) / h), top = 56 / h;
+    const W = 0.8, H = 0.92, CY = 0.32;
+    const dist = Math.max(W / 2 / Math.tan(hf / 2), H / 2 / Math.tan(vf / 2) / (1 - bar - top));
+    const half = dist * Math.tan(vf / 2);
+    look.set(0, CY - (bar - top) * half, 0);
+    camera.position.set(0, look.y + dist * 0.16, dist);
+  }
+  new ResizeObserver(resize).observe(host); resize();
+  onQuality(q => { const hi = q === 'high'; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; });
+  const m4q = new THREE.Quaternion();
+  function draw(t) {
+    const hp = headBody.translation();
+    bridge.position.set(0, TOP + 0.016, G.cz); carM.position.set(G.cx, TOP + 0.03, G.cz);
+    headM.position.set(hp.x, hp.y, hp.z);
+    cable.position.set((hp.x + G.cx) / 2, (hp.y + TOP) / 2 + HEAD.h / 4, (hp.z + G.cz) / 2);
+    const dl = new THREE.Vector3(hp.x - G.cx, hp.y + HEAD.h / 2 - TOP, hp.z - G.cz); cable.scale.y = Math.max(0.001, dl.length()); cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dl.normalize().multiplyScalar(-1));
+    fingers.forEach((f, i) => { const p = f.body.translation(), q = f.body.rotation(); fingerMeshes[i].position.set(p.x, p.y, p.z); fingerMeshes[i].quaternion.copy(m4q.set(q.x, q.y, q.z, q.w)); });
+    for (const p of prizes) { const tt = p.body.translation(), q = p.body.rotation(); p.obj.position.set(tt.x, tt.y, tt.z); p.obj.quaternion.set(q.x, q.y, q.z, q.w); }
+    aimRing.visible = G.state === 'aim'; aimRing.position.set(G.cx, 0.003, G.cz); aimRing.material.opacity = 0.45 + Math.sin(t * 6) * 0.2;
+    stick.rotation.set(input.z * 0.35, 0, -input.x * 0.35);
+    bulbs.forEach((b, i) => { const on = G.state === 'idle' ? (i + Math.floor(t * 5)) % 3 === 0 : (i + Math.floor(t * 12)) % 2 === 0; b.material.color.setRGB(on ? 1.8 : 0.45, on ? 1.35 : 0.3, on ? 0.55 : 0.1); });
+    ledM.color.setRGB(1.3 + Math.sin(t * 3) * 0.25, 0.95, 0.4);
+    camera.position.x = Math.sin(t * 0.25) * 0.012; camera.lookAt(look);
+  }
+  const clock = new THREE.Clock(); let acc = 0, t = 0;
+  renderer.setAnimationLoop(() => {
+    const dt = Math.min(0.05, clock.getDelta()); t += dt; acc += dt;
+    let n = 0; while (acc >= world.timestep && n < 8) { step(world.timestep); acc -= world.timestep; n++; } if (n === 8) acc = 0;
+    for (const p of prizes) if (p.mixer) p.mixer.update(dt);
+    if (G.state === 'aim') { const s = Math.ceil(G.timer); $('#clTimer').textContent = s; $('#clTimer').classList.toggle('low', s <= 5); }
+    draw(t); composer.render();
+  });
+  document.documentElement.classList.remove('t3d-wait');
+  say(tr('Press Play to start')); paint();
+
+  // for testing: an automatic player that aims at a random prize; returns cost and winnings
+  window.OL_CLAW = {
+    sim(n = 20, noise = 0.02) {
+      const bank0 = bank; G.sim = true; G.simWon = 0; G.simWins = 0; G.simKinds = {}; const tries = {}; let cost = 0;
+      for (let k = 0; k < n; k++) {
+        cost += COST; newPlay();
+        const tgt = prizes.filter(p => { const t2 = p.body.translation(); return !(t2.x < CH.x1 + 0.03 && t2.z > CH.z0 - 0.03) && t2.y < 0.1; });
+        const p = tgt[Math.floor(Math.random() * tgt.length)]; if (!p) continue; tries[p.kind] = (tries[p.kind] || 0) + 1;
+        const ox = (Math.random() - 0.5) * noise, oz = (Math.random() - 0.5) * noise;
+        let guard = 0;
+        while (G.state === 'aim' && guard++ < 6000) {
+          const pt = p.body.translation(), dx = pt.x + ox - G.cx, dz = pt.z + oz - G.cz, d = Math.hypot(dx, dz);
+          input.x = d > 0.006 ? dx / d * Math.min(1, d * 20) : 0; input.z = d > 0.006 ? dz / d * Math.min(1, d * 20) : 0;
+          if (d < 0.008 && Math.hypot(G.vx, G.vz) < 0.01) { input.x = 0; input.z = 0; for (let w = 0; w < 120; w++) step(world.timestep); dropClaw(); }
+          step(world.timestep);
+        }
+        guard = 0; while (G.state !== 'idle' && guard++ < 20000) step(world.timestep);
+      }
+      input.x = 0; input.z = 0; G.sim = false; motor(false); const simBank = bank; bank = bank0;
+      return { plays: n, cost, won: G.simWon, wins: G.simWins, rtp: +(G.simWon / cost).toFixed(3), tries, got: G.simKinds, bank: Math.round(simBank) };
+    },
+    state: () => ({ ...G, prizes: prizes.length }),
+    step: n => { for (let i = 0; i < n; i++) step(world.timestep); },
+    grip: (a, k) => setGrip(a, k),
+    tune: o => Object.assign(TUNE, o),
+    bank: v => (v != null ? (bank = v) : bank),
+    jt: () => fingers.map(f => f.joint.type()),
+    fingers: () => fingers.map(f => { const p = f.body.translation(), h = headBody.translation(); const r = Math.hypot(p.x - h.x, p.z - h.z); return [+r.toFixed(3), +(p.y - h.y).toFixed(3)]; }),
+    list: () => prizes.map(p => { const t2 = p.body.translation(); return [p.kind, +t2.x.toFixed(3), +t2.y.toFixed(3), +t2.z.toFixed(3), !!p.mixer]; }),
+  };
+}

@@ -41,6 +41,12 @@
       { at: '#pzAuto', text: 'Auto drops a coin every moment for you.' },
       { at: '.t3-ico[data-k="trophy"]', text: 'Missions and badges: finish daily missions for free chips.' },
     ],
+    claw: [
+      { at: null, text: 'Welcome to the Lucky Claw. Each play costs 25 chips; drop a prize into the PRIZE chute at the front left to win its value.' },
+      { at: '#clInsert', text: 'Press Play, then steer the claw with the joystick (or the arrow keys). The gold ring on the floor shows where it will land.' },
+      { at: '#clDrop', text: 'Press Drop (or Space) to lower the claw. Grab near the middle of a prize; the claw swings, so let it settle first.' },
+      { at: '#clCol', text: 'Prizes shows what each prize is worth and everything you have won.' },
+    ],
   };
   const steps = STEPS[page];
   if (!steps) return;

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="i18n.js?v=105"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Play a free 3D claw machine with real physics: steer the swinging claw, grab plush bunnies, chip stacks, cash and gold bars. Play chips only, no download.">
+<link rel="canonical" href="https://yinanjushi.github.io/odds-lounge/claw.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Odds Lounge">
+<meta property="og:title" content="Free 3D Claw Machine Game · Odds Lounge">
+<meta property="og:description" content="Play a free 3D claw machine with real physics: steer the swinging claw, grab plush bunnies, chip stacks, cash and gold bars. Play chips only, no download.">
+<meta property="og:url" content="https://yinanjushi.github.io/odds-lounge/claw.html">
+<meta property="og:image" content="https://yinanjushi.github.io/odds-lounge/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Free 3D Claw Machine Game · Odds Lounge">
+<meta name="twitter:description" content="Play a free 3D claw machine with real physics: steer the swinging claw, grab plush bunnies, chip stacks, cash and gold bars. Play chips only, no download.">
+<meta name="twitter:image" content="https://yinanjushi.github.io/odds-lounge/og.jpg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "Free 3D Claw Machine Game · Odds Lounge", "url": "https://yinanjushi.github.io/odds-lounge/claw.html", "description": "Play a free 3D claw machine with real physics: steer the swinging claw, grab plush bunnies, chip stacks, cash and gold bars. Play chips only, no download.", "inLanguage": ["en", "zh-CN"], "applicationCategory": "Game", "genre": "Casino", "gamePlatform": "Web browser", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}}</script>
+<title>Free 3D Claw Machine Game · Odds Lounge</title>
+<meta name="theme-color" content="#2b1016">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500..700;1,6..96,500..600&family=Libre+Franklin:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script>try{if(window.WebGLRenderingContext)document.documentElement.classList.add("t3d-wait")}catch(e){}setTimeout(function(){document.documentElement.classList.remove("t3d-wait")},8000)</script>
+<link rel="stylesheet" href="style.css?v=105">
+</head>
+<body class="cl">
+<header class="top">
+  <a class="brand" href="index.html"><span class="mark">♠</span>Odds Lounge</a>
+  <div class="top-right">
+  <nav class="games" aria-label="Games">
+    <a href="index.html">Texas Hold'em</a>
+    <a href="blackjack.html">Blackjack</a>
+    <a href="baccarat.html">Baccarat</a>
+    <a href="roulette.html">Roulette</a>
+    <a href="slots.html">Slots</a>
+    <a href="pusher.html">Coin Pusher</a>
+    <a href="claw.html" class="on" aria-current="page">Claw Machine</a>
+    <a href="stats.html">Stats</a>
+  </nav>
+  <div id="wallet" class="wallet"></div>
+  <button id="soundBtn" class="iconbtn" aria-pressed="true">Sound on</button>
+  </div>
+</header>
+<main class="cl-main">
+  <div class="cl-host" id="clHost" aria-label="Claw machine"><div class="cl-timer" id="clTimer" aria-live="off"></div></div>
+  <div class="cl-bar" id="clBar">
+    <span class="pz-info" id="clInfo" role="status">Each play costs 25 chips</span>
+    <div class="cl-pad" id="clPad" aria-label="Joystick: drag to move the claw"><div class="cl-knob" id="clKnob"></div></div>
+    <span class="pz-tip">Drag the joystick or use the arrow keys · Space drops the claw</span>
+    <button class="primary" id="clInsert" type="button">Play 25</button>
+    <button class="primary cl-drop" id="clDrop" type="button" disabled>Drop</button>
+    <button class="ghostbtn" id="clCol" type="button">Prizes</button>
+  </div>
+  <p class="hint pz-noscript">The claw machine needs a browser with 3D graphics (WebGL).</p>
+</main>
+<footer class="foot">For fun with play chips only.</footer>
+<script src="ui.js?v=105"></script>
+<script src="quests.js?v=105"></script>
+<script src="guide.js?v=105"></script>
+<script src="config.js?v=105"></script>
+<script src="account.js?v=105"></script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/", "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.21.0/dist/rapier.mjs" } }</script>
+<script type="module" src="claw3d.js?v=105"></script>
+</body>
+</html>
