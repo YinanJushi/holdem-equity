@@ -423,7 +423,7 @@ function start() {
   function clearPlate() { let k = 0; for (const b of balls) { const t = b.body.translation(); if (onPlate(t) || t.y < -0.05) { const c = k++ % 40, s2 = { x: -X + 0.04 + (c % 5) * 0.048, z: ZB + 0.05 + Math.floor(c / 5) * 0.054 }; b.body.setTranslation({ x: s2.x, y: 0.24 + Math.floor(k / 40) * 0.05, z: s2.z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); b.hole = null; b.t = 0; } } }
   if (TAKO) {
     pickHoles();
-    for (let i = 0; i < 230; i++) { const s2 = pitSpot(); addBall(s2.x, 0.12 + (i % 10) * 0.045, s2.z); if (i % 10 === 9) for (let k = 0; k < 55; k++) world.step(); }   // poured in ten at a time, each at its own height
+    for (let i = 0; i < 340; i++) { const s2 = pitSpot(); addBall(s2.x, 0.2 + (i % 10) * 0.045, s2.z); if (i % 10 === 9) for (let k = 0; k < 50; k++) world.step(); }   // poured in ten at a time, each at its own height
   }
   for (let i = 0; i < 240; i++) world.step();
   putBack();
