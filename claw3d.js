@@ -737,7 +737,7 @@ function start() {
   // then the attendant clears the plate and sets a new gold hole. Plain holes keep their ball: five in a row
   // (red holes count as free) pays a line bonus, and once every plain hole is full the whole plate becomes the
   // gold hole, so the next ball that settles anywhere on it wins.
-  let clearT = 0, scanT = 0, fullPlate = false, plainFilled = 0, plainCount = 0;
+  let clearT = 0, scanT = 0, fullPlate = false, plainFilled = 0, plainCount = HOLES.length - 3;
   const doneLines = new Set(), filled = HOLES.map(() => false);
   const LINES = [];
   for (let a = 0; a < PL.n; a++) { LINES.push([...Array(PL.n)].map((_, b) => a * PL.n + b)); LINES.push([...Array(PL.n)].map((_, b) => b * PL.n + a)); }
