@@ -19,12 +19,14 @@ import { headerChrome, onQuality } from './chrome3d.js?v=148';
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
 // two machines share this page: the casino machine and the poker-deck machine (switch with the Machine button)
-const MACHINE = (() => { let m = new URLSearchParams(location.search).get('m'); try { m = m || localStorage.getItem('ol-claw-m'); } catch (e) { /* ignore */ } return m === 'poker' || m === 'figure' ? m : 'casino'; })();
-const POKER = MACHINE === 'poker', FIGURE = MACHINE === 'figure', SUFFIX = POKER ? '-poker' : FIGURE ? '-figure' : '';
+const MACHINE = (() => { let m = new URLSearchParams(location.search).get('m'); try { m = m || localStorage.getItem('ol-claw-m'); } catch (e) { /* ignore */ } return m === 'poker' || m === 'figure' || m === 'tako' ? m : 'casino'; })();
+const POKER = MACHINE === 'poker', FIGURE = MACHINE === 'figure', TAKO = MACHINE === 'tako', SUFFIX = POKER ? '-poker' : FIGURE ? '-figure' : TAKO ? '-tako' : '';
+const CHUTE = !FIGURE && !TAKO;   // the takoyaki machine has no prize chute: balls go onto the plate instead
 // two kinds of claw, like real machines: a round head with three curved wire prongs (the classic crane claw),
 // or a box head with two arms and rubber feet (the UFO-catcher style). Switch with the Claw button.
 // the figure machine always uses the two-arm claw, like real prize-figure machines
-const CLAW = FIGURE ? 'two' : (() => { try { return localStorage.getItem('ol-claw-type') === 'two' ? 'two' : 'three'; } catch (e) { return 'three'; } })();
+// the takoyaki machine always uses its funnel scoop: two half-cones that close into a cup and open at the bottom
+const CLAW = TAKO ? 'funnel' : FIGURE ? 'two' : (() => { try { return localStorage.getItem('ol-claw-type') === 'two' ? 'two' : 'three'; } catch (e) { return 'three'; } })();
 const COST = 25;
 let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
@@ -48,18 +50,24 @@ function start() {
   const X = FIGURE ? 0.42 : 0.28, ZB = FIGURE ? -0.36 : -0.26, ZF = FIGURE ? 0.32 : 0.24, TOP = 0.52;
   const CW = X * 2 + 0.14, CD = ZF - ZB + 0.16, CZ = (ZF + ZB) / 2;   // outside of the cabinet
   const CH = { x0: -X, x1: -X + 0.17, z0: ZF - 0.17, z1: ZF };          // the prize chute (front-left)
-  const HEAD = { r: 0.032, h: 0.04 }, FING = FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
+  const HEAD = { r: 0.032, h: 0.04 }, FING = TAKO ? { n: 2, len: 0.075, r: 0.008 } : FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
   // a three-prong claw's wire prong, side view (x outward, y up; the hinge is at the top): it bows out, then hooks in
   // a UFO-catcher arm, side view (x outward, hinge at the top): it angles out, then an elbow turns the finger in
   const ARM = [[0, FING.len / 2], [0.016, -FING.len / 2 + FING.len * 0.32], [-FING.len * 0.13, -FING.len / 2 + 0.004]];
   const PRONG = [[0, 0.0475], [0.011, 0.02], [0.012, -0.01], [0.004, -0.035], [-0.012, -0.0465]];
   const ROPE_MIN = 0.05, ROPE_MAX = 0.46;
+  // takoyaki machine: the funnel scoop (half-cone: top radius, bottom radius, height) and the plate. PL: centre x/z,
+  // half-size, top surface height, 5x5 holes at spacing sp, hole radius rh and depth d, shield height above the plate
+  const FUN = { rt: 0.072, rb: 0.014, h: 0.088 };
+  const PL = { x: 0.14, z: -0.01, half: 0.134, y: 0.06, n: 5, sp: 0.052, rh: 0.022, d: 0.016, shield: 0.07 };
+  const BALL_R = 0.02, ROPE_DROP = 0.23;   // a ping-pong ball is 40 mm; the scoop lowers to here over the plate before it opens
+  const HOLES = []; for (let i = 0; i < PL.n; i++) for (let j = 0; j < PL.n; j++) HOLES.push({ x: PL.x + (i - (PL.n - 1) / 2) * PL.sp, z: PL.z + (j - (PL.n - 1) / 2) * PL.sp, kind: 'plain' });
 
   // ---------- materials ----------
   const canvasTex = (w, h, draw, srgb = true) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
   const gold = new THREE.MeshStandardMaterial({ color: '#d4a444', metalness: 1, roughness: 0.25, envMapIntensity: 1 });
   const chrome = new THREE.MeshStandardMaterial({ color: '#b8bcc6', metalness: 1, roughness: 0.28, envMapIntensity: 0.9 });
-  const lacquer = new THREE.MeshPhysicalMaterial({ color: POKER ? '#0e3a2a' : FIGURE ? '#2a1450' : '#6e0d1d', metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const lacquer = new THREE.MeshPhysicalMaterial({ color: POKER ? '#0e3a2a' : FIGURE ? '#2a1450' : TAKO ? '#7a2c0a' : '#6e0d1d', metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
   const blackGloss = new THREE.MeshPhysicalMaterial({ color: '#120a0c', metalness: 0.3, roughness: 0.3, clearcoat: 1 });
   const velvetTex = canvasTex(256, 256, g => { g.fillStyle = POKER ? '#0d5236' : '#5a0a16'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : POKER ? '140,255,190' : '255,120,140'},${Math.random() * 0.08})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); } });
   velvetTex.wrapS = velvetTex.wrapT = THREE.RepeatWrapping; velvetTex.repeat.set(3, 3);
@@ -81,7 +89,8 @@ function start() {
   world.lengthUnit = 0.05; world.timestep = 1 / 120; world.numSolverIterations = 8;
   const fixedBox = (hx, hy, hz, x, y, z, fr = 0.6) => world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(fr).setRestitution(0.05));
   // floor around the chute hole
-  if (!FIGURE) {
+  if (TAKO) fixedBox(X, 0.02, (ZF - ZB) / 2, 0, -0.02, (ZF + ZB) / 2);
+  if (CHUTE) {
     fixedBox((X - CH.x1) / 2, 0.02, (ZF - ZB) / 2, CH.x1 + (X - CH.x1) / 2, -0.02, (ZF + ZB) / 2);
     fixedBox((CH.x1 - CH.x0) / 2, 0.02, (CH.z0 - ZB) / 2, (CH.x0 + CH.x1) / 2, -0.02, (CH.z0 + ZB) / 2);
   }
@@ -100,16 +109,36 @@ function start() {
   fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, -X - 0.01, 0.3, (ZF + ZB) / 2, 0.2); fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, X + 0.01, 0.3, (ZF + ZB) / 2, 0.2);
   fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZB - 0.01, 0.2); fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZF + 0.01, 0.2);
   const CHW = 0.11;   // chute wall height: lower than the pile, so a shove or an avalanche can tip prizes in by luck
-  if (!FIGURE) {
+  if (CHUTE) {
     fixedBox(0.004, CHW / 2, (CH.z1 - CH.z0) / 2, CH.x1 + 0.004, CHW / 2, (CH.z0 + CH.z1) / 2, 0.2);
     fixedBox((CH.x1 - CH.x0) / 2, CHW / 2, 0.004, (CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.004, 0.2);
+  }
+  // the takoyaki plate: a raised cast-iron plate with 16 round hollows (a heightfield), on a solid base, inside a
+  // clear shield. Balls dropped on it bounce from hollow to hollow and settle; one gold hole and two red holes pay.
+  const HF = 56, hfH = new Float32Array((HF + 1) * (HF + 1));
+  if (TAKO) {
+    const Rs = (PL.rh * PL.rh + PL.d * PL.d) / (2 * PL.d);   // the sphere each hollow is cut from
+    for (let a = 0; a <= HF; a++) for (let b = 0; b <= HF; b++) {
+      const x = PL.x - PL.half + 2 * PL.half * a / HF, z = PL.z - PL.half + 2 * PL.half * b / HF;
+      // inside a hole: the spherical hollow; between holes: ridges that slope down into the nearest hole, so a ball
+      // never rests on the iron between them; the rim round the edge of the plate is a little higher
+      let dm = 1; for (const o of HOLES) dm = Math.min(dm, Math.hypot(x - o.x, z - o.z));
+      let h = dm < PL.rh ? -(PL.d - (Rs - Math.sqrt(Rs * Rs - dm * dm))) : Math.min(0.006, (dm - PL.rh) * 0.4);
+      const edge = Math.max(Math.abs(x - PL.x), Math.abs(z - PL.z)); if (edge > PL.half - 0.012) h = Math.max(h, 0.008);
+      hfH[a * (HF + 1) + b] = h;   // the grid is square and the holes symmetric, so row/column order doesn't matter
+    }
+    world.createCollider(RAPIER.ColliderDesc.heightfield(HF, HF, hfH, { x: PL.half * 2, y: 1, z: PL.half * 2 }).setTranslation(PL.x, PL.y, PL.z).setFriction(0.4).setRestitution(0.35));
+    fixedBox(PL.half, (PL.y - PL.d - 0.004) / 2, PL.half, PL.x, (PL.y - PL.d - 0.004) / 2, PL.z, 0.4);
+    const sh = PL.y + PL.shield;   // shield walls, from the floor up
+    [[PL.x, PL.z - PL.half - 0.003, PL.half + 0.006, 0.003], [PL.x, PL.z + PL.half + 0.003, PL.half + 0.006, 0.003], [PL.x - PL.half - 0.003, PL.z, 0.003, PL.half + 0.006], [PL.x + PL.half + 0.003, PL.z, 0.003, PL.half + 0.006]]
+      .forEach(([x, z, hx, hz]) => world.createCollider(RAPIER.ColliderDesc.cuboid(hx, sh / 2, hz).setTranslation(x, sh / 2, z).setFriction(0.2).setRestitution(0.3)));
   }
   // the bin under the chute catches what falls
   fixedBox(X, 0.01, 0.2, -0.1, -0.24, 0.15, 0.6);
 
   // ---------- the claw: carriage (kinematic), head on a springy cable, three motorised prongs ----------
   // like a real machine, the claw waits over the prize chute and comes back there after every play
-  const START = FIGURE ? { x: -X + 0.25, z: ZF - 0.13 } : { x: (CH.x0 + CH.x1) / 2, z: (CH.z0 + CH.z1) / 2 };   // the figure claw starts far enough from the glass to spread both arms
+  const START = TAKO ? { x: PL.x, z: PL.z } : FIGURE ? { x: -X + 0.25, z: ZF - 0.13 } : { x: (CH.x0 + CH.x1) / 2, z: (CH.z0 + CH.z1) / 2 };   // the figure claw starts far enough from the glass to spread both arms
   const carriage = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(START.x, TOP, START.z));
   const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(START.x, TOP - ROPE_MIN, START.z).setLinearDamping(0.6).setCcdEnabled(true));
   headBody.setEnabledRotations(false, false, false, true);
@@ -119,9 +148,20 @@ function start() {
     const th = FING.n === 2 ? i * Math.PI : i * Math.PI * 2 / 3 + Math.PI / 6, o = { x: Math.cos(th), z: Math.sin(th) };
     const hp = headBody.translation();
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -th);
-    const fb = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(hp.x + o.x * FING.r, hp.y - HEAD.h / 2 - FING.len / 2, hp.z + o.z * FING.r).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setAngularDamping(2).setCcdEnabled(true));
+    const fb = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(hp.x + o.x * FING.r, hp.y - HEAD.h / 2 - (TAKO ? 0 : FING.len / 2), hp.z + o.z * FING.r).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setAngularDamping(2).setCcdEnabled(true));
     // local -x points toward the centre of the claw
-    if (CLAW === 'two') {
+    if (CLAW === 'funnel') {
+      // half a cone, hinged at the top near the centre: six flat slats laid round the slope (local origin = hinge,
+      // the cone's axis is at x = -FING.r). Closed, the two halves make a cup; opened, the bottom splits apart.
+      const N = 6, sl = new THREE.Vector3(), tg = new THREE.Vector3(), nm = new THREE.Vector3(), mt = new THREE.Matrix4(), qq = new THREE.Quaternion();
+      const slant = Math.hypot(FUN.rt - FUN.rb, FUN.h), rm = (FUN.rt + FUN.rb) / 2;
+      for (let k = 0; k < N; k++) {
+        const ps = -Math.PI / 2 + (k + 0.5) * Math.PI / N, c = Math.cos(ps), sn = Math.sin(ps);
+        sl.set((FUN.rt - FUN.rb) * c, FUN.h, (FUN.rt - FUN.rb) * sn).normalize(); tg.set(-sn, 0, c); nm.crossVectors(sl, tg);
+        mt.makeBasis(nm, sl, tg); qq.setFromRotationMatrix(mt);
+        world.createCollider(RAPIER.ColliderDesc.cuboid(0.0018, slant / 2, FUN.rt * Math.PI / N * 0.6).setTranslation(-FING.r + rm * c, -FUN.h / 2, rm * sn).setRotation({ x: qq.x, y: qq.y, z: qq.z, w: qq.w }).setDensity(1500).setFriction(0.5).setCollisionGroups(FG), fb);
+      }
+    } else if (CLAW === 'two') {
       // a UFO-catcher arm: a flat bar angled out, an elbow, then a finger turned inward with a rubber pad on its tip
       for (let k = 1; k < ARM.length; k++) {
         const [x0, y0] = ARM[k - 1], [x1, y1] = ARM[k], len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(x1 - x0, y1 - y0);
@@ -138,19 +178,21 @@ function start() {
       }
       world.createCollider(RAPIER.ColliderDesc.ball(0.0055).setTranslation(PRONG[4][0], PRONG[4][1], 0).setDensity(3000).setFriction(1.3).setCollisionGroups(FG), fb);
     }
-    const jd = RAPIER.JointData.revoluteWithAxes({ x: o.x * FING.r, y: -HEAD.h / 2, z: o.z * FING.r }, { x: 0, y: FING.len / 2, z: 0 }, { x: -o.z, y: 0, z: o.x }, { x: 0, y: 0, z: 1 });
+    const jd = RAPIER.JointData.revoluteWithAxes({ x: o.x * FING.r, y: -HEAD.h / 2, z: o.z * FING.r }, { x: 0, y: TAKO ? 0 : FING.len / 2, z: 0 }, { x: -o.z, y: 0, z: o.x }, { x: 0, y: 0, z: 1 });
     const j = world.createImpulseJoint(jd, headBody, fb, true);
-    j.setContactsEnabled(false); j.setLimits(-0.62, CLAW === 'two' ? 1.3 : 0.7);
+    j.setContactsEnabled(false); j.setLimits(TAKO ? -0.01 : -0.62, TAKO ? 0.9 : CLAW === 'two' ? 1.3 : 0.7);
     return { body: fb, joint: j, th };
   });
   // the prong motors are stiff, but their torque is capped: the cap (N·m) is the grip strength
   const setGrip = (target, torque) => fingers.forEach(f => { f.joint.configureMotorPosition(target, 4000, 130); f.joint.setMotorMaxForce(torque); });
   // the figure machine's long arms open wide so their feet can land past the ends of a box and slide under it
-  const OPEN_T = FIGURE ? 0.35 : CLAW === 'two' ? 0.12 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
+  const OPEN_T = TAKO ? 0.3 : FIGURE ? 0.35 : CLAW === 'two' ? 0.12 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
   // two-arm claws wait with their arms spread wide, like a UFO catcher at rest
-  const OPEN = FIGURE ? 0.95 : CLAW === 'two' ? 0.85 : 0.55, CLOSED = FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
+  const OPEN = TAKO ? 0.5 : FIGURE ? 0.95 : CLAW === 'two' ? 0.85 : 0.55, CLOSED = TAKO ? 0 : FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
   const DROP_OPEN = FIGURE ? 0.82 : 0.6;   // as it drops, the arms come in to their working angle
   setGrip(OPEN, OPEN_T);
+  // while the prizes are poured in and settle (before the cable spring runs), the claw floats where it hangs
+  [headBody, ...fingers.map(f => f.body)].forEach(b => b.setGravityScale(0, true));
 
   // ---------- prizes ----------
   // all casino things: cocktails from the lounge bar, champagne, chips, cards, dice, cash and gold
@@ -168,6 +210,7 @@ function start() {
     deck_holo: { name: 'Prism Ace', value: 500, rarity: 'Legendary' },
   };
   if (POKER) { for (const k of Object.keys(KINDS)) delete KINDS[k]; Object.assign(KINDS, { card: { name: 'Loose card', value: 5 } }, DECKS); }
+  if (TAKO) { for (const k of Object.keys(KINDS)) delete KINDS[k]; Object.assign(KINDS, { tako_gold: { name: 'Gold hole jackpot', value: 120 }, tako_red: { name: 'Red hole', value: 10 } }); }
   if (FIGURE) { for (const k of Object.keys(KINDS)) delete KINDS[k]; for (const id of Object.keys(FIGS)) KINDS['fig_' + id] = { name: FIGS[id].name, value: 300 }; }
   const boxArt = {};   // front of each figure box (for the collection book)
   const chipFace = (base, stripe, mark = '') => canvasTex(128, 128, g => { g.fillStyle = base; g.beginPath(); g.arc(64, 64, 64, 0, 7); g.fill(); g.fillStyle = stripe; for (let i = 0; i < 8; i++) { g.save(); g.translate(64, 64); g.rotate(i * Math.PI / 4); g.fillRect(-6, -64, 12, 16); g.restore(); } g.strokeStyle = stripe; g.lineWidth = 3; g.beginPath(); g.arc(64, 64, 38, 0, 7); g.stroke(); if (mark) { g.fillStyle = stripe; g.font = '700 40px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 64, 67); } });
@@ -346,7 +389,7 @@ function start() {
     : { chip: 40, chips: 20, dice: 15, cards: 15, rocks: 13, highball: 13, martini: 13, cash: 9, champagne: 5, bar: 3, golden: 1 };
   const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
   // pour them in a few at a time, letting each layer settle, so they pile up instead of exploding
-  for (let i = 0; i < (FIGURE ? 0 : STOCK.length); i += 16) {
+  for (let i = 0; i < (FIGURE || TAKO ? 0 : STOCK.length); i += 16) {
     STOCK.slice(i, i + 16).forEach((k, j) => { const s = randomSpot(); spawnPrize(k, s.x, 0.1 + (j % 4) * 0.05 + i * 0.002, s.z); });
     for (let k = 0; k < 120; k++) world.step();
     putBack();
@@ -359,8 +402,31 @@ function start() {
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 0.12); p.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
   };
   if (FIGURE) placeBox();
+  // ---------- takoyaki machine: ping-pong balls (40 mm, 2.7 g, hollow and bouncy) ----------
+  const balls = [];   // { body, obj, hole, t }
+  let paintHoles = () => {}, holeRings = [];
+  const ballGeo = new THREE.SphereGeometry(BALL_R, 20, 14);
+  const ballMs = [new THREE.MeshPhysicalMaterial({ color: '#fbfaf4', roughness: 0.45, clearcoat: 0.3 }), new THREE.MeshPhysicalMaterial({ color: '#ff8a1e', roughness: 0.45, clearcoat: 0.3 })];
+  const pitSpot = () => ({ x: -X + 0.035 + Math.random() * (X - 0.06), z: ZB + 0.035 + Math.random() * (ZF - ZB - 0.07) });
+  function addBall(x, y, z) {
+    const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z).setLinearDamping(0.15).setAngularDamping(0.4));
+    world.createCollider(RAPIER.ColliderDesc.ball(BALL_R).setDensity(80).setFriction(0.35).setRestitution(0.6), body);
+    const obj = new THREE.Mesh(ballGeo, ballMs[balls.length % 5 === 0 ? 1 : 0]); obj.castShadow = true; scene.add(obj);
+    balls.push({ body, obj, hole: null, t: 0 });
+  }
+  const onPlate = t => Math.abs(t.x - PL.x) < PL.half + 0.01 && Math.abs(t.z - PL.z) < PL.half + 0.01 && t.y > PL.y - PL.d - 0.01;
+  // which holes pay: one gold, two red, chosen at random each time the attendant clears the plate
+  function pickHoles() { HOLES.forEach(h => { h.kind = 'plain'; }); const idx = HOLES.map((_, i) => i).sort(() => Math.random() - 0.5); HOLES[idx[0]].kind = 'gold'; HOLES[idx[1]].kind = 'red'; HOLES[idx[2]].kind = 'red'; paintHoles(); }
+  // the attendant tips every ball on the plate back into the pile
+  // (each ball gets its own slot on a grid above the pile, so none start inside another and fly apart)
+  function clearPlate() { let k = 0; for (const b of balls) { const t = b.body.translation(); if (onPlate(t) || t.y < -0.05) { const c = k++ % 40, s2 = { x: -X + 0.04 + (c % 5) * 0.048, z: ZB + 0.05 + Math.floor(c / 5) * 0.054 }; b.body.setTranslation({ x: s2.x, y: 0.24 + Math.floor(k / 40) * 0.05, z: s2.z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); b.hole = null; b.t = 0; } } }
+  if (TAKO) {
+    pickHoles();
+    for (let i = 0; i < 140; i++) { const s2 = pitSpot(); addBall(s2.x, 0.06 + (i % 10) * 0.045, s2.z); if (i % 10 === 9) for (let k = 0; k < 70; k++) world.step(); }   // poured in ten at a time, each at its own height
+  }
   for (let i = 0; i < 240; i++) world.step();
   putBack();
+  [headBody, ...fingers.map(f => f.body)].forEach(b => { b.setGravityScale(1, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); });
 
   // ---------- the cabinet (looks) ----------
   // base with a sloping control deck, prize door, glass box with gold pillars, a lit marquee
@@ -375,17 +441,37 @@ function start() {
     });
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.7, BR.z1 - BR.z0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.5, 1.2), transparent: true, opacity: 0.35, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(0, -0.11, (BR.z0 + BR.z1) / 2); scene.add(glow);
   }
+  // the takoyaki plate: cast iron from the same heightfield, a wooden base, gold and red rings on the paying holes
+  if (TAKO) {
+    const g = new THREE.PlaneGeometry(PL.half * 2, PL.half * 2, HF, HF); g.rotateX(-Math.PI / 2);
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) { const a = Math.round((pos.getX(i) + PL.half) / (2 * PL.half) * HF), b = Math.round((pos.getZ(i) + PL.half) / (2 * PL.half) * HF); pos.setY(i, hfH[a * (HF + 1) + b]); }
+    g.computeVertexNormals();
+    const plate = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: '#2a2624', metalness: 0.7, roughness: 0.45 })); plate.position.set(PL.x, PL.y, PL.z); plate.receiveShadow = true; scene.add(plate);
+    const baseM = new THREE.Mesh(new RoundedBoxGeometry(PL.half * 2 + 0.02, PL.y - 0.004, PL.half * 2 + 0.02, 2, 0.004), new THREE.MeshStandardMaterial({ color: '#6a3a1a', roughness: 0.7 })); baseM.position.set(PL.x, (PL.y - 0.004) / 2 - 0.001, PL.z); scene.add(baseM);
+    const sh = PL.y + PL.shield, acr = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.16, roughness: 0.05, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide });
+    [[PL.x, PL.z - PL.half - 0.003, PL.half * 2 + 0.012, 0.004], [PL.x, PL.z + PL.half + 0.003, PL.half * 2 + 0.012, 0.004], [PL.x - PL.half - 0.003, PL.z, 0.004, PL.half * 2 + 0.012], [PL.x + PL.half + 0.003, PL.z, 0.004, PL.half * 2 + 0.012]].forEach(([x, z, w, d]) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, sh, d), acr); m.position.set(x, sh / 2, z); scene.add(m);
+      const r = new THREE.Mesh(new THREE.BoxGeometry(w + 0.002, 0.004, d + 0.002), gold); r.position.set(x, sh, z); scene.add(r);
+    });
+    holeRings = HOLES.map(h => { const r = new THREE.Mesh(new THREE.RingGeometry(PL.rh + 0.0005, PL.rh + 0.0045, 36), new THREE.MeshBasicMaterial({ color: '#fff', toneMapped: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.position.set(h.x, PL.y + 0.0008, h.z); scene.add(r); return r; });
+    paintHoles = () => HOLES.forEach((h, i) => { holeRings[i].visible = h.kind !== 'plain'; holeRings[i].material.color.setRGB(...(h.kind === 'gold' ? [2.2, 1.5, 0.4] : [2, 0.25, 0.2])); });
+    paintHoles();
+    // a little sign on the shield
+    const sign = canvasTex(256, 64, g2 => { g2.fillStyle = '#f2c14e'; g2.font = '800 24px "Libre Franklin", Arial'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText('GOLD 120 · RED 10', 128, 34); });
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.05), new THREE.MeshBasicMaterial({ map: sign, transparent: true })); sg.position.set(PL.x, PL.y + PL.shield - 0.03, PL.z + PL.half + 0.007); scene.add(sg);
+  }
   // the hole in the floor where the chute is (drawn dark over the velvet)
-  const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.z1 - CH.z0), new THREE.MeshBasicMaterial({ color: '#050203' })); hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, 0.0005, (CH.z0 + CH.z1) / 2); if (!FIGURE) scene.add(hole);
+  const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.z1 - CH.z0), new THREE.MeshBasicMaterial({ color: '#050203' })); hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, 0.0005, (CH.z0 + CH.z1) / 2); if (CHUTE) scene.add(hole);
   const acrylic = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.18, roughness: 0.05, clearcoat: 1, depthWrite: false });
-  const cw1 = new THREE.Mesh(new THREE.BoxGeometry(0.006, CHW, CH.z1 - CH.z0), acrylic); cw1.position.set(CH.x1 + 0.003, CHW / 2, (CH.z0 + CH.z1) / 2); if (!FIGURE) scene.add(cw1);
-  const cw2 = new THREE.Mesh(new THREE.BoxGeometry(CH.x1 - CH.x0, CHW, 0.006), acrylic); cw2.position.set((CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.003); if (!FIGURE) scene.add(cw2);
-  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.008, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.008]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.006, d), gold); r.position.set(x, CHW, z); if (!FIGURE) scene.add(r); });
+  const cw1 = new THREE.Mesh(new THREE.BoxGeometry(0.006, CHW, CH.z1 - CH.z0), acrylic); cw1.position.set(CH.x1 + 0.003, CHW / 2, (CH.z0 + CH.z1) / 2); if (CHUTE) scene.add(cw1);
+  const cw2 = new THREE.Mesh(new THREE.BoxGeometry(CH.x1 - CH.x0, CHW, 0.006), acrylic); cw2.position.set((CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.003); if (CHUTE) scene.add(cw2);
+  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.008, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.008]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.006, d), gold); r.position.set(x, CHW, z); if (CHUTE) scene.add(r); });
   const chuteSign = canvasTex(256, 64, g => { g.fillStyle = '#f2c14e'; g.font = '800 40px "Libre Franklin", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('PRIZE', 128, 34); });
-  const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshBasicMaterial({ map: chuteSign, transparent: true })); cs.position.set((CH.x0 + CH.x1) / 2, CHW - 0.022, CH.z0 + 0.004); if (!FIGURE) scene.add(cs);
+  const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshBasicMaterial({ map: chuteSign, transparent: true })); cs.position.set((CH.x0 + CH.x1) / 2, CHW - 0.022, CH.z0 + 0.004); if (CHUTE) scene.add(cs);
   // a glowing strip along the top of the chute walls so the target is easy to see
   const chuteLed = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.1, 0.4), toneMapped: false });
-  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.004, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.004]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.003, d), chuteLed); r.position.set(x, CHW + 0.0045, z); if (!FIGURE) scene.add(r); });
+  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.004, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.004]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.003, d), chuteLed); r.position.set(x, CHW + 0.0045, z); if (CHUTE) scene.add(r); });
   const back = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, 0.56), new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.8 })); back.position.set(0, 0.27, ZB - 0.002); scene.add(back);
   // the cabinet's back wall (seen when you turn the machine round)
   const backWall = new THREE.Mesh(new THREE.BoxGeometry(X * 2 + 0.05, 0.58, 0.014), lacquer); backWall.position.set(0, 0.27, ZB - 0.011); scene.add(backWall);
@@ -404,10 +490,10 @@ function start() {
   function drawMarquee(g, sub) {
     g.fillStyle = '#0a0406'; g.fillRect(0, 0, 1024, 256);
     const gr = g.createLinearGradient(0, 60, 0, 200); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#e0a23a');
-    g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(POKER ? 'Deck Hunter' : FIGURE ? 'Figure Stage' : 'Lucky Claw', 512, 120);
+    g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(POKER ? 'Deck Hunter' : FIGURE ? 'Figure Stage' : TAKO ? 'Lucky Tako' : 'Lucky Claw', 512, 120);
     g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText(sub, 512, 212);
   }
-  const marqueeTex = canvasTex(1024, 256, g => drawMarquee(g, POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣'));
+  const marqueeTex = canvasTex(1024, 256, g => drawMarquee(g, POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : TAKO ? '●  DROP A BALL IN THE GOLD HOLE  ●' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣'));
   const marquee = new THREE.Mesh(new THREE.BoxGeometry(CW, 0.16, 0.05), [blackGloss, blackGloss, blackGloss, blackGloss, new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false }), blackGloss]);
   marquee.position.set(0, 0.67, ZF - 0.01); scene.add(marquee);
   // ---------- figure machine: display shelves, posters, and colours that follow the chosen figure ----------
@@ -498,9 +584,16 @@ function start() {
     const coil = new THREE.Mesh(new THREE.TorusGeometry(HEAD.r * 0.55, 0.0025, 6, 20), chrome); coil.rotation.x = Math.PI / 2; coil.position.y = HEAD.h * 0.42; headM.add(coil);
     const rim = new THREE.Mesh(new THREE.TorusGeometry(HEAD.r, 0.0035, 8, 32), gold); rim.rotation.x = Math.PI / 2; rim.position.y = -HEAD.h / 2 + 0.003; headM.add(rim);
   }
+  const funnelM = new THREE.MeshPhysicalMaterial({ color: '#d8dce4', metalness: 0.9, roughness: 0.25, clearcoat: 0.6, side: THREE.DoubleSide });
   const fingerMeshes = fingers.map(() => {
     const g = new THREE.Group();
-    if (CLAW === 'two') {
+    if (CLAW === 'funnel') {
+      // half a cone of polished steel with a gold rim, matching the slats in the physics
+      const lg = new THREE.LatheGeometry([new THREE.Vector2(FUN.rb, -FUN.h), new THREE.Vector2(FUN.rt, 0)], 24, 0, Math.PI); lg.translate(-FING.r, 0, 0);
+      const cone = new THREE.Mesh(lg, funnelM); cone.castShadow = true; g.add(cone);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(FUN.rt, 0.0025, 6, 24, Math.PI), gold); rim.rotation.x = Math.PI / 2; rim.rotation.z = -Math.PI / 2; rim.position.x = -FING.r; g.add(rim);
+      const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.02, 10), gold); hinge.rotation.x = Math.PI / 2; g.add(hinge);
+    } else if (CLAW === 'two') {
       for (let k = 1; k < ARM.length; k++) {
         const [x0, y0] = ARM[k - 1], [x1, y1] = ARM[k], len = Math.hypot(x1 - x0, y1 - y0);
         const seg = new THREE.Mesh(new RoundedBoxGeometry(0.009, len + 0.006, 0.026, 2, 0.003), chrome); seg.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0); seg.rotation.z = -Math.atan2(x1 - x0, y1 - y0); seg.castShadow = true; g.add(seg);
@@ -550,11 +643,12 @@ function start() {
     G.grip = TUNE.GRIP * (0.85 + Math.random() * 0.3);   // this play's motor strength
     if (FIGURE) G.grip *= G.strong ? 1.6 : 1.05;   // figure arms are weak: they tip and shift a box, they can't carry it away
     if (superClaw) { G.strong = true; G.grip = TUNE.GRIP * 4; }
+    if (TAKO) { G.strong = true; G.grip = superClaw ? 2 : 0.8; HOME = { x: START.x + (Math.random() - 0.5) * 0.05, z: START.z + (Math.random() - 0.5) * 0.05 }; }   // it opens over a slightly different spot each time   // the scoop always closes firmly: the luck is in the bounce
     G.playWins = 0;
     G.state = 'aim'; G.timer = 30; saveBank();
   }
   const input = { x: 0, z: 0 };
-  const HOME = START;   // where prizes are let go: over the chute
+  let HOME = START;   // where prizes are let go: over the chute
   let pending = 0, wonTotal = 0, plays = 0;
   const flush = () => { if (pending) { UI.wallet.add(pending); pending = 0; } };
   setInterval(flush, 1500); window.addEventListener('pagehide', flush);
@@ -598,12 +692,13 @@ function start() {
     else if (G.state === 'raise') {
       G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt);
       // at the top the grip relaxes on most plays: what's held loosely may slip on the way
-      if (G.rope <= ROPE_MIN + 0.001) { { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; } }
-    } else if (G.state === 'carry') { if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5) { G.state = 'release'; G.t = 0; setGrip(OPEN, OPEN_T * 1.6); tone(500, 0.12, 0.04, 'square'); } }
-    else if (G.state === 'release') { if (G.t > 1.0) { G.state = 'home'; G.t = 0; } }
-    else if (G.state === 'home') { if (Math.hypot(START.x - G.cx, START.z - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, OPEN_T); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
+      if (G.rope <= ROPE_MIN + 0.001) { { if (TAKO) { /* the cup holds what it scooped */ } else if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; } }
+    } else if (G.state === 'carry') { if (TAKO) G.rope = Math.min(ROPE_DROP, G.rope + 0.16 * dt); if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5 && (!TAKO || (G.rope >= ROPE_DROP - 0.001 && Math.hypot(headBody.linvel().x, headBody.linvel().z) < 0.03))) { G.state = 'release'; G.t = 0; setGrip(OPEN, OPEN_T * 1.6); if (TAKO) { const hp2 = headBody.translation(); balls.forEach(b => { const t2 = b.body.translation(); if (Math.hypot(t2.x - hp2.x, t2.y - hp2.y, t2.z - hp2.z) < 0.13) b.body.setAngvel({ x: (Math.random() - 0.5) * 30, y: (Math.random() - 0.5) * 30, z: (Math.random() - 0.5) * 30 }, true); }); } /* balls tumble out of the cup with a little spin */ tone(500, 0.12, 0.04, 'square'); } }
+    else if (G.state === 'release') { if (G.t > (TAKO ? 1.6 : 1.0)) { G.state = 'home'; G.t = 0; } }
+    else if (G.state === 'home') { if (TAKO) G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt); if (Math.hypot(START.x - G.cx, START.z - G.cz) < 0.006 && G.rope <= ROPE_MIN + 0.001) { G.state = 'idle'; motor(false); setGrip(OPEN, OPEN_T); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
     world.step();
     void tx; void tz;
+    if (TAKO) takoCheck(dt);
     // prizes that fall down the chute are won; anything that escapes is put back
     for (let i = prizes.length - 1; i >= 0; i--) {
       const p = prizes[i], t = p.body.translation();
@@ -616,16 +711,36 @@ function start() {
       }
     }
   }
+  // a ball that sits still in a paying hole for half a second wins. Red: the ball is taken out and the hole stays
+  // open. Gold: the jackpot, and then the attendant clears the plate and sets a new gold hole.
+  let clearT = 0;
+  function takoCheck(dt) {
+    if (clearT > 0) { clearT -= dt; if (clearT <= 0) { clearPlate(); pickHoles(); } return; }
+    for (const b of balls) {
+      const t = b.body.translation();
+      if (t.y < -0.05) { const s2 = pitSpot(); b.body.setTranslation({ x: s2.x, y: 0.25, z: s2.z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); continue; }
+      // a ball balanced on the iron between holes gets a tiny nudge (the machine hums), so it always rolls into one
+      if (onPlate(t) && t.y > PL.y + 0.012 && t.y < PL.y + 0.03 && Math.hypot(b.body.linvel().x, b.body.linvel().z) < 0.01 && Math.random() < 0.05) { b.body.applyImpulse({ x: (Math.random() - 0.5) * 3e-5, y: 0, z: (Math.random() - 0.5) * 3e-5 }, true); }
+      if (t.y > PL.y + 0.012 || t.y < PL.y - PL.d) { b.t = 0; continue; }
+      const h = HOLES.find(o => Math.hypot(t.x - o.x, t.z - o.z) < 0.009);
+      const v = b.body.linvel();
+      if (!h || h.kind === 'plain' || Math.hypot(v.x, v.y, v.z) > 0.05) { b.t = 0; continue; }
+      b.t += dt; if (b.t < 0.5) continue;
+      b.t = 0;
+      if (h.kind === 'red') { const s2 = pitSpot(); b.body.setTranslation({ x: s2.x, y: 0.25, z: s2.z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); win({ kind: 'tako_red', ...KINDS.tako_red }); }
+      else { win({ kind: 'tako_gold', ...KINDS.tako_gold }); h.kind = 'won'; clearT = 2.5; if (!G.sim) say(tr('Jackpot! The attendant will reset the plate')); return; }
+    }
+  }
   const collection = (() => { try { return JSON.parse(localStorage.getItem('ol-claw-col' + SUFFIX) || '{}') || {}; } catch (e) { return {}; } })();
   function win(p) {
     // a second (third…) prize in the same play earns the combo bonus
     G.playWins = (G.playWins || 0) + 1;
-    const bonus = G.playWins >= 2 && G.state !== 'idle' ? TUNE.COMBO : 0, v = p.value + bonus;
+    const bonus = !TAKO && G.playWins >= 2 && G.state !== 'idle' ? TUNE.COMBO : 0, v = p.value + bonus;
     if (!superClaw) { bank -= v; saveBank(); }
     if (G.sim) { G.simWon += v; G.simWins++; G.simKinds[p.kind] = (G.simKinds[p.kind] || 0) + 1; return; }
     pending += v; wonTotal += v; G.got = true;
     collection[p.kind] = (collection[p.kind] || 0) + 1; try { localStorage.setItem('ol-claw-col' + SUFFIX, JSON.stringify(collection)); } catch (e) { /* ignore */ }
-    fanfare(); if (p.value < 150) voice(bonus ? 'Double!' : 'Got it!', bonus ? '一抓两个！' : '抓到啦！');
+    fanfare(); if (p.kind === 'tako_red') tone(1200, 0.2, 0.06, 'triangle'); else if (p.value < 150) voice(bonus ? 'Double!' : 'Got it!', bonus ? '一抓两个！' : '抓到啦！');
     showWin(p, bonus);
     window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, drinks: ['rocks', 'highball', 'martini'].filter(k => collection[k]).length, decks: Object.keys(DECKS).filter(k => collection[k]).length, figs: Object.keys(FIGS).filter(k => collection['fig_' + k]).length, machine: MACHINE, combo: bonus > 0 } }));
     paint();
@@ -641,7 +756,7 @@ function start() {
     winCard.classList.toggle('big', p.value >= 150 || !!bonus);
     winCard.hidden = false; winCard.classList.remove('go'); void winCard.offsetWidth; winCard.classList.add('go');
     clearTimeout(showWin.t); showWin.t = setTimeout(() => { winCard.hidden = true; }, 2600);
-    if (p.value >= 150) { const leg = p.kind === 'golden' || p.kind === 'deck_holo'; voice(leg ? 'Legendary! Jackpot!' : 'Big prize!', leg ? '传说级！大奖！' : '大奖！'); bulbsHot = 4; }
+    if (p.value >= 150) { const leg = p.kind === 'golden' || p.kind === 'deck_holo' || p.kind === 'tako_gold'; voice(leg ? 'Legendary! Jackpot!' : 'Big prize!', leg ? '传说级！大奖！' : '大奖！'); bulbsHot = 4; }
   }
   function paint() {
     $('#clInsert').disabled = G.state !== 'idle';
@@ -654,7 +769,9 @@ function start() {
   $('#clDrop').onclick = () => { audio(); dropClaw(); };
   $('#clCol').onclick = () => {
     let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
-    if (FIGURE) {
+    if (TAKO) {
+      d.innerHTML = `<h2>${tr('Lucky Tako')}</h2><p class="sub">${tr('Scoop ping-pong balls with the funnel. It carries them over the takoyaki plate and lets them go; they bounce from hole to hole.')}</p><p class="sub">${tr('A ball that stops in the gold hole wins 120. A red hole wins 10. Balls in plain holes stay put, so each play leaves fewer places to land.')}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
+    } else if (FIGURE) {
       const keys = Object.keys(KINDS), have = keys.filter(k => collection[k]).length;
       const cards = keys.map(k => { if (!boxArt[k]) boxArt[k] = buildBox(k.slice(4), BOX).artCanvas; const zh = window.I18N && I18N.lang === 'zh'; return `<figure class="cl-deck cl-figbox${collection[k] ? '' : ' no'}"><img src="${boxArt[k].toDataURL()}" alt=""><figcaption><b>${zh ? FIGS[k.slice(4)].zh : FIGS[k.slice(4)].name}</b><small>${tr('worth')} ${KINDS[k].value} · × ${collection[k] || 0}</small></figcaption></figure>`; }).join('');
       d.innerHTML = `<h2>${tr('Figure collection')}</h2><p class="sub">${tr('Collected')} <b>${have}</b> / ${keys.length}. ${tr('Tip the box so it slips between the two bars. Hook one end with an arm rather than grabbing the middle.')}</p><div class="cl-book">${cards}</div><p class="sub" translate="no">${window.I18N && I18N.lang === 'zh' ? FIG_CREDIT_ZH : FIG_CREDIT}</p><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
@@ -702,11 +819,12 @@ function start() {
   const cBtn = $('#clClaw');
   if (cBtn) { cBtn.textContent = tr(CLAW === 'two' ? 'Claw: 2 arms' : 'Claw: 3 prongs'); cBtn.onclick = () => { if (!['idle', 'aim'].includes(G.state) || G.state === 'aim') { say(tr('Change the claw between plays')); return; } try { localStorage.setItem('ol-claw-type', CLAW === 'two' ? 'three' : 'two'); } catch (e) { /* ignore */ } flush(); location.reload(); }; }
   const mBtn = $('#clMachine');
-  const NEXT_M = { casino: 'poker', poker: 'figure', figure: 'casino' }, M_NAME = { casino: 'Casino machine', poker: 'Poker machine', figure: 'Figure machine' };
+  const NEXT_M = { casino: 'poker', poker: 'figure', figure: 'tako', tako: 'casino' }, M_NAME = { casino: 'Casino machine', poker: 'Poker machine', figure: 'Figure machine', tako: 'Takoyaki machine' };
   if (mBtn) { mBtn.textContent = tr(M_NAME[NEXT_M[MACHINE]]); mBtn.onclick = () => { const n = NEXT_M[MACHINE]; try { localStorage.setItem('ol-claw-m', n); } catch (e) { /* ignore */ } flush(); location.href = location.pathname + '?m=' + n; }; }
   // figure machine: pick which figure sits on the bridge, or ask the attendant to set the box straight again
   const fBtn = $('#clFig'), rBtn = $('#clReset'), cBtn2 = $('#clClaw');
-  if (fBtn) fBtn.hidden = !FIGURE; if (rBtn) rBtn.hidden = !FIGURE; if (cBtn2 && FIGURE) cBtn2.hidden = true;
+  if (fBtn) fBtn.hidden = !FIGURE; if (rBtn) rBtn.hidden = !FIGURE && !TAKO; if (cBtn2 && (FIGURE || TAKO)) cBtn2.hidden = true;
+  if (TAKO && rBtn) rBtn.onclick = () => { if (G.state !== 'idle' || clearT > 0) { say(tr('The attendant can reset the plate between plays')); return; } clearPlate(); say(tr('The attendant cleared the plate')); };
   const paintFig = () => { if (fBtn) fBtn.textContent = (window.I18N && I18N.lang === 'zh' ? FIGS[figPick].zh : FIGS[figPick].name) + ' ▸'; };
   if (FIGURE) {
     paintFig(); applyTheme(figPick);
@@ -742,7 +860,7 @@ function start() {
   controls.enablePan = false; controls.enableDamping = true; controls.dampingFactor = 0.08; controls.rotateSpeed = 0.6;
   controls.minPolarAngle = 0.1; controls.maxPolarAngle = 1.62;   // all the way round; just not under the floor
   controls.target = look;
-  const VIEWS = [{ az: 0, el: 0.16 }, { az: -0.85, el: 0.3 }, { az: 0, el: 1.25 }, { az: 0.85, el: 0.3 }];   // front, left, top, right
+  const VIEWS = [{ az: 0, el: TAKO ? 0.5 : 0.16 }, { az: -0.85, el: 0.3 }, { az: 0, el: 1.25 }, { az: 0.85, el: 0.3 }];   // front, left, top, right
   let view = 0, homeDist = 1, viewAnim = null;
   const viewPos = (v, d) => new THREE.Vector3(Math.sin(v.az) * Math.cos(Math.atan(v.el)) , Math.sin(Math.atan(v.el)), Math.cos(v.az) * Math.cos(Math.atan(v.el))).multiplyScalar(d).add(look);
   function goView(i, instant) { view = i; const to = viewPos(VIEWS[i], homeDist * (i === 2 ? 0.95 : 1)); if (instant) { camera.position.copy(to); viewAnim = null; } else viewAnim = { from: camera.position.clone(), to, t: 0 }; }
@@ -779,6 +897,8 @@ function start() {
     const dl = new THREE.Vector3(hp.x - G.cx, hp.y + HEAD.h / 2 - TOP, hp.z - G.cz); cable.scale.y = Math.max(0.001, dl.length()); cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dl.normalize().multiplyScalar(-1));
     fingers.forEach((f, i) => { const p = f.body.translation(), q = f.body.rotation(); fingerMeshes[i].position.set(p.x, p.y, p.z); fingerMeshes[i].quaternion.copy(m4q.set(q.x, q.y, q.z, q.w)); });
     for (const p of prizes) { const tt = p.body.translation(), q = p.body.rotation(); p.obj.position.set(tt.x, tt.y, tt.z); p.obj.quaternion.set(q.x, q.y, q.z, q.w); }
+    for (const b of balls) { const tt = b.body.translation(), q = b.body.rotation(); b.obj.position.set(tt.x, tt.y, tt.z); b.obj.quaternion.set(q.x, q.y, q.z, q.w); }
+    HOLES.forEach((h, i) => { if (h.kind === 'gold' && holeRings[i]) holeRings[i].material.color.setRGB(1.8 + Math.sin(t * 5) * 0.6, 1.3 + Math.sin(t * 5) * 0.4, 0.4); });
     aimRing.visible = G.state === 'aim'; aimRing.position.set(G.cx, FIGURE ? BR.y + BR.r + BOX[1] + 0.004 : 0.003, G.cz); aimRing.material.opacity = 0.45 + Math.sin(t * 6) * 0.2;
     stick.rotation.set(input.z * 0.35, 0, -input.x * 0.35);
     if (bulbsHot > 0) bulbsHot -= 1 / 60;
@@ -822,13 +942,19 @@ function start() {
     },
     state: () => ({ ...G, prizes: prizes.length }),
     head: () => { const h = headBody.translation(); return [+h.x.toFixed(3), +h.y.toFixed(3), +h.z.toFixed(3)]; },
-    play: (x, z) => { G.sim = true; G.simWon = 0; G.simWins = 0; G.simKinds = {}; newPlay(); for (let i = 0; i < 4000; i++) { const dx = x - G.cx, dz = z - G.cz, d = Math.hypot(dx, dz); input.x = d > 0.003 ? dx / d * Math.min(1, d * 15) : 0; input.z = d > 0.003 ? dz / d * Math.min(1, d * 15) : 0; step(world.timestep); if (d < 0.003 && Math.hypot(G.vx, G.vz) < 0.005) break; } input.x = input.z = 0; for (let i = 0; i < 360; i++) step(world.timestep); dropClaw(); let g = 0; const tr2 = {}; while (G.state !== 'idle' && g++ < 6000) { step(world.timestep); if (!tr2[G.state]) tr2[G.state] = { head: OL_CLAW.head(), f: OL_CLAW.fingers(), box: prizes[0] && [+prizes[0].body.translation().y.toFixed(3)] }; if (prizes[0]) tr2.maxBoxY = Math.max(tr2.maxBoxY || 0, prizes[0].body.translation().y); if (G.state === 'lower' && g % 30 === 0) (tr2.trace = tr2.trace || []).push([+G.rope.toFixed(3), OL_CLAW.head()[1], OL_CLAW.fingers().map(q => q[0])]); } tr2.list = OL_CLAW.list(); tr2.won = G.simWins; G.sim = false; return tr2; },
+    play: (x, z) => { G.sim = true; G.simWon = 0; G.simWins = 0; G.simKinds = {}; newPlay(); for (let i = 0; i < 4000; i++) { const dx = x - G.cx, dz = z - G.cz, d = Math.hypot(dx, dz); input.x = d > 0.003 ? dx / d * Math.min(1, d * 15) : 0; input.z = d > 0.003 ? dz / d * Math.min(1, d * 15) : 0; step(world.timestep); if (d < 0.003 && Math.hypot(G.vx, G.vz) < 0.005) break; } input.x = input.z = 0; for (let i = 0; i < 360; i++) step(world.timestep); dropClaw(); let g = 0; const tr2 = {}; while (G.state !== 'idle' && g++ < 6000) { step(world.timestep); if (!tr2[G.state]) tr2[G.state] = { head: OL_CLAW.head(), f: OL_CLAW.fingers(), box: prizes[0] && [+prizes[0].body.translation().y.toFixed(3)], nb: balls.filter(b => b.body.translation().y > 0.22).length }; if (prizes[0]) tr2.maxBoxY = Math.max(tr2.maxBoxY || 0, prizes[0].body.translation().y); if (G.state === 'lower' && g % 30 === 0) (tr2.trace = tr2.trace || []).push([+G.rope.toFixed(3), OL_CLAW.head()[1], OL_CLAW.fingers().map(q => q[0])]); } if (TAKO) for (let i = 0; i < 480; i++) step(world.timestep); tr2.list = OL_CLAW.list(); tr2.won = G.simWins; tr2.wonV = G.simWon; G.sim = false; return tr2; },
     step: n => { for (let i = 0; i < n; i++) step(world.timestep); },
     grip: (a, k) => setGrip(a, k),
     tune: o => Object.assign(TUNE, o),
     bank: v => (v != null ? (bank = v) : bank),
     jt: () => fingers.map(f => f.joint.type()),
     fingers: () => fingers.map(f => { const p = f.body.translation(), h = headBody.translation(); const r = Math.hypot(p.x - h.x, p.z - h.z); return [+r.toFixed(3), +(p.y - h.y).toFixed(3)]; }),
+    dropBall: (x, y, z) => { const b = balls.find(q => !onPlate(q.body.translation())); b.body.setTranslation({ x, y, z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); b.body.setAngvel({ x: 0, y: 0, z: 0 }, true); G.sim = true; G.simKinds = {}; G.simWon = 0; G.simWins = 0; for (let i = 0; i < 480; i++) step(world.timestep); G.sim = false; const t2 = b.body.translation(); return [+t2.x.toFixed(3), +t2.y.toFixed(3), +t2.z.toFixed(3)]; },
+    trace: (x, y, z, n = 240) => { const b = balls.find(q => !onPlate(q.body.translation()) && q.body.translation().y < 0.05); b.body.setTranslation({ x, y, z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); const out = []; G.sim = true; G.simKinds = {}; for (let i = 0; i < n; i++) { step(world.timestep); if (i % 6 === 0) { const t2 = b.body.translation(), v = b.body.linvel(); out.push([+t2.x.toFixed(3), +t2.y.toFixed(3), +t2.z.toFixed(3), +Math.hypot(v.x, v.y, v.z).toFixed(2)]); } } G.sim = false; return out; },
+    probe: (x, y, z, r = 0.02) => { const out = []; world.intersectionsWithShape({ x, y, z }, { x: 0, y: 0, z: 0, w: 1 }, new RAPIER.Ball(r), c => { const b = c.parent(); out.push({ shape: c.shapeType(), body: b ? (b === headBody ? 'head' : fingers.some(f => f.body === b) ? 'finger' : balls.some(q => q.body === b) ? 'ball' : prizes.some(q => q.body === b) ? 'prize' : b.isFixed() ? 'fixed' : 'other') : 'none', pos: c.translation() }); return true; }); return out; },
+    clear: () => { clearPlate(); G.sim = true; G.simKinds = {}; for (let i = 0; i < 240; i++) step(world.timestep); G.sim = false; },
+    ray: (x, z) => { const h = world.castRay(new RAPIER.Ray({ x, y: 0.3, z }, { x: 0, y: -1, z: 0 }), 1, true, undefined, undefined, undefined, undefined, b => !balls.some(q => q.body === b)); return h ? +(0.3 - (h.timeOfImpact ?? h.toi)).toFixed(4) : null; },
+    balls: () => ({ total: balls.length, plate: balls.filter(b => onPlate(b.body.translation())).length, holes: HOLES.map(h => h.kind[0]).join(''), filled: HOLES.map(h => balls.some(b => { const t2 = b.body.translation(); return Math.hypot(t2.x - h.x, t2.z - h.z) < 0.009 && t2.y < PL.y + 0.012; }) ? 1 : 0).join('') }),
     list: () => prizes.map(p => { const t2 = p.body.translation(); return [p.kind, +t2.x.toFixed(3), +t2.y.toFixed(3), +t2.z.toFixed(3)]; }),
   };
 }

@@ -55,6 +55,7 @@
     { id: 'cl_fullset', icon: '♠', reward: 1000, name: 'Full Set', text: 'Collect all ten collector decks from the poker claw machine.' },
     { id: 'cl_prism', icon: '◇', reward: 800, name: 'Prism Ace', text: 'Win the legendary Prism Ace deck.' },
     { id: 'cl_figs', icon: '♪', reward: 1500, name: 'Virtual Singers', text: 'Win all six figures from the figure claw machine.' },
+    { id: 'cl_tako', icon: '🐙', reward: 300, name: 'Golden Takoyaki', text: 'Drop a ball into the gold hole of the takoyaki machine.' },
     { id: 'high_roller', icon: '$', reward: 300, name: 'High Roller', text: 'Bet 1,000 chips or more at once.' },
     { id: 'bartender', icon: '🍸', reward: 200, name: 'Regular at the Bar', text: 'Order 5 drinks.' },
     { id: 'explorer', icon: '⌂', reward: 500, name: 'Grand Tour', text: 'Play every game in the lounge.' },
@@ -185,6 +186,7 @@
         if (d.decks >= 10) unlock('cl_fullset');
         if (d.kind === 'deck_holo') unlock('cl_prism');
         if (d.figs >= 6) unlock('cl_figs');
+        if (d.kind === 'tako_gold') unlock('cl_tako');
       } else if (d.type === 'drink') {
         bump('drink'); A.drinks = (A.drinks || 0) + 1; save(AKEY, A); if (A.drinks >= 5) unlock('bartender');
       }
