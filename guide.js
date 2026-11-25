@@ -53,6 +53,7 @@
   const KEY = 'ol-guide-' + page;
   let seen = false; try { seen = localStorage.getItem(KEY) === '1'; } catch (e) { seen = true; }
   if (seen && !/[?&]guide=1/.test(location.search)) return;
+  if (/[?&]guide=0/.test(location.search)) return;   // e.g. for screenshots
 
   let i = 0, box = null, ring = null;
   function visible(el) { if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; }
