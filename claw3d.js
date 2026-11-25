@@ -13,8 +13,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=139';
-import { headerChrome, onQuality } from './chrome3d.js?v=139';
+import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=144';
+import { headerChrome, onQuality } from './chrome3d.js?v=144';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -94,7 +94,7 @@ function start() {
   const BARS = [[-0.225, -0.036], [-0.135, -0.018], [-0.045, 0], [0.045, 0], [0.135, -0.018], [0.225, -0.036]].map(([x, dy]) => ({ x, y: BR.y + dy }));
   if (FIGURE) {
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-    BARS.forEach(b => world.createCollider(RAPIER.ColliderDesc.cylinder((BR.z1 - BR.z0) / 2, BR.r).setTranslation(b.x, b.y, (BR.z0 + BR.z1) / 2).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setFriction(0.35)));
+    BARS.forEach(b => world.createCollider(RAPIER.ColliderDesc.cylinder((BR.z1 - BR.z0) / 2, BR.r).setTranslation(b.x, b.y, (BR.z0 + BR.z1) / 2).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setFriction(0.35).setCollisionGroups((0x0004 << 16) | 0xfffd)));   // the claw's feet slip between the bars
   }
   // glass walls and the chute's inner walls (acrylic)
   fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, -X - 0.01, 0.3, (ZF + ZB) / 2, 0.2); fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, X + 0.01, 0.3, (ZF + ZB) / 2, 0.2);
@@ -114,7 +114,7 @@ function start() {
   const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(START.x, TOP - ROPE_MIN, START.z).setLinearDamping(0.6).setCcdEnabled(true));
   headBody.setEnabledRotations(false, false, false, true);
   world.createCollider((CLAW === 'two' ? RAPIER.ColliderDesc.cuboid(FING.r + 0.012, HEAD.h / 2, 0.024) : RAPIER.ColliderDesc.cylinder(HEAD.h / 2, HEAD.r)).setDensity(CLAW === 'two' ? 2400 : 3000).setFriction(0.3), headBody);
-  const FG = (0x0002 << 16) | 0xfffd;   // prongs don't collide with each other
+  const FG = (0x0002 << 16) | 0xfff9;   // prongs don't collide with each other or with the figure machine's bars
   const fingers = Array.from({ length: FING.n }, (_, i) => {
     const th = FING.n === 2 ? i * Math.PI : i * Math.PI * 2 / 3 + Math.PI / 6, o = { x: Math.cos(th), z: Math.sin(th) };
     const hp = headBody.translation();
@@ -148,8 +148,8 @@ function start() {
   // the figure machine's long arms open wide so their feet can land past the ends of a box and slide under it
   const OPEN_T = FIGURE ? 0.35 : CLAW === 'two' ? 0.12 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
   // two-arm claws wait with their arms spread wide, like a UFO catcher at rest
-  const OPEN = FIGURE ? 1.25 : CLAW === 'two' ? 0.85 : 0.55, CLOSED = FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
-  const DROP_OPEN = FIGURE ? 0.6 : 0.6;   // as it drops, the arms come in to their working angle
+  const OPEN = FIGURE ? 0.95 : CLAW === 'two' ? 0.85 : 0.55, CLOSED = FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
+  const DROP_OPEN = FIGURE ? 0.82 : 0.6;   // as it drops, the arms come in to their working angle
   setGrip(OPEN, OPEN_T);
 
   // ---------- prizes ----------
@@ -548,7 +548,7 @@ function start() {
     if (!superClaw) bank = Math.min(TUNE.BANK_MAX, bank + COST * TUNE.TARGET);
     G.strong = TUNE.P_STRONG != null ? Math.random() < TUNE.P_STRONG : (bank >= TUNE.STRONG_AT || Math.random() < TUNE.LUCKY);
     G.grip = TUNE.GRIP * (0.85 + Math.random() * 0.3);   // this play's motor strength
-    if (FIGURE) G.grip *= G.strong ? 0.45 : 0.18;   // figure arms are weak: they tip and shift a box, they can't carry it away
+    if (FIGURE) G.grip *= G.strong ? 1.6 : 1.05;   // figure arms are weak: they tip and shift a box, they can't carry it away
     if (superClaw) { G.strong = true; G.grip = TUNE.GRIP * 4; }
     G.playWins = 0;
     G.state = 'aim'; G.timer = 30; saveBank();
@@ -598,8 +598,7 @@ function start() {
     else if (G.state === 'raise') {
       G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt);
       // at the top the grip relaxes on most plays: what's held loosely may slip on the way
-      if (G.rope <= ROPE_MIN + 0.001) { if (FIGURE) { G.state = 'release'; G.t = 0; setGrip(OPEN, OPEN_T * 1.6); tone(500, 0.12, 0.04, 'square'); }   // bridge machines let go at the top: the box drops back, shifted
-        else { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; } }
+      if (G.rope <= ROPE_MIN + 0.001) { { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; } }
     } else if (G.state === 'carry') { if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5) { G.state = 'release'; G.t = 0; setGrip(OPEN, OPEN_T * 1.6); tone(500, 0.12, 0.04, 'square'); } }
     else if (G.state === 'release') { if (G.t > 1.0) { G.state = 'home'; G.t = 0; } }
     else if (G.state === 'home') { if (Math.hypot(START.x - G.cx, START.z - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, OPEN_T); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
