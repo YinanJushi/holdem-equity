@@ -60,7 +60,7 @@ function start() {
   // half-size, top surface height, 5x5 holes at spacing sp, hole radius rh and depth d, shield height above the plate
   const FUN = { rt: 0.08, rb: 0.014, h: 0.095 };
   const PL = { x: 0.14, z: -0.01, half: 0.134, y: 0.06, n: 5, sp: 0.052, rh: 0.022, d: 0.016, shield: 0.035 };
-  const BALL_R = 0.02, ROPE_DROP = 0.1;   // a ping-pong ball is 40 mm; the scoop lowers to here over the plate before it opens
+  const BALL_R = 0.02, ROPE_DROP = ROPE_MIN;   // a ping-pong ball is 40 mm; the scoop opens at the very top, so balls fall far and some bounce off
   const HOLES = []; for (let i = 0; i < PL.n; i++) for (let j = 0; j < PL.n; j++) HOLES.push({ x: PL.x + (i - (PL.n - 1) / 2) * PL.sp, z: PL.z + (j - (PL.n - 1) / 2) * PL.sp, kind: 'plain' });
 
   // ---------- materials ----------
