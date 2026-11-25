@@ -35,6 +35,8 @@ export function headerChrome(container, onClass) {
   menu.innerHTML = [['index.html', "Texas Hold'em"], ['blackjack.html', 'Blackjack'], ['baccarat.html', 'Baccarat'], ['roulette.html', 'Roulette'], ['slots.html', 'Slots'], ['pusher.html', 'Coin Pusher'], ['claw.html', 'Claw Machine'], ['stats.html', 'Stats']]
     .map(([h, n]) => `<a href="${h}"${h === here ? ' aria-current="page"' : ''}>${n}</a>`).join('');
   const gamesBtn = mk('games', 'Games', () => { menu.hidden = !menu.hidden; gamesBtn.setAttribute('aria-expanded', String(!menu.hidden)); });
+  const vis = document.createElement('p'); vis.className = 't3-visits'; vis.dataset.visits = ''; vis.hidden = true; vis.translate = false; menu.appendChild(vis);
+  if (window.OL_VISITS && OL_VISITS.paint) OL_VISITS.paint();
   topL.appendChild(menu);
   document.addEventListener('click', e => { if (!menu.hidden && !e.target.closest('.t3-topl')) { menu.hidden = true; gamesBtn.setAttribute('aria-expanded', 'false'); } });
   const accBtn = mk('account', 'Account', () => { const a = document.getElementById('acctBtn'); if (a) a.click(); });
