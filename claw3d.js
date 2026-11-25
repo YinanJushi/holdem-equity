@@ -13,16 +13,18 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=115';
+import { FIGS, buildBox, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=128';
+import { headerChrome, onQuality } from './chrome3d.js?v=128';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
 // two machines share this page: the casino machine and the poker-deck machine (switch with the Machine button)
-const MACHINE = (() => { let m = new URLSearchParams(location.search).get('m'); try { m = m || localStorage.getItem('ol-claw-m'); } catch (e) { /* ignore */ } return m === 'poker' ? 'poker' : 'casino'; })();
-const POKER = MACHINE === 'poker', SUFFIX = POKER ? '-poker' : '';
+const MACHINE = (() => { let m = new URLSearchParams(location.search).get('m'); try { m = m || localStorage.getItem('ol-claw-m'); } catch (e) { /* ignore */ } return m === 'poker' || m === 'figure' ? m : 'casino'; })();
+const POKER = MACHINE === 'poker', FIGURE = MACHINE === 'figure', SUFFIX = POKER ? '-poker' : FIGURE ? '-figure' : '';
 // two kinds of claw, like real machines: a round head with three curved wire prongs (the classic crane claw),
 // or a box head with two arms and rubber feet (the UFO-catcher style). Switch with the Claw button.
-const CLAW = (() => { try { return localStorage.getItem('ol-claw-type') === 'two' ? 'two' : 'three'; } catch (e) { return 'three'; } })();
+// the figure machine always uses the two-arm claw, like real prize-figure machines
+const CLAW = FIGURE ? 'two' : (() => { try { return localStorage.getItem('ol-claw-type') === 'two' ? 'two' : 'three'; } catch (e) { return 'three'; } })();
 const COST = 25;
 let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
@@ -43,7 +45,7 @@ function start() {
   // ---------- sizes (metres) ----------
   const X = 0.28, ZB = -0.26, ZF = 0.24, TOP = 0.52;            // inside of the prize box
   const CH = { x0: -X, x1: -0.11, z0: 0.07, z1: ZF };          // the prize chute (front-left)
-  const HEAD = { r: 0.032, h: 0.04 }, FING = CLAW === 'two' ? { n: 2, len: 0.1, r: 0.034 } : { n: 3, len: 0.095, r: 0.026 };
+  const HEAD = { r: 0.032, h: 0.04 }, FING = FIGURE ? { n: 2, len: 0.16, r: 0.034 } : CLAW === 'two' ? { n: 2, len: 0.1, r: 0.034 } : { n: 3, len: 0.095, r: 0.026 };
   // a three-prong claw's wire prong, side view (x outward, y up; the hinge is at the top): it bows out, then hooks in
   const PRONG = [[0, 0.0475], [0.011, 0.02], [0.012, -0.01], [0.004, -0.035], [-0.012, -0.0465]];
   const ROPE_MIN = 0.05, ROPE_MAX = 0.46;
@@ -52,7 +54,7 @@ function start() {
   const canvasTex = (w, h, draw, srgb = true) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
   const gold = new THREE.MeshStandardMaterial({ color: '#d4a444', metalness: 1, roughness: 0.25, envMapIntensity: 1 });
   const chrome = new THREE.MeshStandardMaterial({ color: '#b8bcc6', metalness: 1, roughness: 0.28, envMapIntensity: 0.9 });
-  const lacquer = new THREE.MeshPhysicalMaterial({ color: POKER ? '#0e3a2a' : '#6e0d1d', metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const lacquer = new THREE.MeshPhysicalMaterial({ color: POKER ? '#0e3a2a' : FIGURE ? '#2a1450' : '#6e0d1d', metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
   const blackGloss = new THREE.MeshPhysicalMaterial({ color: '#120a0c', metalness: 0.3, roughness: 0.3, clearcoat: 1 });
   const velvetTex = canvasTex(256, 256, g => { g.fillStyle = POKER ? '#0d5236' : '#5a0a16'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : POKER ? '140,255,190' : '255,120,140'},${Math.random() * 0.08})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); } });
   velvetTex.wrapS = velvetTex.wrapT = THREE.RepeatWrapping; velvetTex.repeat.set(3, 3);
@@ -74,14 +76,30 @@ function start() {
   world.lengthUnit = 0.05; world.timestep = 1 / 120; world.numSolverIterations = 8;
   const fixedBox = (hx, hy, hz, x, y, z, fr = 0.6) => world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(fr).setRestitution(0.05));
   // floor around the chute hole
-  fixedBox((X - CH.x1) / 2, 0.02, (ZF - ZB) / 2, CH.x1 + (X - CH.x1) / 2, -0.02, (ZF + ZB) / 2);
-  fixedBox((CH.x1 - CH.x0) / 2, 0.02, (CH.z0 - ZB) / 2, (CH.x0 + CH.x1) / 2, -0.02, (CH.z0 + ZB) / 2);
+  if (!FIGURE) {
+    fixedBox((X - CH.x1) / 2, 0.02, (ZF - ZB) / 2, CH.x1 + (X - CH.x1) / 2, -0.02, (ZF + ZB) / 2);
+    fixedBox((CH.x1 - CH.x0) / 2, 0.02, (CH.z0 - ZB) / 2, (CH.x0 + CH.x1) / 2, -0.02, (CH.z0 + ZB) / 2);
+  }
+  // the figure machine: no floor, just a "bridge" of two bars over the drop. The boxed figure rests across them;
+  // tip, turn and shuffle it until it slips through the gap. Fences keep it from walking off the ends.
+  const BR = { y: 0.2, r: 0.008, gap: 0.144, z0: ZB + 0.03, z1: ZF - 0.03, fence: 0.25 };
+  const BOX = [0.18, 0.068, 0.13];   // the figure box lies flat: long side across the bars, window up
+  if (FIGURE) {
+    [-1, 1].forEach(sx => {
+      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+      world.createCollider(RAPIER.ColliderDesc.cylinder((BR.z1 - BR.z0) / 2, BR.r).setTranslation(sx * BR.gap / 2, BR.y, (BR.z0 + BR.z1) / 2).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setFriction(0.35));
+      fixedBox(0.004, 0.06, (BR.z1 - BR.z0) / 2, sx * BR.fence, BR.y + 0.03, (BR.z0 + BR.z1) / 2, 0.2);
+    });
+    [BR.z0 - 0.004, BR.z1 + 0.004].forEach(z => fixedBox(BR.fence, 0.06, 0.004, 0, BR.y + 0.03, z, 0.2));
+  }
   // glass walls and the chute's inner walls (acrylic)
   fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, -X - 0.01, 0.3, (ZF + ZB) / 2, 0.2); fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, X + 0.01, 0.3, (ZF + ZB) / 2, 0.2);
   fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZB - 0.01, 0.2); fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZF + 0.01, 0.2);
   const CHW = 0.11;   // chute wall height: lower than the pile, so a shove or an avalanche can tip prizes in by luck
-  fixedBox(0.004, CHW / 2, (CH.z1 - CH.z0) / 2, CH.x1 + 0.004, CHW / 2, (CH.z0 + CH.z1) / 2, 0.2);
-  fixedBox((CH.x1 - CH.x0) / 2, CHW / 2, 0.004, (CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.004, 0.2);
+  if (!FIGURE) {
+    fixedBox(0.004, CHW / 2, (CH.z1 - CH.z0) / 2, CH.x1 + 0.004, CHW / 2, (CH.z0 + CH.z1) / 2, 0.2);
+    fixedBox((CH.x1 - CH.x0) / 2, CHW / 2, 0.004, (CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.004, 0.2);
+  }
   // the bin under the chute catches what falls
   fixedBox(X, 0.01, 0.2, -0.1, -0.24, 0.15, 0.6);
 
@@ -114,13 +132,15 @@ function start() {
     }
     const jd = RAPIER.JointData.revoluteWithAxes({ x: o.x * FING.r, y: -HEAD.h / 2, z: o.z * FING.r }, { x: 0, y: FING.len / 2, z: 0 }, { x: -o.z, y: 0, z: o.x }, { x: 0, y: 0, z: 1 });
     const j = world.createImpulseJoint(jd, headBody, fb, true);
-    j.setContactsEnabled(false); j.setLimits(-0.62, 0.7);
+    j.setContactsEnabled(false); j.setLimits(-0.62, FIGURE ? 1.0 : 0.7);
     return { body: fb, joint: j, th };
   });
   // the prong motors are stiff, but their torque is capped: the cap (N·m) is the grip strength
   const setGrip = (target, torque) => fingers.forEach(f => { f.joint.configureMotorPosition(target, 4000, 130); f.joint.setMotorMaxForce(torque); });
-  const OPEN = CLAW === 'two' ? 0.6 : 0.55, CLOSED = CLAW === 'two' ? -0.45 : -0.5;
-  setGrip(OPEN, 0.05);
+  // the figure machine's long arms open wide so their feet can land past the ends of a box and slide under it
+  const OPEN_T = FIGURE ? 0.35 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
+  const OPEN = FIGURE ? 0.92 : CLAW === 'two' ? 0.6 : 0.55, CLOSED = FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
+  setGrip(OPEN, OPEN_T);
 
   // ---------- prizes ----------
   // all casino things: cocktails from the lounge bar, champagne, chips, cards, dice, cash and gold
@@ -138,6 +158,8 @@ function start() {
     deck_holo: { name: 'Prism Ace', value: 500, rarity: 'Legendary' },
   };
   if (POKER) { for (const k of Object.keys(KINDS)) delete KINDS[k]; Object.assign(KINDS, { card: { name: 'Loose card', value: 5 } }, DECKS); }
+  if (FIGURE) { for (const k of Object.keys(KINDS)) delete KINDS[k]; for (const id of Object.keys(FIGS)) KINDS['fig_' + id] = { name: FIGS[id].name, value: 300 }; }
+  const boxArt = {};   // front of each figure box (for the collection book)
   const chipFace = (base, stripe, mark = '') => canvasTex(128, 128, g => { g.fillStyle = base; g.beginPath(); g.arc(64, 64, 64, 0, 7); g.fill(); g.fillStyle = stripe; for (let i = 0; i < 8; i++) { g.save(); g.translate(64, 64); g.rotate(i * Math.PI / 4); g.fillRect(-6, -64, 12, 16); g.restore(); } g.strokeStyle = stripe; g.lineWidth = 3; g.beginPath(); g.arc(64, 64, 38, 0, 7); g.stroke(); if (mark) { g.fillStyle = stripe; g.font = '700 40px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 64, 67); } });
   const chipMats = (a, b, mark, extra = {}) => { const f = chipFace(a, b, mark); const edge = canvasTex(128, 8, g => { g.fillStyle = a; g.fillRect(0, 0, 128, 8); g.fillStyle = b; for (let i = 0; i < 8; i++) g.fillRect(i * 16 + 4, 0, 7, 8); }); return [new THREE.MeshStandardMaterial({ map: edge, roughness: 0.4, ...extra }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35, ...extra }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35, ...extra })]; };
   const chipSets = [['#c8102e', '#fff', '5'], ['#1f4fb8', '#fff', '10'], ['#151515', '#f2c14e', '100'], ['#1e8a4a', '#fff', '25'], ['#6a2a9a', '#fff', '500']].map(([a, b, m]) => chipMats(a, b, m));
@@ -277,6 +299,9 @@ function start() {
         const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.0235, 16), new THREE.MeshStandardMaterial({ color: { Rare: '#c0c4cc', Limited: '#f2c14e', Legendary: '#ffffff' }[DECKS[kind].rarity], metalness: 0.8, roughness: 0.3 }));
         seal.rotation.x = Math.PI / 2; seal.position.y = 0.044; obj.add(seal);
       }
+    } else if (kind.startsWith('fig_')) {
+      col(RAPIER.ColliderDesc.cuboid(BOX[0] / 2, BOX[1] / 2, BOX[2] / 2).setDensity(190).setFriction(0.45));
+      const b = buildBox(kind.slice(4), BOX); obj = b.obj; boxArt[kind] = b.artCanvas;
     } else if (kind === 'card') {
       col(RAPIER.ColliderDesc.cuboid(0.0315, 0.0022, 0.044).setDensity(300).setFriction(0.5));
       obj = new THREE.Mesh(cardGeo, cardMats[Math.floor(Math.random() * cardMats.length)]); obj.castShadow = obj.receiveShadow = true;
@@ -311,29 +336,47 @@ function start() {
     : { chip: 40, chips: 20, dice: 15, cards: 15, rocks: 13, highball: 13, martini: 13, cash: 9, champagne: 5, bar: 3, golden: 1 };
   const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
   // pour them in a few at a time, letting each layer settle, so they pile up instead of exploding
-  for (let i = 0; i < STOCK.length; i += 16) {
+  for (let i = 0; i < (FIGURE ? 0 : STOCK.length); i += 16) {
     STOCK.slice(i, i + 16).forEach((k, j) => { const s = randomSpot(); spawnPrize(k, s.x, 0.1 + (j % 4) * 0.05 + i * 0.002, s.z); });
     for (let k = 0; k < 120; k++) world.step();
     putBack();
   }
+  // the figure machine holds one box at a time, set across the bridge
+  let figPick = (() => { try { const v = localStorage.getItem('ol-claw-fig'); return FIGS[v] ? v : 'miku'; } catch (e) { return 'miku'; } })();
+  const placeBox = () => {
+    for (let i = prizes.length - 1; i >= 0; i--) { world.removeRigidBody(prizes[i].body); scene.remove(prizes[i].obj); prizes.splice(i, 1); }
+    const p = spawnPrize('fig_' + figPick, (Math.random() - 0.5) * 0.01, BR.y + BR.r + BOX[1] / 2 + 0.002, (Math.random() - 0.5) * 0.04);
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 0.12); p.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+  };
+  if (FIGURE) placeBox();
   for (let i = 0; i < 240; i++) world.step();
   putBack();
 
   // ---------- the cabinet (looks) ----------
   // base with a sloping control deck, prize door, glass box with gold pillars, a lit marquee
   const base = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.5, 0.66, 4, 0.02), lacquer); base.position.set(0, -0.27, -0.01); base.receiveShadow = true; scene.add(base);
-  const floorM = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.01, ZF - ZB), velvet); floorM.position.set(0, -0.005, (ZF + ZB) / 2); floorM.receiveShadow = true; scene.add(floorM);
+  const floorM = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.01, ZF - ZB), FIGURE ? new THREE.MeshStandardMaterial({ color: '#08080c', roughness: 0.9 }) : velvet); floorM.position.set(0, FIGURE ? -0.12 : -0.005, (ZF + ZB) / 2); floorM.receiveShadow = true; scene.add(floorM);
+  if (FIGURE) {
+    // the bridge: two chrome bars on posts, clear fences round it, and a glowing drop below
+    const barMat = new THREE.MeshStandardMaterial({ color: '#d8dce4', metalness: 1, roughness: 0.18 });
+    [-1, 1].forEach(sx => {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(BR.r, BR.r, BR.z1 - BR.z0 + 0.02, 20), barMat); b.rotation.x = Math.PI / 2; b.position.set(sx * BR.gap / 2, BR.y, (BR.z0 + BR.z1) / 2); b.castShadow = true; scene.add(b);
+      [BR.z0, BR.z1].forEach(z => { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, BR.y + 0.12, 12), barMat); post.position.set(sx * BR.gap / 2, (BR.y - 0.12) / 2, z); scene.add(post); });
+      const fence = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.12, BR.z1 - BR.z0), new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.12, roughness: 0.05, depthWrite: false })); fence.position.set(sx * BR.fence, BR.y + 0.03, (BR.z0 + BR.z1) / 2); scene.add(fence);
+    });
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(BR.gap * 2.2, BR.z1 - BR.z0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.5, 1.2), transparent: true, opacity: 0.35, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(0, -0.11, (BR.z0 + BR.z1) / 2); scene.add(glow);
+  }
   // the hole in the floor where the chute is (drawn dark over the velvet)
-  const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.z1 - CH.z0), new THREE.MeshBasicMaterial({ color: '#050203' })); hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, 0.0005, (CH.z0 + CH.z1) / 2); scene.add(hole);
+  const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.z1 - CH.z0), new THREE.MeshBasicMaterial({ color: '#050203' })); hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, 0.0005, (CH.z0 + CH.z1) / 2); if (!FIGURE) scene.add(hole);
   const acrylic = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.18, roughness: 0.05, clearcoat: 1, depthWrite: false });
-  const cw1 = new THREE.Mesh(new THREE.BoxGeometry(0.006, CHW, CH.z1 - CH.z0), acrylic); cw1.position.set(CH.x1 + 0.003, CHW / 2, (CH.z0 + CH.z1) / 2); scene.add(cw1);
-  const cw2 = new THREE.Mesh(new THREE.BoxGeometry(CH.x1 - CH.x0, CHW, 0.006), acrylic); cw2.position.set((CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.003); scene.add(cw2);
-  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.008, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.008]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.006, d), gold); r.position.set(x, CHW, z); scene.add(r); });
+  const cw1 = new THREE.Mesh(new THREE.BoxGeometry(0.006, CHW, CH.z1 - CH.z0), acrylic); cw1.position.set(CH.x1 + 0.003, CHW / 2, (CH.z0 + CH.z1) / 2); if (!FIGURE) scene.add(cw1);
+  const cw2 = new THREE.Mesh(new THREE.BoxGeometry(CH.x1 - CH.x0, CHW, 0.006), acrylic); cw2.position.set((CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.003); if (!FIGURE) scene.add(cw2);
+  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.008, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.008]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.006, d), gold); r.position.set(x, CHW, z); if (!FIGURE) scene.add(r); });
   const chuteSign = canvasTex(256, 64, g => { g.fillStyle = '#f2c14e'; g.font = '800 40px "Libre Franklin", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('PRIZE', 128, 34); });
-  const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshBasicMaterial({ map: chuteSign, transparent: true })); cs.position.set((CH.x0 + CH.x1) / 2, CHW - 0.022, CH.z0 + 0.004); scene.add(cs);
+  const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshBasicMaterial({ map: chuteSign, transparent: true })); cs.position.set((CH.x0 + CH.x1) / 2, CHW - 0.022, CH.z0 + 0.004); if (!FIGURE) scene.add(cs);
   // a glowing strip along the top of the chute walls so the target is easy to see
   const chuteLed = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.1, 0.4), toneMapped: false });
-  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.004, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.004]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.003, d), chuteLed); r.position.set(x, CHW + 0.0045, z); scene.add(r); });
+  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.004, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.004]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.003, d), chuteLed); r.position.set(x, CHW + 0.0045, z); if (!FIGURE) scene.add(r); });
   const back = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, 0.56), new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.8 })); back.position.set(0, 0.27, ZB - 0.002); scene.add(back);
   // the cabinet's back wall (seen when you turn the machine round)
   const backWall = new THREE.Mesh(new THREE.BoxGeometry(X * 2 + 0.05, 0.58, 0.014), lacquer); backWall.position.set(0, 0.27, ZB - 0.011); scene.add(backWall);
@@ -352,8 +395,8 @@ function start() {
   const marqueeTex = canvasTex(1024, 256, g => {
     g.fillStyle = '#0a0406'; g.fillRect(0, 0, 1024, 256);
     const gr = g.createLinearGradient(0, 60, 0, 200); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#e0a23a');
-    g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(POKER ? 'Deck Hunter' : 'Lucky Claw', 512, 120);
-    g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText(POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : '♠  ♥  ODDS LOUNGE  ♦  ♣', 512, 212);
+    g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(POKER ? 'Deck Hunter' : FIGURE ? 'Figure Stage' : 'Lucky Claw', 512, 120);
+    g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText(POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣', 512, 212);
   });
   const marquee = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.05), [blackGloss, blackGloss, blackGloss, blackGloss, new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false }), blackGloss]);
   marquee.position.set(0, 0.67, ZF - 0.01); scene.add(marquee);
@@ -470,7 +513,7 @@ function start() {
     const stretch = dist - G.rope;
     if (stretch > 0) { const vr = v.x * ux + v.y * uy + v.z * uz, f = (-900 * stretch - 40 * vr) * m * dt; headBody.applyImpulse({ x: ux * f, y: uy * f, z: uz * f }, true); }
     // a little air drag on the swing
-    headBody.applyImpulse({ x: -v.x * 0.4 * m * dt, y: 0, z: -v.z * 0.4 * m * dt }, true);
+    headBody.applyImpulse({ x: -v.x * 1.6 * m * dt, y: 0, z: -v.z * 1.6 * m * dt }, true);
     G.t += dt;
     if (G.state === 'aim') { G.timer -= dt; if (G.timer <= 0) dropClaw(); }
     else if (G.state === 'lower') {
@@ -488,17 +531,18 @@ function start() {
       G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt);
       // at the top the grip relaxes on most plays: what's held loosely may slip on the way
       if (G.rope <= ROPE_MIN + 0.001) { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; }
-    } else if (G.state === 'carry') { if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5) { G.state = 'release'; G.t = 0; setGrip(OPEN, 0.08); tone(500, 0.12, 0.04, 'square'); } }
+    } else if (G.state === 'carry') { if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5) { G.state = 'release'; G.t = 0; setGrip(OPEN, OPEN_T * 1.6); tone(500, 0.12, 0.04, 'square'); } }
     else if (G.state === 'release') { if (G.t > 1.0) { G.state = 'home'; G.t = 0; } }
-    else if (G.state === 'home') { if (Math.hypot(START.x - G.cx, START.z - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, 0.05); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
+    else if (G.state === 'home') { if (Math.hypot(START.x - G.cx, START.z - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, OPEN_T); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
     world.step();
     void tx; void tz;
     // prizes that fall down the chute are won; anything that escapes is put back
     for (let i = prizes.length - 1; i >= 0; i--) {
       const p = prizes[i], t = p.body.translation();
       if (t.y < -0.08) {
-        if (t.x < CH.x1 + 0.02 && t.z > CH.z0 - 0.02) win(p);
+        if (FIGURE || (t.x < CH.x1 + 0.02 && t.z > CH.z0 - 0.02)) win(p);
         world.removeRigidBody(p.body); scene.remove(p.obj); prizes.splice(i, 1);
+        if (FIGURE) { placeBox(); continue; }
         // the same kind of prize is restocked from the top, so the mix in the machine stays the same
         const s = randomSpot(); spawnPrize(p.kind, s.x, 0.4, s.z);
       }
@@ -515,7 +559,7 @@ function start() {
     collection[p.kind] = (collection[p.kind] || 0) + 1; try { localStorage.setItem('ol-claw-col' + SUFFIX, JSON.stringify(collection)); } catch (e) { /* ignore */ }
     fanfare(); if (p.value < 150) voice(bonus ? 'Double!' : 'Got it!', bonus ? '一抓两个！' : '抓到啦！');
     showWin(p, bonus);
-    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, drinks: ['rocks', 'highball', 'martini'].filter(k => collection[k]).length, decks: Object.keys(DECKS).filter(k => collection[k]).length, machine: MACHINE, combo: bonus > 0 } }));
+    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, drinks: ['rocks', 'highball', 'martini'].filter(k => collection[k]).length, decks: Object.keys(DECKS).filter(k => collection[k]).length, figs: Object.keys(FIGS).filter(k => collection['fig_' + k]).length, machine: MACHINE, combo: bonus > 0 } }));
     paint();
   }
 
@@ -542,7 +586,11 @@ function start() {
   $('#clDrop').onclick = () => { audio(); dropClaw(); };
   $('#clCol').onclick = () => {
     let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
-    if (POKER) {
+    if (FIGURE) {
+      const keys = Object.keys(KINDS), have = keys.filter(k => collection[k]).length;
+      const cards = keys.map(k => { if (!boxArt[k]) boxArt[k] = buildBox(k.slice(4), BOX).artCanvas; const zh = window.I18N && I18N.lang === 'zh'; return `<figure class="cl-deck cl-figbox${collection[k] ? '' : ' no'}"><img src="${boxArt[k].toDataURL()}" alt=""><figcaption><b>${zh ? FIGS[k.slice(4)].zh : FIGS[k.slice(4)].name}</b><small>${tr('worth')} ${KINDS[k].value} · × ${collection[k] || 0}</small></figcaption></figure>`; }).join('');
+      d.innerHTML = `<h2>${tr('Figure collection')}</h2><p class="sub">${tr('Collected')} <b>${have}</b> / ${keys.length}. ${tr('Tip the box so it slips between the two bars. Hook one end with an arm rather than grabbing the middle.')}</p><div class="cl-book">${cards}</div><p class="sub" translate="no">${window.I18N && I18N.lang === 'zh' ? FIG_CREDIT_ZH : FIG_CREDIT}</p><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
+    } else if (POKER) {
       // the collection book: every design, greyed out until you've won one
       const keys = Object.keys(DECKS), have = keys.filter(k => collection[k]).length;
       const cards = keys.map(k => { pokerDeck(k); const v = DECKS[k]; return `<figure class="cl-deck${collection[k] ? '' : ' no'}"><img src="${deckArt[k].toDataURL()}" alt=""><figcaption><b>${tr(v.name)}</b><span class="r-${v.rarity.toLowerCase()}">${tr(v.rarity)}</span><small>${tr('worth')} ${v.value} · × ${collection[k] || 0}</small></figcaption></figure>`; }).join('');
@@ -586,7 +634,18 @@ function start() {
   const cBtn = $('#clClaw');
   if (cBtn) { cBtn.textContent = tr(CLAW === 'two' ? 'Claw: 2 arms' : 'Claw: 3 prongs'); cBtn.onclick = () => { if (!['idle', 'aim'].includes(G.state) || G.state === 'aim') { say(tr('Change the claw between plays')); return; } try { localStorage.setItem('ol-claw-type', CLAW === 'two' ? 'three' : 'two'); } catch (e) { /* ignore */ } flush(); location.reload(); }; }
   const mBtn = $('#clMachine');
-  if (mBtn) { mBtn.textContent = tr(POKER ? 'Casino machine' : 'Poker machine'); mBtn.onclick = () => { try { localStorage.setItem('ol-claw-m', POKER ? 'casino' : 'poker'); } catch (e) { /* ignore */ } flush(); location.href = location.pathname + (POKER ? '?m=casino' : '?m=poker'); }; }
+  const NEXT_M = { casino: 'poker', poker: 'figure', figure: 'casino' }, M_NAME = { casino: 'Casino machine', poker: 'Poker machine', figure: 'Figure machine' };
+  if (mBtn) { mBtn.textContent = tr(M_NAME[NEXT_M[MACHINE]]); mBtn.onclick = () => { const n = NEXT_M[MACHINE]; try { localStorage.setItem('ol-claw-m', n); } catch (e) { /* ignore */ } flush(); location.href = location.pathname + '?m=' + n; }; }
+  // figure machine: pick which figure sits on the bridge, or ask the attendant to set the box straight again
+  const fBtn = $('#clFig'), rBtn = $('#clReset'), cBtn2 = $('#clClaw');
+  if (fBtn) fBtn.hidden = !FIGURE; if (rBtn) rBtn.hidden = !FIGURE; if (cBtn2 && FIGURE) cBtn2.hidden = true;
+  const paintFig = () => { if (fBtn) fBtn.textContent = (window.I18N && I18N.lang === 'zh' ? FIGS[figPick].zh : FIGS[figPick].name) + ' ▸'; };
+  if (FIGURE) {
+    paintFig();
+    fBtn.onclick = () => { if (G.state !== 'idle') { say(tr('Change the figure between plays')); return; } const ids = Object.keys(FIGS); figPick = ids[(ids.indexOf(figPick) + 1) % ids.length]; try { localStorage.setItem('ol-claw-fig', figPick); } catch (e) { /* ignore */ } placeBox(); paintFig(); };
+    rBtn.onclick = () => { if (G.state !== 'idle') { say(tr('The attendant can reset the box between plays')); return; } placeBox(); say(tr('The attendant set the box back on the bridge')); };
+    const credit = document.createElement('p'); credit.className = 'cl-credit'; credit.translate = false; credit.textContent = window.I18N && I18N.lang === 'zh' ? FIG_CREDIT_ZH : FIG_CREDIT; host.appendChild(credit);
+  }
   // joystick: drag inside the pad; or arrow keys / WASD
   const pad = $('#clPad'), knob = $('#clKnob');
   let padId = null;
@@ -648,7 +707,7 @@ function start() {
     const dl = new THREE.Vector3(hp.x - G.cx, hp.y + HEAD.h / 2 - TOP, hp.z - G.cz); cable.scale.y = Math.max(0.001, dl.length()); cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dl.normalize().multiplyScalar(-1));
     fingers.forEach((f, i) => { const p = f.body.translation(), q = f.body.rotation(); fingerMeshes[i].position.set(p.x, p.y, p.z); fingerMeshes[i].quaternion.copy(m4q.set(q.x, q.y, q.z, q.w)); });
     for (const p of prizes) { const tt = p.body.translation(), q = p.body.rotation(); p.obj.position.set(tt.x, tt.y, tt.z); p.obj.quaternion.set(q.x, q.y, q.z, q.w); }
-    aimRing.visible = G.state === 'aim'; aimRing.position.set(G.cx, 0.003, G.cz); aimRing.material.opacity = 0.45 + Math.sin(t * 6) * 0.2;
+    aimRing.visible = G.state === 'aim'; aimRing.position.set(G.cx, FIGURE ? BR.y + BR.r + BOX[1] + 0.004 : 0.003, G.cz); aimRing.material.opacity = 0.45 + Math.sin(t * 6) * 0.2;
     stick.rotation.set(input.z * 0.35, 0, -input.x * 0.35);
     if (bulbsHot > 0) bulbsHot -= 1 / 60;
     if (deckMatCache.deck_holo) { deckMatCache.deck_holo.face.emissiveIntensity = 0.4 + Math.max(0, Math.sin(t * 2.4)) * 0.6; deckMatCache.deck_holo.face.iridescenceIOR = 1.3 + Math.sin(t) * 0.2; }
@@ -691,6 +750,7 @@ function start() {
     },
     state: () => ({ ...G, prizes: prizes.length }),
     head: () => { const h = headBody.translation(); return [+h.x.toFixed(3), +h.y.toFixed(3), +h.z.toFixed(3)]; },
+    play: (x, z) => { newPlay(); for (let i = 0; i < 4000; i++) { const dx = x - G.cx, dz = z - G.cz, d = Math.hypot(dx, dz); input.x = d > 0.003 ? dx / d * Math.min(1, d * 15) : 0; input.z = d > 0.003 ? dz / d * Math.min(1, d * 15) : 0; step(world.timestep); if (d < 0.003 && Math.hypot(G.vx, G.vz) < 0.005) break; } input.x = input.z = 0; for (let i = 0; i < 360; i++) step(world.timestep); dropClaw(); let g = 0; const tr2 = {}; while (G.state !== 'idle' && g++ < 6000) { step(world.timestep); if (!tr2[G.state]) tr2[G.state] = { head: OL_CLAW.head(), f: OL_CLAW.fingers(), box: prizes[0] && [+prizes[0].body.translation().y.toFixed(3)] }; if (prizes[0]) tr2.maxBoxY = Math.max(tr2.maxBoxY || 0, prizes[0].body.translation().y); if (G.state === 'lower' && g % 30 === 0) (tr2.trace = tr2.trace || []).push([+G.rope.toFixed(3), OL_CLAW.head()[1], OL_CLAW.fingers().map(q => q[0])]); } tr2.list = OL_CLAW.list(); return tr2; },
     step: n => { for (let i = 0; i < n; i++) step(world.timestep); },
     grip: (a, k) => setGrip(a, k),
     tune: o => Object.assign(TUNE, o),

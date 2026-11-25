@@ -1,7 +1,7 @@
 // Baccarat (punto banco) at a 3D table. Bet on Player, Banker or Tie, press Deal; the cards follow the standard
 // third-card rules. Player pays 1 to 1, Banker 19 to 20 (a 5% commission), Tie 8 to 1; on a tie, Player and
 // Banker bets come back. Eight decks, reshuffled when the shoe runs low. A bead road shows the last results.
-import { createCasino, barButton, tableChrome } from './casino3d.js?v=115';
+import { createCasino, barButton, tableChrome } from './casino3d.js?v=128';
 
 const $ = s => document.querySelector(s);
 const host = document.getElementById('table');

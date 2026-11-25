@@ -1027,7 +1027,21 @@ Object.assign(I18N.dict, {
 "Super claw off": "超级强力爪已关闭",
 "SUPER": "超级",
 "Drop edge": "出币口",
-"Close-up of the drop edge (tap to hide)": "出币口特写（点一下收起）"
+"Close-up of the drop edge (tap to hide)": "出币口特写（点一下收起）",
+"Figure machine": "手办机",
+"Figure": "手办",
+"Ask staff to reset": "叫店员重置",
+"Change the figure between plays": "请在两局之间换手办",
+"The attendant can reset the box between plays": "店员只能在两局之间帮你重置",
+"The attendant set the box back on the bridge": "店员把盒子摆回桥上了",
+"Figure collection": "手办收藏",
+"Tip the box so it slips between the two bars. Hook one end with an arm rather than grabbing the middle.": "让盒子从两根横杆中间滑下去。用一只爪臂勾住盒子一端，不要抓正中间。",
+"Virtual Singers": "虚拟歌姬",
+"Win all six figures from the figure claw machine.": "在手办机集齐全部六款手办。",
+"Hatsune Miku": "初音未来",
+"Kagamine Rin": "镜音铃",
+"Kagamine Len": "镜音连",
+"Megurine Luka": "巡音流歌"
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],
