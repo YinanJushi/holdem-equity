@@ -13,8 +13,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=136';
-import { headerChrome, onQuality } from './chrome3d.js?v=136';
+import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=138';
+import { headerChrome, onQuality } from './chrome3d.js?v=138';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -41,10 +41,13 @@ function start() {
   const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 30);
   scene.add(new THREE.HemisphereLight('#ffe8cc', '#2a0a10', 0.42));
   const key = new THREE.SpotLight('#fff3e0', 1.8, 3, 0.7, 0.8, 1.4); key.position.set(0.05, 0.62, 0.12); key.target.position.set(0, 0, -0.02); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0004; scene.add(key, key.target);
+  if (FIGURE) { [-0.25, 0.25].forEach(x => { const sp = new THREE.SpotLight('#fff3e0', 1.1, 3, 0.8, 0.8, 1.4); sp.position.set(x, 0.62, 0.05); sp.target.position.set(x * 0.6, 0.2, -0.1); scene.add(sp, sp.target); }); }   // the wide figure cabinet gets two more lamps
 
   // ---------- sizes (metres) ----------
-  const X = 0.28, ZB = -0.26, ZF = 0.24, TOP = 0.52;            // inside of the prize box
-  const CH = { x0: -X, x1: -0.11, z0: 0.07, z1: ZF };          // the prize chute (front-left)
+  // inside of the prize box; the figure machine's cabinet is wider and deeper, so its claw can spread its arms
+  const X = FIGURE ? 0.42 : 0.28, ZB = FIGURE ? -0.36 : -0.26, ZF = FIGURE ? 0.32 : 0.24, TOP = 0.52;
+  const CW = X * 2 + 0.14, CD = ZF - ZB + 0.16, CZ = (ZF + ZB) / 2;   // outside of the cabinet
+  const CH = { x0: -X, x1: -X + 0.17, z0: ZF - 0.17, z1: ZF };          // the prize chute (front-left)
   const HEAD = { r: 0.032, h: 0.04 }, FING = FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
   // a three-prong claw's wire prong, side view (x outward, y up; the hinge is at the top): it bows out, then hooks in
   // a UFO-catcher arm, side view (x outward, hinge at the top): it angles out, then an elbow turns the finger in
@@ -361,7 +364,7 @@ function start() {
 
   // ---------- the cabinet (looks) ----------
   // base with a sloping control deck, prize door, glass box with gold pillars, a lit marquee
-  const base = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.5, 0.66, 4, 0.02), lacquer); base.position.set(0, -0.27, -0.01); base.receiveShadow = true; scene.add(base);
+  const base = new THREE.Mesh(new RoundedBoxGeometry(CW, 0.5, CD, 4, 0.02), lacquer); base.position.set(0, -0.27, CZ); base.receiveShadow = true; scene.add(base);
   const floorM = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.01, ZF - ZB), FIGURE ? new THREE.MeshStandardMaterial({ color: '#08080c', roughness: 0.9 }) : velvet); floorM.position.set(0, FIGURE ? -0.12 : -0.005, (ZF + ZB) / 2); floorM.receiveShadow = true; scene.add(floorM);
   if (FIGURE) {
     // the bridge: four chrome bars on posts over a glowing drop
@@ -397,7 +400,7 @@ function start() {
     if (sz > 0) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.54, 0.006), ledM); l.position.set(px - sx * 0.013, 0.27, pz + 0.013); scene.add(l); }
   });
   // roof and marquee
-  const roof = new THREE.Mesh(new RoundedBoxGeometry(0.72, 0.04, 0.68, 3, 0.01), lacquer); roof.position.set(0, 0.57, -0.01); scene.add(roof);
+  const roof = new THREE.Mesh(new RoundedBoxGeometry(CW + 0.02, 0.04, CD + 0.02, 3, 0.01), lacquer); roof.position.set(0, 0.57, CZ); scene.add(roof);
   function drawMarquee(g, sub) {
     g.fillStyle = '#0a0406'; g.fillRect(0, 0, 1024, 256);
     const gr = g.createLinearGradient(0, 60, 0, 200); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#e0a23a');
@@ -405,7 +408,7 @@ function start() {
     g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText(sub, 512, 212);
   }
   const marqueeTex = canvasTex(1024, 256, g => drawMarquee(g, POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣'));
-  const marquee = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.05), [blackGloss, blackGloss, blackGloss, blackGloss, new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false }), blackGloss]);
+  const marquee = new THREE.Mesh(new THREE.BoxGeometry(CW, 0.16, 0.05), [blackGloss, blackGloss, blackGloss, blackGloss, new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false }), blackGloss]);
   marquee.position.set(0, 0.67, ZF - 0.01); scene.add(marquee);
   // ---------- figure machine: display shelves, posters, and colours that follow the chosen figure ----------
   let applyTheme = () => {};
@@ -413,7 +416,7 @@ function start() {
     const ids = Object.keys(FIGS), shelfM = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.25, roughness: 0.05, clearcoat: 1, depthWrite: false });
     // two corner towers of glass shelves on the back wall, three figures each
     [-1, 1].forEach((sx, col) => {
-      const cx = sx * 0.2, cz = ZB + 0.035;
+      const cx = sx * (X - 0.09), cz = ZB + 0.035;
       const frame = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.33, 0.004), new THREE.MeshStandardMaterial({ color: '#140a24', roughness: 0.7 })); frame.position.set(cx, 0.355, ZB + 0.004); scene.add(frame);
       [0.215, 0.32, 0.425].forEach((y, row) => {
         const sh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.005, 0.06), shelfM); sh.position.set(cx, y, cz); scene.add(sh);
@@ -436,7 +439,7 @@ function start() {
       const fr = new THREE.Mesh(new THREE.BoxGeometry(w + 0.01, h + 0.01, 0.003), gold); fr.position.z = -0.002; g2.add(fr);
     };
     makePoster(0.19, 0.285, 0, 0.36, ZB + 0.005);             // the big one on the back wall, above the bridge
-    makePoster(0.15, 0.225, 0.13, -0.24, 0.325);               // on the cabinet front, beside the prize door
+    makePoster(0.15, 0.225, X * 0.4, -0.24, ZF + 0.085);               // on the cabinet front, beside the prize door
     applyTheme = id => {
       const f = FIGS[id], zh = window.I18N && I18N.lang === 'zh';
       // cabinet lacquer and lights take the character's colours
@@ -458,18 +461,18 @@ function start() {
       renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(pScene, pCam); renderer.setRenderTarget(null); renderer.setClearColor(cc, ca);
     };
   }
-  const mframe = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.18, 0.04), gold); mframe.position.set(0, 0.67, ZF - 0.025); scene.add(mframe);
-  const bulbs = []; for (let i = 0; i < 26; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.007, 10, 8), new THREE.MeshBasicMaterial({ color: '#fff' })); const u = i / 26; const per = 2 * (0.7 + 0.16); let d = u * per, x, y; if (d < 0.7) { x = -0.35 + d; y = 0.75; } else if ((d -= 0.7) < 0.16) { x = 0.35; y = 0.75 - d; } else if ((d -= 0.16) < 0.7) { x = 0.35 - d; y = 0.59; } else { d -= 0.7; x = -0.35; y = 0.59 + d; } b.position.set(x, y, ZF + 0.018); scene.add(b); bulbs.push(b); }
+  const mframe = new THREE.Mesh(new THREE.BoxGeometry(CW + 0.02, 0.18, 0.04), gold); mframe.position.set(0, 0.67, ZF - 0.025); scene.add(mframe);
+  const bulbs = []; for (let i = 0; i < 26; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.007, 10, 8), new THREE.MeshBasicMaterial({ color: '#fff' })); const u = i / 26; const per = 2 * (CW + 0.16); let d = u * per, x, y; if (d < CW) { x = -CW / 2 + d; y = 0.75; } else if ((d -= CW) < 0.16) { x = CW / 2; y = 0.75 - d; } else if ((d -= 0.16) < CW) { x = CW / 2 - d; y = 0.59; } else { d -= CW; x = -CW / 2; y = 0.59 + d; } b.position.set(x, y, ZF + 0.018); scene.add(b); bulbs.push(b); }
   // control deck
-  const deck = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.03, 0.16, 3, 0.01), blackGloss); deck.position.set(0, -0.04, ZF + 0.09); deck.rotation.x = 0.22; scene.add(deck);
-  const stick = new THREE.Group(); stick.position.set(0.14, -0.02, ZF + 0.09); scene.add(stick);
+  const deck = new THREE.Mesh(new RoundedBoxGeometry(CW, 0.03, 0.16, 3, 0.01), blackGloss); deck.position.set(0, -0.04, ZF + 0.09); deck.rotation.x = 0.22; scene.add(deck);
+  const stick = new THREE.Group(); stick.position.set(X * 0.5, -0.02, ZF + 0.09); scene.add(stick);
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.05, 12), chrome); shaft.position.y = 0.025; stick.add(shaft);
   const ball = new THREE.Mesh(new THREE.SphereGeometry(0.016, 24, 16), new THREE.MeshPhysicalMaterial({ color: '#d9102e', roughness: 0.15, clearcoat: 1 })); ball.position.y = 0.052; stick.add(ball);
-  const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.024, 0.012, 32), new THREE.MeshPhysicalMaterial({ color: '#f2c14e', roughness: 0.2, clearcoat: 1, emissive: '#7a4a10', emissiveIntensity: 0.4 })); btn.position.set(0.25, -0.022, ZF + 0.1); scene.add(btn);
-  const slotPlate = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.008), chrome); slotPlate.position.set(0.25, -0.18, ZF + 0.098); scene.add(slotPlate);
+  const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.024, 0.012, 32), new THREE.MeshPhysicalMaterial({ color: '#f2c14e', roughness: 0.2, clearcoat: 1, emissive: '#7a4a10', emissiveIntensity: 0.4 })); btn.position.set(X * 0.9, -0.022, ZF + 0.1); scene.add(btn);
+  const slotPlate = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.008), chrome); slotPlate.position.set(X * 0.9, -0.18, ZF + 0.098); scene.add(slotPlate);
   // prize door (front, under the chute)
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.01), new THREE.MeshStandardMaterial({ color: '#050203' })); door.position.set(-0.16, -0.24, ZF + 0.105); scene.add(door);
-  const doorFrame = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.006, 8, 4, Math.PI * 2), gold); doorFrame.rotation.z = Math.PI / 4; doorFrame.scale.set(1.08, 0.82, 1); doorFrame.position.set(-0.16, -0.24, ZF + 0.11); scene.add(doorFrame);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.01), new THREE.MeshStandardMaterial({ color: '#050203' })); door.position.set(-X * 0.57, -0.24, ZF + 0.105); scene.add(door);
+  const doorFrame = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.006, 8, 4, Math.PI * 2), gold); doorFrame.rotation.z = Math.PI / 4; doorFrame.scale.set(1.08, 0.82, 1); doorFrame.position.set(-X * 0.57, -0.24, ZF + 0.11); scene.add(doorFrame);
   // gantry: rails, bridge, carriage, cable and the claw head with prongs (drawn from the physics)
   const brass = new THREE.MeshStandardMaterial({ color: '#c99a4a', metalness: 1, roughness: 0.3 });
   [-1, 1].forEach(sx => { const r = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, ZF - ZB), brass); r.position.set(sx * (X - 0.01), TOP + 0.02, (ZF + ZB) / 2); scene.add(r); });
@@ -750,11 +753,12 @@ function start() {
     const tall = w / h < 1; camera.fov = tall ? 50 : 38; camera.updateProjectionMatrix();
     const vf = THREE.MathUtils.degToRad(camera.fov), hf = 2 * Math.atan(Math.tan(vf / 2) * camera.aspect);
     const bar = Math.min(0.3, (tall ? 190 : 100) / h), top = 56 / h;
-    const W = FIGURE ? 0.6 : 0.8, H = FIGURE ? 0.72 : 0.92, CY = FIGURE ? 0.37 : 0.32;   // the figure machine is framed closer, so it looks bigger
+    const W = CW + 0.1, H = 0.92, CY = 0.32;
     const dist = Math.max(W / 2 / Math.tan(hf / 2), H / 2 / Math.tan(vf / 2) / (1 - bar - top));
     const half = dist * Math.tan(vf / 2);
     look.set(0, CY - (bar - top) * half, 0);
-    homeDist = Math.hypot(dist, dist * 0.16);
+    const d2 = dist + (FIGURE ? ZF + 0.16 : 0);   // the big figure cabinet sticks out further toward the camera: step back by its depth
+    homeDist = Math.hypot(d2, d2 * 0.16);
     controls.minDistance = homeDist * 0.35; controls.maxDistance = homeDist * 1.5;
     // first time: the front view; after that keep whatever angle you turned it to
     if (!resize.done) { resize.done = true; goView(0, true); }
