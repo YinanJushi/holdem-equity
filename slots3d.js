@@ -10,7 +10,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=106';
+import { headerChrome, onQuality } from './chrome3d.js?v=107';
 
 const REELS = 5, N = 12, ALPHA = (Math.PI * 2) / N;                 // faces per drum, angle per face
 const FACE = 1, GAP = 0.09, AP = FACE / (2 * Math.tan(ALPHA / 2));   // face height, gap between reels, drum apothem

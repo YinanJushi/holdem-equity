@@ -12,7 +12,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=106';
+import { headerChrome, onQuality } from './chrome3d.js?v=107';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -37,7 +37,7 @@ function start() {
   const X = 0.28, ZB = -0.26, ZF = 0.24, TOP = 0.52;            // inside of the prize box
   const CH = { x0: -X, x1: -0.11, z0: 0.07, z1: ZF };          // the prize chute (front-left)
   const HEAD = { r: 0.032, h: 0.04 }, FING = { len: 0.085, r: 0.028 };
-  const ROPE_MIN = 0.07, ROPE_MAX = 0.46;
+  const ROPE_MIN = 0.05, ROPE_MAX = 0.46;
 
   // ---------- materials ----------
   const canvasTex = (w, h, draw, srgb = true) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
@@ -65,7 +65,7 @@ function start() {
   // glass walls and the chute's inner walls (acrylic)
   fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, -X - 0.01, 0.3, (ZF + ZB) / 2, 0.2); fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, X + 0.01, 0.3, (ZF + ZB) / 2, 0.2);
   fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZB - 0.01, 0.2); fixedBox(X + 0.02, 0.4, 0.01, 0, 0.3, ZF + 0.01, 0.2);
-  const CHW = 0.07;   // chute wall height above the floor
+  const CHW = 0.27;   // chute wall height above the floor (tall, like a real prize hole: you have to lift prizes over it)
   fixedBox(0.004, CHW / 2, (CH.z1 - CH.z0) / 2, CH.x1 + 0.004, CHW / 2, (CH.z0 + CH.z1) / 2, 0.2);
   fixedBox((CH.x1 - CH.x0) / 2, CHW / 2, 0.004, (CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.004, 0.2);
   // the bin under the chute catches what falls
@@ -136,7 +136,7 @@ function start() {
     rocks: [{ col: '#b8651b', garnish: 'cherry', ice: true }],
     highball: [{ col: '#d6ecb0', garnish: 'lime', ice: true, straw: '#1d1d1d' }, { col: '#ff9a2e', col2: '#c8102e', garnish: 'cherry', ice: true, straw: '#ff5a8a' }],
   };
-  const glassM = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transparent: true, opacity: 0.25, clearcoat: 1, envMapIntensity: 2, depthWrite: false, side: THREE.DoubleSide });
+  const glassM = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transparent: true, opacity: 0.2, clearcoat: 0.6, envMapIntensity: 0.9, depthWrite: false, side: THREE.DoubleSide });
   const lathe = pts => new THREE.LatheGeometry(pts.map(([r, y]) => V2(r, y)), 28);
   const innerR = (prof, y) => { for (let i = 1; i < prof.length; i++) { const [r0, y0] = prof[i - 1], [r1, y1] = prof[i]; if (y <= y1) return r0 + (r1 - r0) * Math.max(0, (y - y0) / Math.max(1e-6, y1 - y0)); } return prof[prof.length - 1][0]; };
   const iceM = new THREE.MeshPhysicalMaterial({ color: '#f4fbff', roughness: 0.12, transparent: true, opacity: 0.55, clearcoat: 1, depthWrite: false });
@@ -184,8 +184,8 @@ function start() {
       obj = new THREE.Group(); const set = chipSets[Math.floor(Math.random() * chipSets.length)];
       for (let i = 0; i < 6; i++) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.0072, 32), set); m.position.set((Math.random() - 0.5) * 0.002, -0.018 + i * 0.0073, (Math.random() - 0.5) * 0.002); m.rotation.y = Math.random() * 6; m.castShadow = m.receiveShadow = true; obj.add(m); }
     } else if (kind === 'chip' || kind === 'golden') {
-      const r = kind === 'golden' ? 0.04 : 0.036, h = kind === 'golden' ? 0.024 : 0.0075;
-      col(RAPIER.ColliderDesc.cylinder(h / 2, r).setDensity(kind === 'golden' ? 500 : 700).setFriction(kind === 'golden' ? 0.8 : 0.55));
+      const r = kind === 'golden' ? 0.044 : 0.036, h = kind === 'golden' ? 0.013 : 0.0075;
+      col(RAPIER.ColliderDesc.cylinder(h / 2, r).setDensity(kind === 'golden' ? 1600 : 700).setFriction(kind === 'golden' ? 0.5 : 0.55));
       obj = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 36), kind === 'golden' ? goldChipM : chipSets[Math.floor(Math.random() * chipSets.length)]); obj.castShadow = obj.receiveShadow = true;
     } else if (kind === 'cash') {
       col(RAPIER.ColliderDesc.cuboid(0.052, 0.015, 0.026).setDensity(300).setFriction(0.8));
@@ -219,10 +219,14 @@ function start() {
   }
   const randomSpot = () => { let x, z; do { x = (Math.random() * 2 - 1) * (X - 0.04); z = ZB + 0.04 + Math.random() * (ZF - ZB - 0.08); } while (x < CH.x1 + 0.04 && z > CH.z0 - 0.04); return { x, z }; };
   // a fixed mix of prizes, piled up (each one won is restocked with the same kind)
-  const STOCK = ['chip', 'chip', 'chip', 'chip', 'chip', 'chip', 'chip', 'chip', 'chips', 'chips', 'chips', 'chips', 'dice', 'dice', 'dice', 'cards', 'cards', 'cards',
-    'rocks', 'rocks', 'rocks', 'highball', 'highball', 'highball', 'martini', 'martini', 'martini', 'cash', 'cash', 'champagne', 'bar', 'golden'];
-  STOCK.forEach((k, i) => { const s = randomSpot(); spawnPrize(k, s.x, 0.08 + (i % 6) * 0.06, s.z); });
-  for (let i = 0; i < 240; i++) world.step();
+  const STOCK_MIX = { chip: 40, chips: 20, dice: 15, cards: 15, rocks: 13, highball: 13, martini: 13, cash: 9, champagne: 5, bar: 3, golden: 1 };
+  const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
+  // pour them in a few at a time, letting each layer settle, so they pile up instead of exploding
+  for (let i = 0; i < STOCK.length; i += 16) {
+    STOCK.slice(i, i + 16).forEach((k, j) => { const s = randomSpot(); spawnPrize(k, s.x, 0.1 + (j % 4) * 0.05 + i * 0.002, s.z); });
+    for (let k = 0; k < 120; k++) world.step();
+  }
+  for (let i = 0; i < 120; i++) world.step();
 
   // ---------- the cabinet (looks) ----------
   // base with a sloping control deck, prize door, glass box with gold pillars, a lit marquee
@@ -235,7 +239,10 @@ function start() {
   const cw2 = new THREE.Mesh(new THREE.BoxGeometry(CH.x1 - CH.x0, CHW, 0.006), acrylic); cw2.position.set((CH.x0 + CH.x1) / 2, CHW / 2, CH.z0 - 0.003); scene.add(cw2);
   [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.008, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.008]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.006, d), gold); r.position.set(x, CHW, z); scene.add(r); });
   const chuteSign = canvasTex(256, 64, g => { g.fillStyle = '#f2c14e'; g.font = '800 40px "Libre Franklin", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('PRIZE', 128, 34); });
-  const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshBasicMaterial({ map: chuteSign, transparent: true })); cs.position.set((CH.x0 + CH.x1) / 2, CHW * 0.6, CH.z0 - 0.007); cs.rotation.y = Math.PI; scene.add(cs);
+  const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshBasicMaterial({ map: chuteSign, transparent: true })); cs.position.set((CH.x0 + CH.x1) / 2, CHW - 0.022, CH.z0 + 0.004); scene.add(cs);
+  // a glowing strip along the top of the chute walls so the target is easy to see
+  const chuteLed = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.1, 0.4), toneMapped: false });
+  [[CH.x1 + 0.003, (CH.z0 + CH.z1) / 2, 0.004, CH.z1 - CH.z0], [(CH.x0 + CH.x1) / 2, CH.z0 - 0.003, CH.x1 - CH.x0, 0.004]].forEach(([x, z, w, d]) => { const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.003, d), chuteLed); r.position.set(x, CHW + 0.0045, z); scene.add(r); });
   const back = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, 0.56), new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.8 })); back.position.set(0, 0.27, ZB - 0.002); scene.add(back);
   const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.06, roughness: 0.02, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide });
   [[-X - 0.003, 0, 1], [X + 0.003, 0, 1]].forEach(([x]) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(ZF - ZB, 0.56), glass); p.rotation.y = Math.PI / 2; p.position.set(x, 0.27, (ZF + ZB) / 2); scene.add(p); });
@@ -312,7 +319,7 @@ function start() {
   // GRIP: the closing torque cap in N·m. P_STRONG: forces the share of strong plays (testing only; null = bank).
   // Even a strong play isn't a sure thing: SLIP is the chance it eases to MID strength at the top, and the swing on
   // the way to the chute can still shake a prize loose. COMBO: bonus for each extra prize dropped in the same play.
-  const TUNE = { TARGET: 0.9, STRONG_AT: 50, LUCKY: 0.06, BANK_MAX: 300, GRIP: 0.09, WEAK: 0.15, LOOSE: 0.3, SLIP: 0.35, MID: 0.4, COMBO: 50, P_STRONG: null };
+  const TUNE = { TARGET: 0.9, STRONG_AT: 50, LUCKY: 0.06, BANK_MAX: 300, GRIP: 0.1, WEAK: 0.15, LOOSE: 0.3, SLIP: 0.3, MID: 0.4, COMBO: 50, P_STRONG: null };
   let bank = (() => { try { return +localStorage.getItem('ol-claw-bank') || 0; } catch (e) { return 0; } })();
   const saveBank = () => { if (!G.sim) try { localStorage.setItem('ol-claw-bank', String(Math.round(bank))); } catch (e) { /* ignore */ } };
   function newPlay() {
@@ -486,7 +493,7 @@ function start() {
       const bank0 = bank; G.sim = true; G.simWon = 0; G.simWins = 0; G.simKinds = {}; const tries = {}; let cost = 0;
       for (let k = 0; k < n; k++) {
         cost += COST; newPlay();
-        const tgt = prizes.filter(p => { const t2 = p.body.translation(); return p.kind !== 'chip' && !(t2.x < CH.x1 + 0.03 && t2.z > CH.z0 - 0.03) && t2.y < 0.1; });
+        const tgt = prizes.filter(p => { const t2 = p.body.translation(); return p.kind !== 'chip' && !(t2.x < CH.x1 + 0.03 && t2.z > CH.z0 - 0.03) && true; }).sort((a, b) => b.body.translation().y - a.body.translation().y).slice(0, 14);
         const p = tgt[Math.floor(Math.random() * tgt.length)]; if (!p) continue; tries[p.kind] = (tries[p.kind] || 0) + 1;
         const ox = (Math.random() - 0.5) * noise, oz = (Math.random() - 0.5) * noise;
         let guard = 0;
