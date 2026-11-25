@@ -1019,7 +1019,10 @@ Object.assign(I18N.dict, {
 "Loose cards are worth {0}. Drop two prizes in one play for a {1} combo bonus.": "散牌价值 {0}。一次抓下两个奖品，额外奖励 {1}。",
 "Full Set": "全套收藏",
 "Collect all ten collector decks from the poker claw machine.": "在扑克娃娃机集齐全部十款收藏牌。",
-"Win the legendary Prism Ace deck.": "抓到传说级“棱镜王牌”。"
+"Win the legendary Prism Ace deck.": "抓到传说级“棱镜王牌”。",
+"Claw: {0} arms": "爪子：{0} 爪臂",
+"Claw: {0} prongs": "爪子：{0} 爪钩",
+"Change the claw between plays": "请在两局之间换爪子"
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],

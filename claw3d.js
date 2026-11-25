@@ -13,13 +13,16 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=111';
+import { headerChrome, onQuality } from './chrome3d.js?v=112';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
 // two machines share this page: the casino machine and the poker-deck machine (switch with the Machine button)
 const MACHINE = (() => { let m = new URLSearchParams(location.search).get('m'); try { m = m || localStorage.getItem('ol-claw-m'); } catch (e) { /* ignore */ } return m === 'poker' ? 'poker' : 'casino'; })();
 const POKER = MACHINE === 'poker', SUFFIX = POKER ? '-poker' : '';
+// two kinds of claw, like real machines: a round head with three curved wire prongs (the classic crane claw),
+// or a box head with two arms and rubber feet (the UFO-catcher style). Switch with the Claw button.
+const CLAW = (() => { try { return localStorage.getItem('ol-claw-type') === 'two' ? 'two' : 'three'; } catch (e) { return 'three'; } })();
 const COST = 25;
 let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
@@ -40,7 +43,9 @@ function start() {
   // ---------- sizes (metres) ----------
   const X = 0.28, ZB = -0.26, ZF = 0.24, TOP = 0.52;            // inside of the prize box
   const CH = { x0: -X, x1: -0.11, z0: 0.07, z1: ZF };          // the prize chute (front-left)
-  const HEAD = { r: 0.032, h: 0.04 }, FING = { len: 0.085, r: 0.028 };
+  const HEAD = { r: 0.032, h: 0.04 }, FING = CLAW === 'two' ? { n: 2, len: 0.1, r: 0.034 } : { n: 3, len: 0.095, r: 0.026 };
+  // a three-prong claw's wire prong, side view (x outward, y up; the hinge is at the top): it bows out, then hooks in
+  const PRONG = [[0, 0.0475], [0.011, 0.02], [0.012, -0.01], [0.004, -0.035], [-0.012, -0.0465]];
   const ROPE_MIN = 0.05, ROPE_MAX = 0.46;
 
   // ---------- materials ----------
@@ -83,17 +88,28 @@ function start() {
   // ---------- the claw: carriage (kinematic), head on a springy cable, three motorised prongs ----------
   const carriage = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0.12, TOP, -0.02));
   const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0.12, TOP - ROPE_MIN, -0.02).setLinearDamping(0.6).setCcdEnabled(true));
-  headBody.setEnabledRotations(false, true, false, true);
-  world.createCollider(RAPIER.ColliderDesc.cylinder(HEAD.h / 2, HEAD.r).setDensity(3000).setFriction(0.3), headBody);
+  headBody.setEnabledRotations(false, false, false, true);
+  world.createCollider((CLAW === 'two' ? RAPIER.ColliderDesc.cuboid(0.038, HEAD.h / 2, 0.022) : RAPIER.ColliderDesc.cylinder(HEAD.h / 2, HEAD.r)).setDensity(CLAW === 'two' ? 2400 : 3000).setFriction(0.3), headBody);
   const FG = (0x0002 << 16) | 0xfffd;   // prongs don't collide with each other
-  const fingers = [0, 1, 2].map(i => {
-    const th = i * Math.PI * 2 / 3 + Math.PI / 6, o = { x: Math.cos(th), z: Math.sin(th) };
+  const fingers = Array.from({ length: FING.n }, (_, i) => {
+    const th = FING.n === 2 ? i * Math.PI : i * Math.PI * 2 / 3 + Math.PI / 6, o = { x: Math.cos(th), z: Math.sin(th) };
     const hp = headBody.translation();
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -th);
     const fb = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(hp.x + o.x * FING.r, hp.y - HEAD.h / 2 - FING.len / 2, hp.z + o.z * FING.r).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setAngularDamping(2).setCcdEnabled(true));
-    // the prong: a bar with a hooked tip pointing inward (local -x is toward the centre)
-    world.createCollider(RAPIER.ColliderDesc.cuboid(0.0045, FING.len / 2, 0.009).setDensity(3000).setFriction(1.0).setCollisionGroups(FG), fb);
-    world.createCollider(RAPIER.ColliderDesc.cuboid(0.011, 0.004, 0.009).setTranslation(-0.009, -FING.len / 2 + 0.004, 0).setDensity(3000).setFriction(1.2).setCollisionGroups(FG), fb);
+    // local -x points toward the centre of the claw
+    if (CLAW === 'two') {
+      // a UFO-catcher arm: a flat plate down, then a foot turned inward with a rubber pad
+      world.createCollider(RAPIER.ColliderDesc.cuboid(0.004, FING.len / 2, 0.014).setDensity(2600).setFriction(0.8).setCollisionGroups(FG), fb);
+      world.createCollider(RAPIER.ColliderDesc.cuboid(0.014, 0.004, 0.015).setTranslation(-0.012, -FING.len / 2 + 0.004, 0).setDensity(2600).setFriction(1.6).setCollisionGroups(FG), fb);
+    } else {
+      // a wire prong: capsules along its curve, with a small rubber ball at the tip
+      for (let k = 1; k < PRONG.length; k++) {
+        const [x0, y0] = PRONG[k - 1], [x1, y1] = PRONG[k], len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(x1 - x0, y1 - y0);
+        const qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang);
+        world.createCollider(RAPIER.ColliderDesc.capsule(len / 2, 0.0035).setTranslation((x0 + x1) / 2, (y0 + y1) / 2, 0).setRotation({ x: qz.x, y: qz.y, z: qz.z, w: qz.w }).setDensity(4000).setFriction(1.0).setCollisionGroups(FG), fb);
+      }
+      world.createCollider(RAPIER.ColliderDesc.ball(0.0055).setTranslation(PRONG[4][0], PRONG[4][1], 0).setDensity(3000).setFriction(1.3).setCollisionGroups(FG), fb);
+    }
     const jd = RAPIER.JointData.revoluteWithAxes({ x: o.x * FING.r, y: -HEAD.h / 2, z: o.z * FING.r }, { x: 0, y: FING.len / 2, z: 0 }, { x: -o.z, y: 0, z: o.x }, { x: 0, y: 0, z: 1 });
     const j = world.createImpulseJoint(jd, headBody, fb, true);
     j.setContactsEnabled(false); j.setLimits(-0.62, 0.7);
@@ -101,7 +117,7 @@ function start() {
   });
   // the prong motors are stiff, but their torque is capped: the cap (N·m) is the grip strength
   const setGrip = (target, torque) => fingers.forEach(f => { f.joint.configureMotorPosition(target, 4000, 130); f.joint.setMotorMaxForce(torque); });
-  const OPEN = 0.55, CLOSED = -0.5;
+  const OPEN = CLAW === 'two' ? 0.6 : 0.55, CLOSED = CLAW === 'two' ? -0.45 : -0.5;
   setGrip(OPEN, 0.05);
 
   // ---------- prizes ----------
@@ -360,14 +376,32 @@ function start() {
   const aimRing = new THREE.Mesh(new THREE.RingGeometry(0.03, 0.036, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.2, 0.5), transparent: true, opacity: 0.7, depthTest: false, toneMapped: false }));
   aimRing.rotation.x = -Math.PI / 2; aimRing.renderOrder = 5; scene.add(aimRing);
   const headM = new THREE.Group(); scene.add(headM);
-  const hm = new THREE.Mesh(new THREE.CylinderGeometry(HEAD.r, HEAD.r * 0.85, HEAD.h, 28), chrome); hm.castShadow = true; headM.add(hm);
-  const hcap = new THREE.Mesh(new THREE.SphereGeometry(HEAD.r * 0.9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), gold); hcap.position.y = HEAD.h / 2; headM.add(hcap);
-  const hring = new THREE.Mesh(new THREE.TorusGeometry(HEAD.r, 0.003, 8, 28), gold); hring.rotation.x = Math.PI / 2; hring.position.y = -HEAD.h / 2 + 0.004; headM.add(hring);
+  const rubber = new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.85 });
+  if (CLAW === 'two') {
+    // box head with a motor housing on top and the two arm pivots at its ends
+    const hb = new THREE.Mesh(new RoundedBoxGeometry(0.076, HEAD.h, 0.044, 3, 0.006), chrome); hb.castShadow = true; headM.add(hb);
+    const mot = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.03, 20), gold); mot.rotation.z = Math.PI / 2; mot.position.y = HEAD.h / 2 + 0.008; headM.add(mot);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.006, 0.046), gold); band.position.y = -HEAD.h / 2 + 0.006; headM.add(band);
+  } else {
+    // round head: a domed cap, a spring housing and a rim the three prongs hang from
+    const hm = new THREE.Mesh(new THREE.CylinderGeometry(HEAD.r * 0.8, HEAD.r, HEAD.h * 0.7, 28), chrome); hm.position.y = -HEAD.h * 0.15; hm.castShadow = true; headM.add(hm);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(HEAD.r * 0.8, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), gold); dome.position.y = HEAD.h * 0.2; headM.add(dome);
+    const coil = new THREE.Mesh(new THREE.TorusGeometry(HEAD.r * 0.55, 0.0025, 6, 20), chrome); coil.rotation.x = Math.PI / 2; coil.position.y = HEAD.h * 0.42; headM.add(coil);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(HEAD.r, 0.0035, 8, 32), gold); rim.rotation.x = Math.PI / 2; rim.position.y = -HEAD.h / 2 + 0.003; headM.add(rim);
+  }
   const fingerMeshes = fingers.map(() => {
     const g = new THREE.Group();
-    const bar = new THREE.Mesh(new RoundedBoxGeometry(0.009, FING.len, 0.018, 2, 0.003), chrome); bar.castShadow = true; g.add(bar);
-    const tip = new THREE.Mesh(new RoundedBoxGeometry(0.022, 0.008, 0.018, 2, 0.003), gold); tip.position.set(-0.009, -FING.len / 2 + 0.004, 0); g.add(tip);
-    const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.0065, 10, 8), gold); knuckle.position.y = FING.len / 2; g.add(knuckle);
+    if (CLAW === 'two') {
+      const arm = new THREE.Mesh(new RoundedBoxGeometry(0.008, FING.len, 0.028, 2, 0.003), chrome); arm.castShadow = true; g.add(arm);
+      const foot = new THREE.Mesh(new RoundedBoxGeometry(0.028, 0.008, 0.03, 2, 0.003), chrome); foot.position.set(-0.012, -FING.len / 2 + 0.004, 0); g.add(foot);
+      const pad = new THREE.Mesh(new RoundedBoxGeometry(0.024, 0.004, 0.026, 2, 0.0015), rubber); pad.position.set(-0.013, -FING.len / 2 + 0.0095, 0); g.add(pad);
+      const pivot = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.032, 14), gold); pivot.rotation.x = Math.PI / 2; pivot.position.y = FING.len / 2; g.add(pivot);
+    } else {
+      const curve = new THREE.CatmullRomCurve3(PRONG.map(([x, y]) => new THREE.Vector3(x, y, 0)));
+      const wire = new THREE.Mesh(new THREE.TubeGeometry(curve, 28, 0.0032, 8), chrome); wire.castShadow = true; g.add(wire);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 12, 10), rubber); tip.position.set(PRONG[4][0], PRONG[4][1], 0); g.add(tip);
+      const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.012, 12), gold); hinge.rotation.x = Math.PI / 2; hinge.position.y = PRONG[0][1]; g.add(hinge);
+    }
     scene.add(g); return g;
   });
   // the room: dark lounge with soft bokeh lights
@@ -514,6 +548,8 @@ function start() {
     }
     d.onclick = e => { if (e.target.closest('[data-close]')) d.close(); }; d.showModal();
   };
+  const cBtn = $('#clClaw');
+  if (cBtn) { cBtn.textContent = tr(CLAW === 'two' ? 'Claw: 2 arms' : 'Claw: 3 prongs'); cBtn.onclick = () => { if (!['idle', 'aim'].includes(G.state) || G.state === 'aim') { say(tr('Change the claw between plays')); return; } try { localStorage.setItem('ol-claw-type', CLAW === 'two' ? 'three' : 'two'); } catch (e) { /* ignore */ } flush(); location.reload(); }; }
   const mBtn = $('#clMachine');
   if (mBtn) { mBtn.textContent = tr(POKER ? 'Casino machine' : 'Poker machine'); mBtn.onclick = () => { try { localStorage.setItem('ol-claw-m', POKER ? 'casino' : 'poker'); } catch (e) { /* ignore */ } flush(); location.href = location.pathname + (POKER ? '?m=casino' : '?m=poker'); }; }
   // joystick: drag inside the pad; or arrow keys / WASD
