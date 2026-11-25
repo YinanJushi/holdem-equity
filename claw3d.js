@@ -13,8 +13,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=134';
-import { headerChrome, onQuality } from './chrome3d.js?v=134';
+import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=136';
+import { headerChrome, onQuality } from './chrome3d.js?v=136';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -86,15 +86,12 @@ function start() {
   // tip, turn and shuffle it until it slips through the gap. Fences keep it from walking off the ends.
   const BR = { y: 0.2, r: 0.008, gap: 0.116, z0: ZB + 0.03, z1: ZF - 0.03, fence: 0.25 };
   const BOX = [0.18, 0.068, 0.13];   // the figure box lies flat: long side across the bars, window up
+  // four bars: two high ones in the middle the box rests on, and a slightly lower one on each side. No fences:
+  // shift the box far enough and it tips into a gap or slides off the outside, and either way it's yours.
+  const BARS = [[-0.135, -0.018], [-0.045, 0], [0.045, 0], [0.135, -0.018]].map(([x, dy]) => ({ x, y: BR.y + dy }));
   if (FIGURE) {
-    [-1, 1].forEach(sx => {
-      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-      world.createCollider(RAPIER.ColliderDesc.cylinder((BR.z1 - BR.z0) / 2, BR.r).setTranslation(sx * BR.gap / 2, BR.y, (BR.z0 + BR.z1) / 2).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setFriction(0.35));
-      fixedBox(0.004, 0.06, (BR.z1 - BR.z0) / 2, sx * BR.fence, BR.y + 0.03, (BR.z0 + BR.z1) / 2, 0.2);
-      // solid ledges outside the bars (a little lower), so a box pushed off the side lands there instead of dropping
-      const lx0 = BR.gap / 2 + BR.r + 0.006; fixedBox((BR.fence - lx0) / 2, 0.005, (BR.z1 - BR.z0) / 2, sx * (lx0 + BR.fence) / 2, BR.y - 0.012, (BR.z0 + BR.z1) / 2, 0.5);
-    });
-    [BR.z0 - 0.004, BR.z1 + 0.004].forEach(z => fixedBox(BR.fence, 0.06, 0.004, 0, BR.y + 0.03, z, 0.2));
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+    BARS.forEach(b => world.createCollider(RAPIER.ColliderDesc.cylinder((BR.z1 - BR.z0) / 2, BR.r).setTranslation(b.x, b.y, (BR.z0 + BR.z1) / 2).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setFriction(0.35)));
   }
   // glass walls and the chute's inner walls (acrylic)
   fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, -X - 0.01, 0.3, (ZF + ZB) / 2, 0.2); fixedBox(0.01, 0.4, (ZF - ZB) / 2 + 0.02, X + 0.01, 0.3, (ZF + ZB) / 2, 0.2);
@@ -140,14 +137,16 @@ function start() {
     }
     const jd = RAPIER.JointData.revoluteWithAxes({ x: o.x * FING.r, y: -HEAD.h / 2, z: o.z * FING.r }, { x: 0, y: FING.len / 2, z: 0 }, { x: -o.z, y: 0, z: o.x }, { x: 0, y: 0, z: 1 });
     const j = world.createImpulseJoint(jd, headBody, fb, true);
-    j.setContactsEnabled(false); j.setLimits(-0.62, FIGURE ? 1.0 : 0.7);
+    j.setContactsEnabled(false); j.setLimits(-0.62, CLAW === 'two' ? 1.05 : 0.7);
     return { body: fb, joint: j, th };
   });
   // the prong motors are stiff, but their torque is capped: the cap (N·m) is the grip strength
   const setGrip = (target, torque) => fingers.forEach(f => { f.joint.configureMotorPosition(target, 4000, 130); f.joint.setMotorMaxForce(torque); });
   // the figure machine's long arms open wide so their feet can land past the ends of a box and slide under it
-  const OPEN_T = FIGURE ? 0.35 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
-  const OPEN = FIGURE ? 0.6 : CLAW === 'two' ? 0.6 : 0.55, CLOSED = FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
+  const OPEN_T = FIGURE ? 0.35 : CLAW === 'two' ? 0.12 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
+  // two-arm claws wait with their arms spread wide, like a UFO catcher at rest
+  const OPEN = FIGURE ? 0.95 : CLAW === 'two' ? 0.85 : 0.55, CLOSED = FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
+  const DROP_OPEN = FIGURE ? 0.6 : 0.6;   // as it drops, the arms come in to their working angle
   setGrip(OPEN, OPEN_T);
 
   // ---------- prizes ----------
@@ -365,15 +364,13 @@ function start() {
   const base = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.5, 0.66, 4, 0.02), lacquer); base.position.set(0, -0.27, -0.01); base.receiveShadow = true; scene.add(base);
   const floorM = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.01, ZF - ZB), FIGURE ? new THREE.MeshStandardMaterial({ color: '#08080c', roughness: 0.9 }) : velvet); floorM.position.set(0, FIGURE ? -0.12 : -0.005, (ZF + ZB) / 2); floorM.receiveShadow = true; scene.add(floorM);
   if (FIGURE) {
-    // the bridge: two chrome bars on posts, clear fences round it, and a glowing drop below
+    // the bridge: four chrome bars on posts over a glowing drop
     const barMat = new THREE.MeshStandardMaterial({ color: '#d8dce4', metalness: 1, roughness: 0.18 });
-    [-1, 1].forEach(sx => {
-      const b = new THREE.Mesh(new THREE.CylinderGeometry(BR.r, BR.r, BR.z1 - BR.z0 + 0.02, 20), barMat); b.rotation.x = Math.PI / 2; b.position.set(sx * BR.gap / 2, BR.y, (BR.z0 + BR.z1) / 2); b.castShadow = true; scene.add(b);
-      [BR.z0, BR.z1].forEach(z => { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, BR.y + 0.12, 12), barMat); post.position.set(sx * BR.gap / 2, (BR.y - 0.12) / 2, z); scene.add(post); });
-      const lx0 = BR.gap / 2 + BR.r + 0.006, ledge = new THREE.Mesh(new THREE.BoxGeometry(BR.fence - lx0, 0.01, BR.z1 - BR.z0), new THREE.MeshStandardMaterial({ color: '#1a1030', roughness: 0.6, metalness: 0.3 })); ledge.position.set(sx * (lx0 + BR.fence) / 2, BR.y - 0.012, (BR.z0 + BR.z1) / 2); ledge.receiveShadow = true; scene.add(ledge);
-      const fence = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.12, BR.z1 - BR.z0), new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.12, roughness: 0.05, depthWrite: false })); fence.position.set(sx * BR.fence, BR.y + 0.03, (BR.z0 + BR.z1) / 2); scene.add(fence);
+    BARS.forEach(bar => {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(BR.r, BR.r, BR.z1 - BR.z0 + 0.02, 20), barMat); b.rotation.x = Math.PI / 2; b.position.set(bar.x, bar.y, (BR.z0 + BR.z1) / 2); b.castShadow = true; scene.add(b);
+      [BR.z0, BR.z1].forEach(z => { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, bar.y + 0.12, 12), barMat); post.position.set(bar.x, (bar.y - 0.12) / 2, z); scene.add(post); });
     });
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(BR.gap * 2.2, BR.z1 - BR.z0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.5, 1.2), transparent: true, opacity: 0.35, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(0, -0.11, (BR.z0 + BR.z1) / 2); scene.add(glow);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.4, BR.z1 - BR.z0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.5, 1.2), transparent: true, opacity: 0.35, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(0, -0.11, (BR.z0 + BR.z1) / 2); scene.add(glow);
   }
   // the hole in the floor where the chute is (drawn dark over the velvet)
   const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.z1 - CH.z0), new THREE.MeshBasicMaterial({ color: '#050203' })); hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, 0.0005, (CH.z0 + CH.z1) / 2); if (!FIGURE) scene.add(hole);
@@ -566,7 +563,7 @@ function start() {
     tone(1400, 0.08); tone(1800, 0.1); say(tr('Move the claw, then press Drop')); paint();
     G.got = false; window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-play' } }));
   }
-  function dropClaw() { if (G.state !== 'aim') return; G.state = 'lower'; G.t = 0; G.slackT = 0; motor(true); paint(); if (!G.sim) say(tr('Here goes…')); }
+  function dropClaw() { if (G.state !== 'aim') return; G.state = 'lower'; G.t = 0; G.slackT = 0; if (CLAW === 'two') setGrip(DROP_OPEN, OPEN_T); motor(true); paint(); if (!G.sim) say(tr('Here goes…')); }
   function step(dt) {
     // carriage: eases toward the stick direction (during aim) or a target (carry / home)
     let tx = null, tz = null;
@@ -753,7 +750,7 @@ function start() {
     const tall = w / h < 1; camera.fov = tall ? 50 : 38; camera.updateProjectionMatrix();
     const vf = THREE.MathUtils.degToRad(camera.fov), hf = 2 * Math.atan(Math.tan(vf / 2) * camera.aspect);
     const bar = Math.min(0.3, (tall ? 190 : 100) / h), top = 56 / h;
-    const W = 0.8, H = 0.92, CY = 0.32;
+    const W = FIGURE ? 0.6 : 0.8, H = FIGURE ? 0.72 : 0.92, CY = FIGURE ? 0.37 : 0.32;   // the figure machine is framed closer, so it looks bigger
     const dist = Math.max(W / 2 / Math.tan(hf / 2), H / 2 / Math.tan(vf / 2) / (1 - bar - top));
     const half = dist * Math.tan(vf / 2);
     look.set(0, CY - (bar - top) * half, 0);
