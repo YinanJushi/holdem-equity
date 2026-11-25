@@ -13,8 +13,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=147';
-import { headerChrome, onQuality } from './chrome3d.js?v=147';
+import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=148';
+import { headerChrome, onQuality } from './chrome3d.js?v=148';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -685,7 +685,7 @@ function start() {
       if (!codeHash) { msgEl.textContent = tr('No code has been set up for this machine yet.'); return; }
       if (Date.now() < codeLockUntil) { msgEl.textContent = tr('Too many tries. Wait a minute.'); return; }
       if ((await sha256(input.value.trim())) !== codeHash) { codeTries++; if (codeTries >= 5) { codeTries = 0; codeLockUntil = Date.now() + 60000; } msgEl.textContent = tr('That code is not right.'); input.select(); return; }
-      d.close(); setSuper(true);
+      d.close(); if (window.OL_VISITS && OL_VISITS.setOwner) OL_VISITS.setOwner(); setSuper(true);
     };
     d.showModal(); setTimeout(() => input.focus(), 50);
   }

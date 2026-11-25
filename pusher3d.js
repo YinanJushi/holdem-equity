@@ -12,8 +12,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=147';
-import { createExtras } from './pusher-extras.js?v=147';
+import { headerChrome, onQuality } from './chrome3d.js?v=148';
+import { createExtras } from './pusher-extras.js?v=148';
 
 
 // ---------- themes: each one dresses the whole machine and has its own way of celebrating the big wins ----------
@@ -937,7 +937,7 @@ function start() {
       if (Date.now() < codeLockUntil) { msgEl.textContent = tr('Too many tries. Wait a minute.'); return; }
       const ok = (await sha256(input.value.trim())) === codeHash;
       if (!ok) { codeTries++; if (codeTries >= 5) { codeTries = 0; codeLockUntil = Date.now() + 60000; } msgEl.textContent = tr('That code is not right.'); input.select(); return; }
-      d.close(); startFlood();
+      d.close(); if (window.OL_VISITS && OL_VISITS.setOwner) OL_VISITS.setOwner(); startFlood();
     };
     d.showModal(); setTimeout(() => input.focus(), 50);
   }
