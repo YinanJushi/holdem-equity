@@ -952,3 +952,8 @@ body.cl-aiming .cl-timer { display: block; }
 .cl-sup { display: inline-block; padding: 1px 7px; border-radius: 999px; background: linear-gradient(90deg, #ffd36a, #ff9a2e); color: #2a1200; font-weight: 800; letter-spacing: .06em; font-size: 11px; animation: clPulse 1s ease-in-out infinite; }
 body.cl-super .cl-host { box-shadow: inset 0 0 60px rgba(255,200,90,.35); }
 #clInfo { cursor: default; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+/* coin pusher: the close-up window of the drop edge */
+.pz-edge { position: fixed; z-index: 4; padding: 0; border-radius: 12px; border: 2px solid rgba(242,193,78,.8); background: transparent; box-shadow: 0 6px 18px rgba(0,0,0,.5); cursor: pointer; overflow: hidden; }
+.pz-edge span { position: absolute; left: 6px; top: 5px; font: 700 11px var(--sans); color: #fff6e0; background: rgba(14,5,8,.75); padding: 2px 7px; border-radius: 999px; letter-spacing: .04em; }
+.pz-edge.off { width: auto; height: auto; background: rgba(14,5,8,.82); }
+.pz-edge.off span { position: static; display: block; padding: 6px 10px; background: none; }

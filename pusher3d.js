@@ -12,8 +12,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=113';
-import { createExtras } from './pusher-extras.js?v=113';
+import { headerChrome, onQuality } from './chrome3d.js?v=114';
+import { createExtras } from './pusher-extras.js?v=114';
 
 
 // ---------- themes: each one dresses the whole machine and has its own way of celebrating the big wins ----------
@@ -1019,7 +1019,31 @@ function start() {
     const shift = ((topN + botN) - (ymax + ymin)) / 2;   // in NDC: how far the picture should move up
     camera.setViewOffset(w, h, 0, -shift * h / 2, w, h); camera.updateProjectionMatrix();
   }
-  new ResizeObserver(resize).observe(host); resize();
+  // a live close-up of the front edge (where coins fall off into the tray), in a small window at the top right;
+  // tap it to fold it away or bring it back
+  const edgeCam = new THREE.PerspectiveCamera(42, 1.5, 0.01, 10);
+  edgeCam.position.set(0.24, 0.12, FRONT + 0.24); edgeCam.lookAt(0, -0.025, FRONT - 0.02);
+  const edgeBox = document.createElement('button'); edgeBox.type = 'button'; edgeBox.className = 'pz-edge'; edgeBox.setAttribute('aria-label', tr('Close-up of the drop edge (tap to hide)'));
+  edgeBox.innerHTML = `<span>${tr('Drop edge')}</span>`; host.appendChild(edgeBox);
+  let edgeOn = (() => { try { return localStorage.getItem('ol-pz-edge') !== '0'; } catch (e) { return true; } })(), edgeRect = null;
+  const paintEdge = () => { edgeBox.classList.toggle('off', !edgeOn); edgeBox.querySelector('span').textContent = edgeOn ? tr('Drop edge') : tr('Drop edge') + ' ▸'; placeEdge(); };
+  edgeBox.onclick = e => { e.stopPropagation(); edgeOn = !edgeOn; try { localStorage.setItem('ol-pz-edge', edgeOn ? '1' : '0'); } catch (e2) { /* ignore */ } paintEdge(); };
+  ['pointerdown', 'pointerup'].forEach(ev => edgeBox.addEventListener(ev, e => e.stopPropagation()));
+  function placeEdge() {
+    const w = host.clientWidth, h = host.clientHeight, small = w < 640;
+    const ew = small ? Math.round(w * 0.42) : 230, eh = Math.round(ew / 1.5), top = small ? 104 : 64, right = 10;
+    edgeRect = { x: w - ew - right, y: top, w: ew, h: eh };
+    edgeBox.style.cssText = edgeOn ? `left:${edgeRect.x}px;top:${edgeRect.y}px;width:${ew}px;height:${eh}px` : `left:auto;right:${right}px;top:${top}px`;
+    edgeCam.aspect = ew / eh; edgeCam.updateProjectionMatrix();
+  }
+  function renderEdge() {
+    if (!edgeOn || !edgeRect) return;
+    const h = host.clientHeight, r = edgeRect;
+    renderer.setScissorTest(true); renderer.setScissor(r.x, h - r.y - r.h, r.w, r.h); renderer.setViewport(r.x, h - r.y - r.h, r.w, r.h);
+    renderer.render(scene, edgeCam);
+    renderer.setScissorTest(false); renderer.setViewport(0, 0, host.clientWidth, h);
+  }
+  new ResizeObserver(() => { resize(); paintEdge(); }).observe(host); resize(); paintEdge();
   new ResizeObserver(resize).observe($('#pzBar'));
   onQuality(q => { const hi = q === 'high'; world.numSolverIterations = hi ? 6 : 4; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; resize(); });
   const clock = new THREE.Clock(); let acc = 0, t = 0;
@@ -1057,7 +1081,7 @@ function start() {
     const s = shake * shake * 0.006;
     camera.position.set(camBase.x + (Math.random() - 0.5) * s, camBase.y + (Math.random() - 0.5) * s, camBase.z);
     camera.lookAt(camLook);
-    composer.render();
+    composer.render(); renderEdge();
   });
   info(); paintMeter();
 
