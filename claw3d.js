@@ -13,7 +13,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=114';
+import { headerChrome, onQuality } from './chrome3d.js?v=115';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -86,8 +86,10 @@ function start() {
   fixedBox(X, 0.01, 0.2, -0.1, -0.24, 0.15, 0.6);
 
   // ---------- the claw: carriage (kinematic), head on a springy cable, three motorised prongs ----------
-  const carriage = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0.12, TOP, -0.02));
-  const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0.12, TOP - ROPE_MIN, -0.02).setLinearDamping(0.6).setCcdEnabled(true));
+  // like a real machine, the claw waits over the prize chute and comes back there after every play
+  const START = { x: (CH.x0 + CH.x1) / 2, z: (CH.z0 + CH.z1) / 2 };
+  const carriage = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(START.x, TOP, START.z));
+  const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(START.x, TOP - ROPE_MIN, START.z).setLinearDamping(0.6).setCcdEnabled(true));
   headBody.setEnabledRotations(false, false, false, true);
   world.createCollider((CLAW === 'two' ? RAPIER.ColliderDesc.cuboid(0.038, HEAD.h / 2, 0.022) : RAPIER.ColliderDesc.cylinder(HEAD.h / 2, HEAD.r)).setDensity(CLAW === 'two' ? 2400 : 3000).setFriction(0.3), headBody);
   const FG = (0x0002 << 16) | 0xfffd;   // prongs don't collide with each other
@@ -420,7 +422,7 @@ function start() {
 
   // ---------- the game ----------
   // states: idle (insert to play) → aim (move, timer) → lower → close → raise → carry → release → home
-  const G = { state: 'idle', t: 0, timer: 0, rope: ROPE_MIN, cx: 0.12, cz: -0.02, vx: 0, vz: 0, grip: 0, hold: 0, strong: false, sim: false };
+  const G = { state: 'idle', t: 0, timer: 0, rope: ROPE_MIN, cx: START.x, cz: START.z, vx: 0, vz: 0, grip: 0, hold: 0, strong: false, sim: false };
   // Payout control, the way real prize machines do it: every play puts 90% of its cost into a "bank", every prize
   // won takes its value out, and the claw only keeps a strong grip all the way to the chute when the bank can pay
   // for a prize (plus a small random chance). On the other plays it relaxes at the top (LOOSE angle, WEAK torque)
@@ -441,7 +443,7 @@ function start() {
     G.state = 'aim'; G.timer = 30; saveBank();
   }
   const input = { x: 0, z: 0 };
-  const HOME = { x: CH.x0 + 0.075, z: CH.z0 + 0.08 };   // over the chute
+  const HOME = START;   // where prizes are let go: over the chute
   let pending = 0, wonTotal = 0, plays = 0;
   const flush = () => { if (pending) { UI.wallet.add(pending); pending = 0; } };
   setInterval(flush, 1500); window.addEventListener('pagehide', flush);
@@ -458,7 +460,7 @@ function start() {
     // carriage: eases toward the stick direction (during aim) or a target (carry / home)
     let tx = null, tz = null;
     if (G.state === 'aim') { const sp = 0.22; G.vx += ((input.x * sp) - G.vx) * Math.min(1, dt * 6); G.vz += ((input.z * sp) - G.vz) * Math.min(1, dt * 6); }
-    else if (G.state === 'carry' || G.state === 'home') { const T = G.state === 'carry' ? HOME : { x: 0.12, z: -0.02 }; tx = T.x; tz = T.z; const dx = T.x - G.cx, dz = T.z - G.cz, d = Math.hypot(dx, dz), sp = Math.min(0.2, d * 3); G.vx += ((d > 1e-4 ? dx / d * sp : 0) - G.vx) * Math.min(1, dt * 5); G.vz += ((d > 1e-4 ? dz / d * sp : 0) - G.vz) * Math.min(1, dt * 5); }
+    else if (G.state === 'carry' || G.state === 'home') { const T = G.state === 'carry' ? HOME : START; tx = T.x; tz = T.z; const dx = T.x - G.cx, dz = T.z - G.cz, d = Math.hypot(dx, dz), sp = Math.min(0.2, d * 3); G.vx += ((d > 1e-4 ? dx / d * sp : 0) - G.vx) * Math.min(1, dt * 5); G.vz += ((d > 1e-4 ? dz / d * sp : 0) - G.vz) * Math.min(1, dt * 5); }
     else { G.vx *= Math.max(0, 1 - dt * 8); G.vz *= Math.max(0, 1 - dt * 8); }
     G.cx = Math.max(-X + 0.04, Math.min(X - 0.04, G.cx + G.vx * dt)); G.cz = Math.max(ZB + 0.04, Math.min(ZF - 0.04, G.cz + G.vz * dt));
     carriage.setNextKinematicTranslation({ x: G.cx, y: TOP, z: G.cz });
@@ -488,7 +490,7 @@ function start() {
       if (G.rope <= ROPE_MIN + 0.001) { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; }
     } else if (G.state === 'carry') { if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5) { G.state = 'release'; G.t = 0; setGrip(OPEN, 0.08); tone(500, 0.12, 0.04, 'square'); } }
     else if (G.state === 'release') { if (G.t > 1.0) { G.state = 'home'; G.t = 0; } }
-    else if (G.state === 'home') { if (Math.hypot(0.12 - G.cx, -0.02 - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, 0.05); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
+    else if (G.state === 'home') { if (Math.hypot(START.x - G.cx, START.z - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, 0.05); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
     world.step();
     void tx; void tz;
     // prizes that fall down the chute are won; anything that escapes is put back
