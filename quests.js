@@ -52,6 +52,8 @@
     { id: 'cl_gold', icon: '▰', reward: 500, name: 'Golden Grab', text: 'Win a gold bar from the claw machine.' },
     { id: 'cl_happy', icon: '🍸', reward: 300, name: 'Happy Hour', text: 'Win all three kinds of cocktail from the claw machine.' },
     { id: 'cl_lucky', icon: '✪', reward: 800, name: 'Lucky Chip', text: 'Win the golden lucky chip from the claw machine.' },
+    { id: 'cl_fullset', icon: '♠', reward: 1000, name: 'Full Set', text: 'Collect all ten collector decks from the poker claw machine.' },
+    { id: 'cl_prism', icon: '◇', reward: 800, name: 'Prism Ace', text: 'Win the legendary Prism Ace deck.' },
     { id: 'high_roller', icon: '$', reward: 300, name: 'High Roller', text: 'Bet 1,000 chips or more at once.' },
     { id: 'bartender', icon: '🍸', reward: 200, name: 'Regular at the Bar', text: 'Order 5 drinks.' },
     { id: 'explorer', icon: '⌂', reward: 500, name: 'Grand Tour', text: 'Play every game in the lounge.' },
@@ -179,6 +181,8 @@
         if (d.kind === 'bar') unlock('cl_gold');
         if (d.drinks >= 3) unlock('cl_happy');
         if (d.kind === 'golden') unlock('cl_lucky');
+        if (d.decks >= 10) unlock('cl_fullset');
+        if (d.kind === 'deck_holo') unlock('cl_prism');
       } else if (d.type === 'drink') {
         bump('drink'); A.drinks = (A.drinks || 0) + 1; save(AKEY, A); if (A.drinks >= 5) unlock('bartender');
       }

@@ -13,10 +13,13 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=110';
+import { headerChrome, onQuality } from './chrome3d.js?v=111';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
+// two machines share this page: the casino machine and the poker-deck machine (switch with the Machine button)
+const MACHINE = (() => { let m = new URLSearchParams(location.search).get('m'); try { m = m || localStorage.getItem('ol-claw-m'); } catch (e) { /* ignore */ } return m === 'poker' ? 'poker' : 'casino'; })();
+const POKER = MACHINE === 'poker', SUFFIX = POKER ? '-poker' : '';
 const COST = 25;
 let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
@@ -44,9 +47,9 @@ function start() {
   const canvasTex = (w, h, draw, srgb = true) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
   const gold = new THREE.MeshStandardMaterial({ color: '#d4a444', metalness: 1, roughness: 0.25, envMapIntensity: 1 });
   const chrome = new THREE.MeshStandardMaterial({ color: '#b8bcc6', metalness: 1, roughness: 0.28, envMapIntensity: 0.9 });
-  const lacquer = new THREE.MeshPhysicalMaterial({ color: '#6e0d1d', metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const lacquer = new THREE.MeshPhysicalMaterial({ color: POKER ? '#0e3a2a' : '#6e0d1d', metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
   const blackGloss = new THREE.MeshPhysicalMaterial({ color: '#120a0c', metalness: 0.3, roughness: 0.3, clearcoat: 1 });
-  const velvetTex = canvasTex(256, 256, g => { g.fillStyle = '#5a0a16'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,120,140'},${Math.random() * 0.08})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); } });
+  const velvetTex = canvasTex(256, 256, g => { g.fillStyle = POKER ? '#0d5236' : '#5a0a16'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : POKER ? '140,255,190' : '255,120,140'},${Math.random() * 0.08})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); } });
   velvetTex.wrapS = velvetTex.wrapT = THREE.RepeatWrapping; velvetTex.repeat.set(3, 3);
   const velvet = new THREE.MeshStandardMaterial({ map: velvetTex, roughness: 0.95 });
   const backTex = canvasTex(512, 512, g => {
@@ -54,6 +57,11 @@ function start() {
     g.strokeStyle = 'rgba(242,193,78,.35)'; g.lineWidth = 2; for (let r = 40; r < 400; r += 36) { g.beginPath(); g.arc(256, 560, r, Math.PI, Math.PI * 2); g.stroke(); }
     ['♠', '♥', '♦', '♣'].forEach((s, i) => { g.fillStyle = i % 3 ? 'rgba(242,193,78,.22)' : 'rgba(255,90,110,.22)'; g.font = '120px Georgia, serif'; g.textAlign = 'center'; g.fillText(s, 90 + i * 110, 150 + (i % 2) * 60); });
     g.fillStyle = 'rgba(255,230,170,.6)'; g.font = 'italic 700 46px Georgia, serif'; g.fillText('Odds Lounge', 256, 330);
+    if (POKER) {   // the poker machine: green felt glow and a fan of cards
+      g.fillStyle = 'rgba(8,40,26,.85)'; g.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 7; i++) { g.save(); g.translate(256, 470); g.rotate((i - 3) * 0.2); g.fillStyle = i % 2 ? '#f4efe4' : '#e9e2d2'; g.strokeStyle = '#c99a2e'; g.lineWidth = 3; g.beginPath(); g.roundRect(-55, -330, 110, 160, 10); g.fill(); g.stroke(); g.fillStyle = i % 3 === 1 ? '#c8102e' : '#151515'; g.font = '700 54px Georgia, serif'; g.textAlign = 'center'; g.fillText('♠♥♦♣'[i % 4], 0, -235); g.font = '700 26px Georgia, serif'; g.fillText('A23456789'[i] || 'K', -32, -298); g.restore(); }
+      g.fillStyle = 'rgba(242,193,78,.75)'; g.font = 'italic 700 40px Georgia, serif'; g.textAlign = 'center'; g.fillText('Collector Decks', 256, 70);
+    }
   });
 
   // ---------- physics world ----------
@@ -104,6 +112,14 @@ function start() {
     rocks: { name: 'Old Fashioned', value: 50 }, highball: { name: 'Highball cocktail', value: 60 }, martini: { name: 'Martini', value: 70 },
     cash: { name: 'Cash bundle', value: 150 }, champagne: { name: 'Champagne', value: 200 }, bar: { name: 'Gold bar', value: 250 }, golden: { name: 'Golden lucky chip', value: 500 },
   };
+  // the poker machine's prizes: loose cards and ten original collector decks in four rarities
+  const DECKS = {
+    deck_red: { name: 'Lounge Classic Red', value: 30, rarity: 'Common' }, deck_blue: { name: 'Lounge Classic Blue', value: 30, rarity: 'Common' },
+    deck_noir: { name: 'Midnight Noir', value: 60, rarity: 'Rare' }, deck_jade: { name: 'Jade Garden', value: 60, rarity: 'Rare' }, deck_sakura: { name: 'Sakura Night', value: 60, rarity: 'Rare' }, deck_neon: { name: 'Neon Alley', value: 70, rarity: 'Rare' },
+    deck_gold: { name: 'Royal Gold Foil', value: 150, rarity: 'Limited' }, deck_ice: { name: 'Ice Crystal', value: 150, rarity: 'Limited' }, deck_ember: { name: 'Dragon Ember', value: 180, rarity: 'Limited' },
+    deck_holo: { name: 'Prism Ace', value: 500, rarity: 'Legendary' },
+  };
+  if (POKER) { for (const k of Object.keys(KINDS)) delete KINDS[k]; Object.assign(KINDS, { card: { name: 'Loose card', value: 5 } }, DECKS); }
   const chipFace = (base, stripe, mark = '') => canvasTex(128, 128, g => { g.fillStyle = base; g.beginPath(); g.arc(64, 64, 64, 0, 7); g.fill(); g.fillStyle = stripe; for (let i = 0; i < 8; i++) { g.save(); g.translate(64, 64); g.rotate(i * Math.PI / 4); g.fillRect(-6, -64, 12, 16); g.restore(); } g.strokeStyle = stripe; g.lineWidth = 3; g.beginPath(); g.arc(64, 64, 38, 0, 7); g.stroke(); if (mark) { g.fillStyle = stripe; g.font = '700 40px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 64, 67); } });
   const chipMats = (a, b, mark, extra = {}) => { const f = chipFace(a, b, mark); const edge = canvasTex(128, 8, g => { g.fillStyle = a; g.fillRect(0, 0, 128, 8); g.fillStyle = b; for (let i = 0; i < 8; i++) g.fillRect(i * 16 + 4, 0, 7, 8); }); return [new THREE.MeshStandardMaterial({ map: edge, roughness: 0.4, ...extra }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35, ...extra }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35, ...extra })]; };
   const chipSets = [['#c8102e', '#fff', '5'], ['#1f4fb8', '#fff', '10'], ['#151515', '#f2c14e', '100'], ['#1e8a4a', '#fff', '25'], ['#6a2a9a', '#fff', '500']].map(([a, b, m]) => chipMats(a, b, m));
@@ -125,6 +141,46 @@ function start() {
   const deckBack = canvasTex(128, 180, g => { g.fillStyle = '#8a0e1e'; g.fillRect(0, 0, 128, 180); g.strokeStyle = '#f2c14e'; g.lineWidth = 4; g.strokeRect(8, 8, 112, 164); g.strokeStyle = 'rgba(242,193,78,.35)'; g.lineWidth = 1; for (let k = -180; k < 180; k += 10) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 180, 180); g.stroke(); g.beginPath(); g.moveTo(k + 180, 0); g.lineTo(k, 180); g.stroke(); } g.fillStyle = '#f2c14e'; g.font = 'italic 700 30px Georgia, serif'; g.textAlign = 'center'; g.fillText('OL', 64, 100); });
   const deckSide = new THREE.MeshStandardMaterial({ color: '#7a0c1a', roughness: 0.5 }), deckEdge = new THREE.MeshStandardMaterial({ color: '#f4efe4', roughness: 0.7 });
   const deckMats = [deckSide, deckSide, deckEdge, deckSide, new THREE.MeshStandardMaterial({ map: deckBack, roughness: 0.45 }), new THREE.MeshStandardMaterial({ map: deckBack, roughness: 0.45 })];
+  // ---------- collector deck art (all original) ----------
+  // each design draws the front of its tuck box on a canvas; the same art is shown in the collection book
+  const rnd = seed => () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  const lattice = (g, w, h, a, b, step = 12) => { g.strokeStyle = b; g.lineWidth = 1.4; for (let k = -h; k < w + h; k += step) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + h, h); g.stroke(); g.beginPath(); g.moveTo(k + h, 0); g.lineTo(k, h); g.stroke(); } void a; };
+  const frame = (g, w, h, c, inset = 8, lw = 3) => { g.strokeStyle = c; g.lineWidth = lw; g.strokeRect(inset, inset, w - inset * 2, h - inset * 2); };
+  const medallion = (g, w, h, fill, ink, text = 'OL') => { g.fillStyle = fill; g.beginPath(); g.ellipse(w / 2, h / 2, 30, 38, 0, 0, 7); g.fill(); g.strokeStyle = ink; g.lineWidth = 2.5; g.stroke(); g.fillStyle = ink; g.font = 'italic 700 26px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, h / 2 + 2); };
+  const label = (g, w, h, text, col) => { g.fillStyle = col; g.font = '700 10px "Libre Franklin", Arial'; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.fillText(text, w / 2, h - 16); };
+  const DECK_ART = {
+    deck_red: g => { g.fillStyle = '#9e1022'; g.fillRect(0, 0, 128, 180); lattice(g, 128, 180, 0, 'rgba(255,255,255,.35)'); frame(g, 128, 180, '#fff'); medallion(g, 128, 180, '#9e1022', '#fff'); label(g, 128, 180, 'DECK HUNTER · CLASSIC', '#fff'); },
+    deck_blue: g => { g.fillStyle = '#1d3f8f'; g.fillRect(0, 0, 128, 180); lattice(g, 128, 180, 0, 'rgba(255,255,255,.35)'); frame(g, 128, 180, '#fff'); medallion(g, 128, 180, '#1d3f8f', '#fff'); label(g, 128, 180, 'DECK HUNTER · CLASSIC', '#fff'); },
+    deck_noir: g => { g.fillStyle = '#0c0c0e'; g.fillRect(0, 0, 128, 180); g.strokeStyle = 'rgba(214,170,80,.8)'; g.lineWidth = 1; for (let i = 0; i < 14; i++) { g.beginPath(); g.moveTo(64, 150); g.lineTo(i * 10, 20); g.stroke(); } g.beginPath(); g.arc(64, 150, 40, Math.PI, 0); g.stroke(); frame(g, 128, 180, '#d6aa50', 8, 1.5); frame(g, 128, 180, '#d6aa50', 12, 0.8); g.fillStyle = '#d6aa50'; g.font = '700 30px Georgia, serif'; g.textAlign = 'center'; g.fillText('♠', 64, 100); label(g, 128, 180, 'MIDNIGHT NOIR', '#d6aa50'); },
+    deck_jade: g => { g.fillStyle = '#0f5a45'; g.fillRect(0, 0, 128, 180); g.strokeStyle = 'rgba(232,200,120,.75)'; g.lineWidth = 1.2; for (let y = 22; y < 170; y += 26) for (let x = 18; x < 120; x += 26) { g.beginPath(); g.arc(x, y, 10, 0, 7); g.stroke(); g.beginPath(); g.arc(x, y, 4, 0, 7); g.stroke(); } frame(g, 128, 180, '#e8c878'); medallion(g, 128, 180, '#0f5a45', '#e8c878', '♣'); label(g, 128, 180, 'JADE GARDEN', '#e8c878'); },
+    deck_sakura: g => { g.fillStyle = '#2a1430'; g.fillRect(0, 0, 128, 180); const r = rnd(7); for (let i = 0; i < 22; i++) { const x = r() * 128, y = r() * 180, s = 4 + r() * 6; g.fillStyle = `rgba(255,${150 + r() * 60 | 0},${190 + r() * 40 | 0},.85)`; for (let p = 0; p < 5; p++) { g.beginPath(); g.ellipse(x + Math.cos(p * 1.256) * s, y + Math.sin(p * 1.256) * s, s * 0.7, s * 0.45, p * 1.256, 0, 7); g.fill(); } g.fillStyle = '#ffe08a'; g.beginPath(); g.arc(x, y, s * 0.3, 0, 7); g.fill(); } frame(g, 128, 180, '#ffb6d0'); label(g, 128, 180, 'SAKURA NIGHT', '#ffd6e4'); },
+    deck_neon: g => { g.fillStyle = '#160a26'; g.fillRect(0, 0, 128, 180); const r = rnd(42); g.lineCap = 'round'; for (let i = 0; i < 16; i++) { g.strokeStyle = ['#ff3fa4', '#2ef2ff', '#b6ff3a', '#ffd23f'][i % 4]; g.shadowColor = g.strokeStyle; g.shadowBlur = 8; g.lineWidth = 2 + r() * 3; g.beginPath(); g.moveTo(r() * 128, r() * 180); g.bezierCurveTo(r() * 128, r() * 180, r() * 128, r() * 180, r() * 128, r() * 180); g.stroke(); } g.shadowBlur = 0; g.fillStyle = '#fff'; g.font = '900 22px "Libre Franklin", Arial'; g.textAlign = 'center'; g.fillText('NEON', 64, 92); label(g, 128, 180, 'NEON ALLEY', '#2ef2ff'); },
+    deck_gold: g => { const gr = g.createLinearGradient(0, 0, 128, 180); gr.addColorStop(0, '#fff0b0'); gr.addColorStop(0.5, '#d6a12e'); gr.addColorStop(1, '#7a5212'); g.fillStyle = gr; g.fillRect(0, 0, 128, 180); frame(g, 128, 180, '#5a3a08', 8, 2); g.strokeStyle = '#5a3a08'; g.lineWidth = 2; for (let i = 0; i < 7; i++) { g.beginPath(); g.ellipse(64 - 26 + i * 0, 95, 10, 4, -0.6, 0, 7); } g.fillStyle = '#5a3a08'; g.beginPath(); g.moveTo(40, 98); g.lineTo(44, 74); g.lineTo(54, 88); g.lineTo(64, 68); g.lineTo(74, 88); g.lineTo(84, 74); g.lineTo(88, 98); g.closePath(); g.fill(); g.fillRect(40, 100, 48, 6); for (let i = 0; i < 6; i++) { g.beginPath(); g.ellipse(30 + i * 3, 124 - i * 9, 6, 3, -1, 0, 7); g.fill(); g.beginPath(); g.ellipse(98 - i * 3, 124 - i * 9, 6, 3, 1, 0, 7); g.fill(); } label(g, 128, 180, 'ROYAL GOLD FOIL', '#3a2404'); },
+    deck_ice: g => { const gr = g.createLinearGradient(0, 0, 0, 180); gr.addColorStop(0, '#e8f8ff'); gr.addColorStop(1, '#7fb8e6'); g.fillStyle = gr; g.fillRect(0, 0, 128, 180); const r = rnd(9); for (let i = 0; i < 26; i++) { g.fillStyle = `rgba(255,255,255,${0.15 + r() * 0.4})`; g.beginPath(); g.moveTo(r() * 128, r() * 180); g.lineTo(r() * 128, r() * 180); g.lineTo(r() * 128, r() * 180); g.fill(); } g.strokeStyle = '#2b6ea8'; g.lineWidth = 2; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(64, 90); g.lineTo(64 + Math.cos(i * 1.047) * 28, 90 + Math.sin(i * 1.047) * 28); g.stroke(); } frame(g, 128, 180, '#2b6ea8', 8, 2); label(g, 128, 180, 'ICE CRYSTAL', '#1d4f7a'); },
+    deck_ember: g => { const gr = g.createLinearGradient(0, 180, 0, 0); gr.addColorStop(0, '#ffb02e'); gr.addColorStop(0.5, '#d8301a'); gr.addColorStop(1, '#4a0a08'); g.fillStyle = gr; g.fillRect(0, 0, 128, 180); g.strokeStyle = 'rgba(255,220,140,.55)'; g.lineWidth = 1.3; for (let y = 10; y < 180; y += 12) for (let x = (y / 12 % 2) * 8; x < 136; x += 16) { g.beginPath(); g.arc(x, y, 8, 0, Math.PI); g.stroke(); } frame(g, 128, 180, '#ffd08a'); medallion(g, 128, 180, '#4a0a08', '#ffd08a', '♦'); label(g, 128, 180, 'DRAGON EMBER', '#ffe2b0'); },
+    deck_holo: g => { g.fillStyle = '#050507'; g.fillRect(0, 0, 128, 180); const gr = g.createLinearGradient(0, 0, 128, 180); ['#ff4d6d', '#ffd23f', '#3affb0', '#3ab0ff', '#b04dff', '#ff4d6d'].forEach((c, i) => gr.addColorStop(i / 5, c)); g.strokeStyle = gr; g.lineWidth = 5; g.strokeRect(9, 9, 110, 162); g.lineWidth = 1.5; for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(64, 30 + i * 2); g.lineTo(20 + i * 2, 90); g.lineTo(64, 150 - i * 2); g.lineTo(108 - i * 2, 90); g.closePath(); g.stroke(); } g.fillStyle = gr; g.font = '700 40px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('A', 64, 92); label(g, 128, 180, 'PRISM ACE · 1 OF 1', '#fff'); },
+  };
+  const deckArt = {};   // canvas per design (for the collection book)
+  const deckMatCache = {};
+  function pokerDeck(kind) {
+    if (deckMatCache[kind]) return deckMatCache[kind];
+    const c = document.createElement('canvas'); c.width = 128; c.height = 180; DECK_ART[kind](c.getContext('2d')); deckArt[kind] = c;
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    const R = DECKS[kind].rarity, gold = kind === 'deck_gold', holo = kind === 'deck_holo';
+    const face = new THREE.MeshPhysicalMaterial({ map: tex, roughness: gold ? 0.25 : 0.42, metalness: gold ? 0.75 : 0.05, clearcoat: R === 'Common' ? 0.3 : 1, iridescence: holo ? 1 : 0, emissive: holo ? '#222' : '#000', emissiveMap: holo ? tex : null, emissiveIntensity: holo ? 0.6 : 0 });
+    const sideCol = { deck_red: '#9e1022', deck_blue: '#1d3f8f', deck_noir: '#0c0c0e', deck_jade: '#0f5a45', deck_sakura: '#2a1430', deck_neon: '#160a26', deck_gold: '#c9952c', deck_ice: '#a8d4f2', deck_ember: '#b8281a', deck_holo: '#050507' }[kind];
+    const side = new THREE.MeshPhysicalMaterial({ color: sideCol, roughness: 0.45, metalness: gold ? 0.8 : 0.05, clearcoat: 0.6, iridescence: holo ? 1 : 0 });
+    const flap = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.5, emissive: R === 'Legendary' ? '#5a4a10' : R === 'Limited' ? '#2a1e06' : '#000', emissiveIntensity: 0.6 });
+    return (deckMatCache[kind] = { mats: [side, side, flap, flap, face, face], face });
+  }
+  // loose playing cards (thin; mostly filler that slides around the pile)
+  const cardBackTex = canvasTex(64, 90, g => { g.fillStyle = '#f4efe4'; g.fillRect(0, 0, 64, 90); g.fillStyle = '#9e1022'; g.fillRect(4, 4, 56, 82); lattice(g, 64, 90, 0, 'rgba(255,255,255,.4)', 8); });
+  const cardFaces = Array.from({ length: 12 }, (_, i) => canvasTex(64, 90, g => { const su = '♠♥♦♣'[i % 4], rk = 'AKQJ1098765432'.replace('10', 'T')[i % 13]; g.fillStyle = '#fbf8f0'; g.fillRect(0, 0, 64, 90); g.fillStyle = su === '♥' || su === '♦' ? '#c8102e' : '#151515'; g.font = '700 16px Georgia, serif'; g.textAlign = 'left'; g.fillText((rk === 'T' ? '10' : rk) + su, 5, 18); g.font = '40px Georgia, serif'; g.textAlign = 'center'; g.fillText(su, 32, 60); }));
+  const cardEdge = new THREE.MeshStandardMaterial({ color: '#f4efe4', roughness: 0.7 });
+  const cardBackM = new THREE.MeshStandardMaterial({ map: cardBackTex, roughness: 0.5 });
+  const cardMats = cardFaces.map(t => [cardEdge, cardEdge, new THREE.MeshStandardMaterial({ map: t, roughness: 0.5 }), cardBackM, cardEdge, cardEdge]);
+  const cardGeo = new THREE.BoxGeometry(0.063, 0.0012, 0.088), deckGeo = new RoundedBoxGeometry(0.063, 0.088, 0.022, 2, 0.002);
+
   // cocktail glasses (lathe profiles: radius, height in metres), with the drink inside and a garnish
   const V2 = (x, y) => new THREE.Vector2(x, y);
   const GLASSES = {
@@ -196,6 +252,16 @@ function start() {
     } else if (kind === 'bar') {
       col(RAPIER.ColliderDesc.cuboid(0.047, 0.015, 0.022).setDensity(500).setFriction(0.6));
       obj = new THREE.Mesh(barGeo, barM); obj.castShadow = obj.receiveShadow = true;
+    } else if (DECKS[kind] && POKER) {
+      col(RAPIER.ColliderDesc.cuboid(0.0315, 0.044, 0.011).setDensity(500).setFriction(0.6));
+      obj = new THREE.Mesh(deckGeo, pokerDeck(kind).mats); obj.castShadow = obj.receiveShadow = true;
+      if (DECKS[kind].rarity !== 'Common') {   // a little seal sticker on the flap
+        const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.0235, 16), new THREE.MeshStandardMaterial({ color: { Rare: '#c0c4cc', Limited: '#f2c14e', Legendary: '#ffffff' }[DECKS[kind].rarity], metalness: 0.8, roughness: 0.3 }));
+        seal.rotation.x = Math.PI / 2; seal.position.y = 0.044; obj.add(seal);
+      }
+    } else if (kind === 'card') {
+      col(RAPIER.ColliderDesc.cuboid(0.0315, 0.0022, 0.044).setDensity(300).setFriction(0.5));
+      obj = new THREE.Mesh(cardGeo, cardMats[Math.floor(Math.random() * cardMats.length)]); obj.castShadow = obj.receiveShadow = true;
     } else if (kind === 'cards') {
       col(RAPIER.ColliderDesc.cuboid(0.03, 0.042, 0.011).setDensity(500).setFriction(0.6));
       obj = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.084, 0.022, 2, 0.002), deckMats); obj.castShadow = obj.receiveShadow = true;
@@ -223,7 +289,8 @@ function start() {
     for (const p of prizes) { const t2 = p.body.translation(); if (t2.y < 0.02 && t2.x < CH.x1 + 0.005 && t2.z > CH.z0 - 0.005 || t2.y < -0.05) { const r = randomSpot(); p.body.setTranslation({ x: r.x, y: 0.3, z: r.z }, true); p.body.setLinvel({ x: 0, y: 0, z: 0 }, true); } }
   }
   // a fixed mix of prizes, piled up (each one won is restocked with the same kind)
-  const STOCK_MIX = { chip: 40, chips: 20, dice: 15, cards: 15, rocks: 13, highball: 13, martini: 13, cash: 9, champagne: 5, bar: 3, golden: 1 };
+  const STOCK_MIX = POKER ? { card: 40, deck_red: 16, deck_blue: 16, deck_noir: 8, deck_jade: 8, deck_sakura: 8, deck_neon: 7, deck_gold: 4, deck_ice: 4, deck_ember: 3, deck_holo: 1 }
+    : { chip: 40, chips: 20, dice: 15, cards: 15, rocks: 13, highball: 13, martini: 13, cash: 9, champagne: 5, bar: 3, golden: 1 };
   const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
   // pour them in a few at a time, letting each layer settle, so they pile up instead of exploding
   for (let i = 0; i < STOCK.length; i += 16) {
@@ -267,8 +334,8 @@ function start() {
   const marqueeTex = canvasTex(1024, 256, g => {
     g.fillStyle = '#0a0406'; g.fillRect(0, 0, 1024, 256);
     const gr = g.createLinearGradient(0, 60, 0, 200); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#e0a23a');
-    g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Lucky Claw', 512, 120);
-    g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText('♠  ♥  ODDS LOUNGE  ♦  ♣', 512, 212);
+    g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(POKER ? 'Deck Hunter' : 'Lucky Claw', 512, 120);
+    g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText(POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : '♠  ♥  ODDS LOUNGE  ♦  ♣', 512, 212);
   });
   const marquee = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.05), [blackGloss, blackGloss, blackGloss, blackGloss, new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false }), blackGloss]);
   marquee.position.set(0, 0.67, ZF - 0.01); scene.add(marquee);
@@ -328,8 +395,8 @@ function start() {
   // Even a strong play isn't a sure thing: SLIP is the chance it eases to MID strength at the top, and the swing on
   // the way to the chute can still shake a prize loose. COMBO: bonus for each extra prize dropped in the same play.
   const TUNE = { TARGET: 0.9, STRONG_AT: 50, LUCKY: 0.06, BANK_MAX: 300, GRIP: 0.1, WEAK: 0.15, LOOSE: 0.3, SLIP: 0.3, MID: 0.4, COMBO: 50, P_STRONG: null };
-  let bank = (() => { try { return +localStorage.getItem('ol-claw-bank') || 0; } catch (e) { return 0; } })();
-  const saveBank = () => { if (!G.sim) try { localStorage.setItem('ol-claw-bank', String(Math.round(bank))); } catch (e) { /* ignore */ } };
+  let bank = (() => { try { return +localStorage.getItem('ol-claw-bank' + SUFFIX) || 0; } catch (e) { return 0; } })();
+  const saveBank = () => { if (!G.sim) try { localStorage.setItem('ol-claw-bank' + SUFFIX, String(Math.round(bank))); } catch (e) { /* ignore */ } };
   function newPlay() {
     bank = Math.min(TUNE.BANK_MAX, bank + COST * TUNE.TARGET);
     G.strong = TUNE.P_STRONG != null ? Math.random() < TUNE.P_STRONG : (bank >= TUNE.STRONG_AT || Math.random() < TUNE.LUCKY);
@@ -399,7 +466,7 @@ function start() {
       }
     }
   }
-  const collection = (() => { try { return JSON.parse(localStorage.getItem('ol-claw-col') || '{}') || {}; } catch (e) { return {}; } })();
+  const collection = (() => { try { return JSON.parse(localStorage.getItem('ol-claw-col' + SUFFIX) || '{}') || {}; } catch (e) { return {}; } })();
   function win(p) {
     // a second (third…) prize in the same play earns the combo bonus
     G.playWins = (G.playWins || 0) + 1;
@@ -407,10 +474,10 @@ function start() {
     bank -= v; saveBank();
     if (G.sim) { G.simWon += v; G.simWins++; G.simKinds[p.kind] = (G.simKinds[p.kind] || 0) + 1; return; }
     pending += v; wonTotal += v; G.got = true;
-    collection[p.kind] = (collection[p.kind] || 0) + 1; try { localStorage.setItem('ol-claw-col', JSON.stringify(collection)); } catch (e) { /* ignore */ }
+    collection[p.kind] = (collection[p.kind] || 0) + 1; try { localStorage.setItem('ol-claw-col' + SUFFIX, JSON.stringify(collection)); } catch (e) { /* ignore */ }
     fanfare(); if (p.value < 150) voice(bonus ? 'Double!' : 'Got it!', bonus ? '一抓两个！' : '抓到啦！');
     showWin(p, bonus);
-    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, drinks: ['rocks', 'highball', 'martini'].filter(k => collection[k]).length, combo: bonus > 0 } }));
+    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, drinks: ['rocks', 'highball', 'martini'].filter(k => collection[k]).length, decks: Object.keys(DECKS).filter(k => collection[k]).length, machine: MACHINE, combo: bonus > 0 } }));
     paint();
   }
 
@@ -420,10 +487,11 @@ function start() {
   const winCard = document.createElement('div'); winCard.className = 'cl-win'; winCard.hidden = true; host.appendChild(winCard);
   function showWin(p, bonus) {
     winCard.innerHTML = bonus ? `<small>${tr('Double grab!')}</small><b>${tr(p.name)}</b><em>+${p.value} +${bonus}</em>` : `<small>${tr('You won')}</small><b>${tr(p.name)}</b><em>+${p.value}</em>`;
+    if (p.rarity) winCard.insertAdjacentHTML('afterbegin', `<span class="cl-rar r-${p.rarity.toLowerCase()}">${tr(p.rarity)}</span>`);
     winCard.classList.toggle('big', p.value >= 150 || !!bonus);
     winCard.hidden = false; winCard.classList.remove('go'); void winCard.offsetWidth; winCard.classList.add('go');
     clearTimeout(showWin.t); showWin.t = setTimeout(() => { winCard.hidden = true; }, 2600);
-    if (p.value >= 150) { voice(p.kind === 'golden' ? 'Lucky chip! Jackpot!' : 'Big prize!', p.kind === 'golden' ? '幸运金币！大奖！' : '大奖！'); bulbsHot = 4; }
+    if (p.value >= 150) { const leg = p.kind === 'golden' || p.kind === 'deck_holo'; voice(leg ? 'Legendary! Jackpot!' : 'Big prize!', leg ? '传说级！大奖！' : '大奖！'); bulbsHot = 4; }
   }
   function paint() {
     $('#clInsert').disabled = G.state !== 'idle';
@@ -436,9 +504,18 @@ function start() {
   $('#clDrop').onclick = () => { audio(); dropClaw(); };
   $('#clCol').onclick = () => {
     let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
-    d.innerHTML = `<h2>${tr('Prize collection')}</h2><p class="sub">${tr('Everything you have won from the claw machine.')}</p><p class="sub">${tr('Drop two prizes in one play for a +50 combo bonus. The golden lucky chip is the jackpot.')}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
+    if (POKER) {
+      // the collection book: every design, greyed out until you've won one
+      const keys = Object.keys(DECKS), have = keys.filter(k => collection[k]).length;
+      const cards = keys.map(k => { pokerDeck(k); const v = DECKS[k]; return `<figure class="cl-deck${collection[k] ? '' : ' no'}"><img src="${deckArt[k].toDataURL()}" alt=""><figcaption><b>${tr(v.name)}</b><span class="r-${v.rarity.toLowerCase()}">${tr(v.rarity)}</span><small>${tr('worth')} ${v.value} · × ${collection[k] || 0}</small></figcaption></figure>`; }).join('');
+      d.innerHTML = `<h2>${tr('Deck collection')}</h2><p class="sub">${tr('Collected')} <b>${have}</b> / ${keys.length}. ${tr('Collect all ten designs for the Full Set badge.')}</p><div class="cl-book">${cards}</div><p class="sub">${tr('Loose cards are worth 5. Drop two prizes in one play for a +50 combo bonus.')}</p><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
+    } else {
+      d.innerHTML = `<h2>${tr('Prize collection')}</h2><p class="sub">${tr('Everything you have won from the claw machine.')}</p><p class="sub">${tr('Drop two prizes in one play for a +50 combo bonus. The golden lucky chip is the jackpot.')}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
+    }
     d.onclick = e => { if (e.target.closest('[data-close]')) d.close(); }; d.showModal();
   };
+  const mBtn = $('#clMachine');
+  if (mBtn) { mBtn.textContent = tr(POKER ? 'Casino machine' : 'Poker machine'); mBtn.onclick = () => { try { localStorage.setItem('ol-claw-m', POKER ? 'casino' : 'poker'); } catch (e) { /* ignore */ } flush(); location.href = location.pathname + (POKER ? '?m=casino' : '?m=poker'); }; }
   // joystick: drag inside the pad; or arrow keys / WASD
   const pad = $('#clPad'), knob = $('#clKnob');
   let padId = null;
@@ -503,6 +580,7 @@ function start() {
     aimRing.visible = G.state === 'aim'; aimRing.position.set(G.cx, 0.003, G.cz); aimRing.material.opacity = 0.45 + Math.sin(t * 6) * 0.2;
     stick.rotation.set(input.z * 0.35, 0, -input.x * 0.35);
     if (bulbsHot > 0) bulbsHot -= 1 / 60;
+    if (deckMatCache.deck_holo) { deckMatCache.deck_holo.face.emissiveIntensity = 0.4 + Math.max(0, Math.sin(t * 2.4)) * 0.6; deckMatCache.deck_holo.face.iridescenceIOR = 1.3 + Math.sin(t) * 0.2; }
     goldChipM.forEach(m => { m.emissiveIntensity = 0.3 + Math.max(0, Math.sin(t * 2.2)) * 0.5; });
     bulbs.forEach((b, i) => { const on = bulbsHot > 0 ? (i + Math.floor(t * 30)) % 2 === 0 : G.state === 'idle' ? (i + Math.floor(t * 5)) % 3 === 0 : (i + Math.floor(t * 12)) % 2 === 0; b.material.color.setRGB(on ? 1.5 : 0.4, on ? 1.1 : 0.28, on ? 0.45 : 0.1); });
     ledM.color.setRGB(1.1 + Math.sin(t * 3) * 0.2, 0.8, 0.34);
@@ -524,7 +602,7 @@ function start() {
       const bank0 = bank; G.sim = true; G.simWon = 0; G.simWins = 0; G.simKinds = {}; const tries = {}; let cost = 0;
       for (let k = 0; k < n; k++) {
         cost += COST; newPlay();
-        const tgt = prizes.filter(p => { const t2 = p.body.translation(); return p.kind !== 'chip' && !(t2.x < CH.x1 + 0.03 && t2.z > CH.z0 - 0.03) && true; }).sort((a, b) => b.body.translation().y - a.body.translation().y).slice(0, 14);
+        const tgt = prizes.filter(p => { const t2 = p.body.translation(); return p.kind !== 'chip' && p.kind !== 'card' && !(t2.x < CH.x1 + 0.03 && t2.z > CH.z0 - 0.03) && true; }).sort((a, b) => b.body.translation().y - a.body.translation().y).slice(0, 14);
         const p = tgt[Math.floor(Math.random() * tgt.length)]; if (!p) continue; tries[p.kind] = (tries[p.kind] || 0) + 1;
         const ox = (Math.random() - 0.5) * noise, oz = (Math.random() - 0.5) * noise;
         let guard = 0;
@@ -540,6 +618,7 @@ function start() {
       return { plays: n, cost, won: G.simWon, wins: G.simWins, rtp: +(G.simWon / cost).toFixed(3), tries, got: G.simKinds, bank: Math.round(simBank) };
     },
     state: () => ({ ...G, prizes: prizes.length }),
+    head: () => { const h = headBody.translation(); return [+h.x.toFixed(3), +h.y.toFixed(3), +h.z.toFixed(3)]; },
     step: n => { for (let i = 0; i < n; i++) step(world.timestep); },
     grip: (a, k) => setGrip(a, k),
     tune: o => Object.assign(TUNE, o),

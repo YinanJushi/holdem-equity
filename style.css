@@ -938,3 +938,14 @@ body.cl-aiming .cl-timer { display: block; }
 @media (max-width: 640px) { .cl-msg { top: calc(58px + env(safe-area-inset-top)); } }
 .cl-win.big { border-color: #fff1c4; box-shadow: 0 0 60px rgba(255,200,90,.85), inset 0 0 24px rgba(255,190,80,.35); }
 .cl-win.big em { font-size: 38px; }
+/* claw machine: the poker deck collection book */
+.cl-book { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; margin: 12px 0; max-height: 52vh; overflow: auto; }
+.cl-deck { margin: 0; text-align: center; }
+.cl-deck img { width: 64px; height: 90px; border-radius: 5px; box-shadow: 0 3px 8px rgba(0,0,0,.35); }
+.cl-deck.no img { filter: grayscale(1) brightness(.45); }
+.cl-deck figcaption { display: grid; gap: 2px; font-size: 12px; margin-top: 4px; }
+.cl-deck small { opacity: .7; }
+.r-common { color: #6b6b6b; } .r-rare { color: #2a6fd6; } .r-limited { color: #b8860b; } .r-legendary { color: #a03ad8; }
+.cl-deck figcaption span { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.cl-rar { display: block; font: 700 12px var(--sans); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 2px; }
+.cl-win .r-common { color: #d8d0c0; } .cl-win .r-rare { color: #7fb4ff; } .cl-win .r-limited { color: #ffd36a; } .cl-win .r-legendary { color: #e3a6ff; text-shadow: 0 0 10px #c060ff; }
