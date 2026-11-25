@@ -12,11 +12,24 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=98';
+import { headerChrome, onQuality } from './chrome3d.js?v=103';
+import { createExtras } from './pusher-extras.js?v=103';
 
 
 // ---------- themes: each one dresses the whole machine and has its own way of celebrating the big wins ----------
 const THEMES = {
+  retro: {
+    id: 'retro', name: 'Retro 2000', sign: 'PUSHER 2000', signFont: 'italic 900 100px "Arial Black", Arial, sans-serif', signCols: ['#ffe14d', '#ff4fd8'], signGlow: 'rgba(255,80,220,.9)',
+    bg: '#0a0620', room: '#120a2a', side: '#e9dcc0', slab: '#1c1f4a', deck: ['#121648', '#1e2468'], deckLine: 'rgba(53,224,255,.22)', deckText: 'PUSHER 2000',
+    neon: [[2.2, 0.3, 1.8], [0.3, 1.8, 2.2]], led: [0.4, 1.8, 2.4], bulbHue: 0.85, lip: [0.4, 2, 2.4],
+    screen: ['#140a2a', '#07040f'], frame: '#e9dcc0',
+    silver: ['#c8902a', '#ffe08a', '#8a5a12', '★', 1], gold: ['#d8d8e6', '#ffffff', '#7a7a92', '✦', 1, '#5a5a70'],
+    collect: { coin: ['#18c8e8', '#d0f8ff', '#05506a', '✦', 0.8, '#20e0ff'], glyph: '✦', name: 'neon coin', col: [0.4, 1.8, 2.4] },
+    superName: 'HYPER DRIVE', superFx: 'laser', jpFx: 'neon',
+    wheel: { a: '#1c1f4a', b: '#3a1f6a', jp: '#ffe14d', jpText: '#3a1f6a', star: '#18c8e8', tower: '#ff4fd8', text: '#f0f4ff', hub: '#120a2a', rim: '#35e0ff' },
+    fx: [[2, 0.4, 1.8], [0.4, 1.8, 2.2]], accent: '#ff4fd8', ledA: '#35e0ff', ledB: '#ff4fd8',
+    voice: { super: ['Hyper drive jackpot!', '超光速大奖！'], jp: ['Jackpot!', '中大奖啦！'], tower: ['Tower down!', '推倒硬币塔！'], chance: ['Jackpot chance!', '大奖机会！'] },
+  },
   macau: {
     id: 'macau', name: 'Macau Night', sign: 'Macau Nights', signFont: 'italic 700 104px Georgia, serif', signCols: ['#fff1c4', '#e0a23a'], signGlow: 'rgba(255,120,60,.85)',
     bg: '#0b0410', room: '#12060a', side: '#7a0f1e', slab: '#2a0a12', deck: ['#3a0610', '#5c0a18'], deckLine: 'rgba(255,200,90,.18)', deckText: 'Odds Lounge · 澳门',
@@ -26,7 +39,7 @@ const THEMES = {
     collect: { coin: ['#b8102a', '#ffd0c8', '#6a0612', '福', 0.7, '#c0102a'], glyph: '福', name: 'lucky coin', col: [1.6, 0.35, 0.3] },
     superName: 'GOLDEN DRAGON', superFx: 'dragon', jpFx: 'firecrackers',
     wheel: { a: '#9c0f1f', b: '#6a0a16', jp: '#ffd24a', jpText: '#9c0f1f', star: '#e3263a', tower: '#7a4a12', text: '#ffe9b0', hub: '#7a0f1e', rim: '#f2c14e' },
-    fx: [[1.6, 0.35, 0.25], [1.4, 1.0, 0.3]],
+    fx: [[1.6, 0.35, 0.25], [1.4, 1.0, 0.3]], accent: '#e3263a', ledA: '#ffd24a', ledB: '#ff4b4b',
     voice: { super: ['Golden dragon jackpot!', '金龙大奖！恭喜发财！'], jp: ['Jackpot!', '恭喜发财，中大奖啦！'], tower: ['Tower down!', '推倒硬币塔！'], chance: ['Jackpot chance!', '大奖机会！'] },
   },
   choco: {
@@ -38,13 +51,13 @@ const THEMES = {
     collect: { coin: ['#ff4f9a', '#ffe0f0', '#9a0f4e', '✿', 0.4, '#ff2f8a'], glyph: '♥', name: 'candy coin', col: [1.8, 0.5, 1.2] },
     superName: 'CHOCOLATE FOUNTAIN', superFx: 'waterfall', jpFx: 'sprinkles',
     wheel: { a: '#6b3a22', b: '#ff8fc4', jp: '#ffe14d', jpText: '#6b3a22', star: '#ff4f9a', tower: '#4cc2a0', text: '#fff6e0', hub: '#5a2e17', rim: '#ffd0e6' },
-    fx: [[1.8, 0.5, 1.2], [0.5, 1.8, 1.4]],
+    fx: [[1.8, 0.5, 1.2], [0.5, 1.8, 1.4]], accent: '#ff4f9a', ledA: '#7cf0c8', ledB: '#ff8fc4',
     voice: { super: ['Chocolate fountain jackpot!', '巧克力瀑布大奖！'], jp: ['Sweet jackpot!', '甜蜜大奖！'], tower: ['Cake tower down!', '蛋糕塔倒啦！'], chance: ['Sweet chance!', '甜蜜大奖机会！'] },
   },
 };
 const THEME_KEY = 'ol-pz-theme';
-let THEME = THEMES.macau;
-try { THEME = THEMES[localStorage.getItem(THEME_KEY)] || THEMES.macau; } catch (e) { /* default */ }
+let THEME = THEMES.retro;
+try { THEME = THEMES[localStorage.getItem(THEME_KEY)] || THEMES.retro; } catch (e) { /* default */ }
 
 const COIN = 5, GOLD = 5, $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#pzHost');
@@ -65,7 +78,7 @@ function start() {
   const key = new THREE.SpotLight('#fff1dc', 1.9, 3, 0.9, 1, 1.2); key.position.set(0.1, 1.0, 0.25); key.target.position.set(0, 0, -0.15); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0005; scene.add(key, key.target);
 
   // ---------- the machine's layout (metres; z points toward you) ----------
-  const W = 0.36, FRONT = 0.3, BACK = -0.72, WIN = 0.15;
+  const W = 0.36, FRONT = 0.3, BACK = -0.72, WIN = 0.16;
   const R = 0.028, TH = 0.009;                                   // coin radius and thickness
   const P1 = { h: 0.06, d: 0.4 }, SLAB = { y0: 0.064, y1: 0.15, z1: -0.3 };   // lower pusher; the upper deck slab above its back half
   const P2 = { h: 0.04, d: 0.22 }, SCRAPER = { y0: 0.194, z1: -0.5 };        // upper pusher; the scraper above its back half
@@ -145,7 +158,21 @@ function start() {
   function backdropTex() {
     const c = document.createElement('canvas'); c.width = 720; c.height = 800; const g = c.getContext('2d');
     const w = c.width, h = c.height, rnd = (a, b) => a + Math.random() * (b - a);
-    if (THEME.id === 'macau') {
+    if (THEME.id === 'retro') {
+      // a synthwave evening: striped sun, mountains, a city skyline and a neon grid running to the horizon
+      const sky = g.createLinearGradient(0, 0, 0, h * 0.62); sky.addColorStop(0, '#0b0626'); sky.addColorStop(0.6, '#3a1462'); sky.addColorStop(1, '#ff4f9a'); g.fillStyle = sky; g.fillRect(0, 0, w, h * 0.62);
+      for (let i = 0; i < 80; i++) { g.fillStyle = `rgba(255,255,255,${rnd(0.2, 0.9)})`; g.fillRect(rnd(0, w), rnd(0, h * 0.4), 2, 2); }
+      const cx = w / 2, cy = h * 0.5, sr = 150;
+      const sun = g.createLinearGradient(0, cy - sr, 0, cy + sr); sun.addColorStop(0, '#ffe14d'); sun.addColorStop(0.6, '#ff7a3d'); sun.addColorStop(1, '#ff2f8a'); g.fillStyle = sun; g.beginPath(); g.arc(cx, cy, sr, 0, 7); g.fill();
+      g.fillStyle = '#3a1462'; for (let k = 0; k < 7; k++) { const y = cy + 10 + k * 20; g.fillRect(cx - sr, y, sr * 2, 3 + k * 1.6); }
+      g.fillStyle = '#1a0a3a'; g.beginPath(); g.moveTo(0, h * 0.62); [[0.08, 0.48], [0.2, 0.55], [0.32, 0.44], [0.46, 0.58], [0.58, 0.5], [0.72, 0.43], [0.86, 0.54], [1, 0.47]].forEach(([x, y]) => g.lineTo(x * w, y * h)); g.lineTo(w, h * 0.62); g.fill();
+      g.fillStyle = '#0d0624'; for (let x = cx - 150; x < cx + 150; x += rnd(18, 30)) { const bh = rnd(30, 120); g.fillRect(x, h * 0.62 - bh, rnd(14, 24), bh); }
+      const ground = g.createLinearGradient(0, h * 0.62, 0, h); ground.addColorStop(0, '#1a0640'); ground.addColorStop(1, '#05020f'); g.fillStyle = ground; g.fillRect(0, h * 0.62, w, h * 0.38);
+      g.strokeStyle = 'rgba(255,79,216,.85)'; g.lineWidth = 2; g.shadowColor = '#ff4fd8'; g.shadowBlur = 10;
+      for (let k = -14; k <= 14; k++) { g.beginPath(); g.moveTo(cx + k * 12, h * 0.62); g.lineTo(cx + k * 90, h); g.stroke(); }
+      for (let k = 0; k < 9; k++) { const y = h * 0.62 + Math.pow(k / 8, 2) * h * 0.38; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+      g.shadowBlur = 0;
+    } else if (THEME.id === 'macau') {
       // night sky over a skyline of towers with lit windows, a lotus-shaped tower in the middle, neon signs
       const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#12052a'); sky.addColorStop(0.55, '#3a0a2a'); sky.addColorStop(1, '#5a0f1c'); g.fillStyle = sky; g.fillRect(0, 0, w, h);
       for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(255,255,255,${rnd(0.2, 0.8)})`; g.fillRect(rnd(0, w), rnd(0, h * 0.45), 2, 2); }
@@ -175,6 +202,16 @@ function start() {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
   }
   function buildDecor() {
+    if (THEME.id === 'retro') {
+      // chrome trim along the top of the side panels and glowing neon tubes at the front corners
+      const chrome = new THREE.MeshStandardMaterial({ color: '#e6e9f2', metalness: 1, roughness: 0.15 });
+      [-1, 1].forEach(sd => {
+        const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, FRONT - BACK + 0.1, 16), chrome); trim.rotation.x = Math.PI / 2; trim.position.set(sd * (W + 0.03), 0.672, (FRONT + BACK) / 2); scene.add(trim);
+        const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.5, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color(...THEME.neon[sd < 0 ? 0 : 1]) })); tube.position.set(sd * (W + 0.065), 0.22, FRONT + 0.05); scene.add(tube);
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 10), chrome); cap.position.set(sd * (W + 0.065), 0.475, FRONT + 0.05); scene.add(cap);
+      });
+      return;
+    }
     if (THEME.id === 'macau') {
       // red lanterns on the side panels, glowing
       const lanternM = new THREE.MeshStandardMaterial({ color: '#c8102a', emissive: '#ff1a2e', emissiveIntensity: 0.9, roughness: 0.5 });
@@ -254,13 +291,14 @@ function start() {
   const signM = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.12), new THREE.MeshBasicMaterial({ map: sign.t, transparent: true })); signM.position.set(0, 0.73, BACK + 0.005); scene.add(signM);
   const bulbs = []; for (let i = 0; i < 22; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' })); b.position.set(-W + 0.02 + i * ((W * 2 - 0.04) / 21), 0.8, BACK + 0.01); scene.add(b); bulbs.push(b); }
   // ---------- the slot screen on the back wall: three reels, spun by the Lucky Gate ----------
-  const SYM = ['COIN', 'GOLD', 'WALL', 'TOWER', 'STAR', 'JP', 'SEVEN'];
-  const STRIP = ['COIN', 'SEVEN', 'GOLD', 'WALL', 'COIN', 'TOWER', 'JP', 'COIN', 'STAR', 'WALL', 'SEVEN', 'GOLD', 'TOWER', 'COIN'];
+  const SYM = ['COIN', 'GOLD', 'WALL', 'TOWER', 'STAR', 'JP', 'SEVEN', 'CLAW'];
+  const STRIP = ['COIN', 'SEVEN', 'CLAW', 'WALL', 'COIN', 'TOWER', 'JP', 'GOLD', 'STAR', 'WALL', 'SEVEN', 'CLAW', 'TOWER', 'COIN'];
   function drawSym(g, sym, cx, cy, s) {
     g.save(); g.translate(cx, cy);
     const coin = (c1, c2, mark, mc) => { const gr = g.createRadialGradient(-s * 0.15, -s * 0.15, 2, 0, 0, s * 0.42); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, s * 0.38, 0, 7); g.fill(); g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, s * 0.31, 0, 7); g.stroke(); g.fillStyle = mc; g.font = `800 ${s * 0.36}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 0, s * 0.03); };
     const choco = THEME.id === 'choco';
-    if (sym === 'COIN') choco ? coin('#e8b48a', '#6b3a22', '♥', '#3b1d0e') : coin('#ffffff', '#8c8f9c', '♠', '#4a4c58');
+    if (sym === 'COIN' && THEME.id === 'retro') coin('#fff1b0', '#c8902a', '★', '#7a4a10');
+    else if (sym === 'COIN') choco ? coin('#e8b48a', '#6b3a22', '♥', '#3b1d0e') : coin('#ffffff', '#8c8f9c', '♠', '#4a4c58');
     else if (sym === 'GOLD' && !choco) { g.fillStyle = '#f2c14e'; g.strokeStyle = '#8a5a12'; g.lineWidth = 4; g.beginPath(); g.moveTo(-s * 0.36, -s * 0.02); g.quadraticCurveTo(-s * 0.3, s * 0.22, 0, s * 0.24); g.quadraticCurveTo(s * 0.3, s * 0.22, s * 0.36, -s * 0.02); g.quadraticCurveTo(s * 0.18, s * 0.06, s * 0.12, -s * 0.06); g.quadraticCurveTo(0, -s * 0.3, -s * 0.12, -s * 0.06); g.quadraticCurveTo(-s * 0.18, s * 0.06, -s * 0.36, -s * 0.02); g.fill(); g.stroke(); }
     else if (sym === 'GOLD') coin('#fff1b0', '#c8902a', '♥', '#7a4a10');
     else if (sym === 'STAR' && !choco) coin('#ff8a8a', '#b8102a', '福', '#ffe08a');
@@ -271,6 +309,7 @@ function start() {
     else if (sym === 'JP') { g.fillStyle = THEME.id === 'choco' ? '#ff4f9a' : '#c8102e'; g.beginPath(); g.roundRect(-s * 0.4, -s * 0.3, s * 0.8, s * 0.6, s * 0.12); g.fill(); g.strokeStyle = '#ffd86a'; g.lineWidth = 5; g.stroke(); g.fillStyle = '#ffe08a'; g.font = `900 ${s * 0.4}px Arial`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('JP', 0, s * 0.02); }
     else if (sym === 'WALL') { g.fillStyle = '#4fc8ff'; g.shadowColor = '#4fc8ff'; g.shadowBlur = 12; [-1, 1].forEach(k => { g.save(); g.rotate(k * 0.5); g.fillRect(k * s * 0.16 - s * 0.05, -s * 0.34, s * 0.1, s * 0.68); g.restore(); }); }
     else if (sym === 'TOWER') { for (let i = 0; i < 6; i++) { const y = s * 0.3 - i * s * 0.11; g.fillStyle = i === 5 ? '#f2c14e' : '#d8dbe6'; g.beginPath(); g.ellipse(0, y, s * 0.24, s * 0.07, 0, 0, 7); g.fill(); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 2; g.stroke(); } }
+    else if (sym === 'CLAW') { g.strokeStyle = '#c9ced8'; g.lineWidth = s * 0.05; g.lineCap = 'round'; g.beginPath(); g.moveTo(0, -s * 0.4); g.lineTo(0, -s * 0.12); g.stroke(); g.fillStyle = THEME.accent || '#ff4fa0'; g.beginPath(); g.roundRect(-s * 0.12, -s * 0.16, s * 0.24, s * 0.12, 4); g.fill(); [-1, 0, 1].forEach(k => { g.beginPath(); g.moveTo(k * s * 0.06, -s * 0.04); g.quadraticCurveTo(k * s * 0.28, s * 0.12, k * s * 0.12, s * 0.3); g.stroke(); }); }
     else if (sym === 'SEVEN') { g.fillStyle = '#ff3b4e'; g.strokeStyle = '#fff'; g.lineWidth = 4; g.font = `900 ${s * 0.7}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.strokeText('7', 0, s * 0.04); g.fillText('7', 0, s * 0.04); }
     g.restore();
   }
@@ -398,7 +437,7 @@ function start() {
   const meter = document.createElement('div'); meter.className = 'pz-jp'; meter.setAttribute('role', 'status'); host.appendChild(meter);
   function paintMeter(flash) {
     meter.innerHTML = `<small>JP</small><b class="pz-pot">${Math.round(JP.pot || 500).toLocaleString('en-US')}</b><i class="pz-sep"></i><small>${tr(THEME.superName)}</small><span class="pz-stars">${[0, 1, 2].map(i => `<i class="${i < JP.stars ? 'on' : ''}">${THEME.collect.glyph}</i>`).join('')}</span><b>${jpSize()}</b><small>${tr('coins')}</small>`;
-    meter.title = THEME.id === 'macau' ? tr('Push 3 red lucky coins into the tray to win the golden dragon jackpot.') : tr('Push 3 pink candy coins into the tray to win the chocolate fountain jackpot.');
+    meter.title = tr({ macau: 'Push 3 red lucky coins into the tray to win the golden dragon jackpot.', choco: 'Push 3 pink candy coins into the tray to win the chocolate fountain jackpot.', retro: 'Push 3 cyan neon coins into the tray to win the hyper drive jackpot.' }[THEME.id]);
     if (flash) { meter.classList.remove('flash'); void meter.offsetWidth; meter.classList.add('flash'); }
   }
   let lastPot = -1;
@@ -423,7 +462,8 @@ function start() {
     showBanner(tr(THEME.superName) + '!', `${n} ${tr('coins')}`); bannerHold(5000);
     lamp.redraw(tr(THEME.superName) + '!', `${n} ${tr('coins')}`, THEME.id === 'macau' ? '#ffd24a' : '#ff8fc4');
     fanfare(true); setTimeout(() => fanfare(true), 700); shake = 2; voice(...THEME.voice.super);
-    if (THEME.superFx === 'dragon') fxDragon(); else fxWaterfall();
+    if (extras) extras.beaconOn(8);
+    if (THEME.superFx === 'dragon') fxDragon(); else if (THEME.superFx === 'laser') fxLaser(); else fxWaterfall();
     window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: 'super', n } }));
     paintMeter(true);
     setTimeout(() => { if (!slot.active && !wheel.active) lamp.redraw(); }, 9000);
@@ -448,16 +488,18 @@ function start() {
       pending -= COIN; dropped += COIN; drops++;
     }
     const gold = drops % 20 === 0, star = !gold && Math.random() < STAR_P;
-    if (!free || sim) { JP.since++; JP.pot = Math.min(5000, (JP.pot || JP_POT0) + 0.1); if (!sim && JP.since % JP_EVERY === 0) { saveJP(); paintMeter(); } towerDrops++; if (towerDrops % TOWER_EVERY === 0) growTower(); }
+    if (!free || sim) { JP.since++; JP.pot = Math.min(5000, (JP.pot || JP_POT0) + 0.1); if (!sim && JP.since % JP_EVERY === 0) { saveJP(); paintMeter(); } towerDrops++; if (towerDrops % TOWER_EVERY === 0) growTower();
+      prizeDrops++; if (extras && prizeDrops % PRIZE_EVERY === 0) extras.dropPrize(aimX + (Math.random() - 0.5) * 0.1);
+      if (prizeDrops % 90 === 0 && towers.filter(t => !t.main).length < 2) buildTower((Math.random() - 0.5) * 0.4, 0.14 + Math.random() * 0.1, 0, false); }
     const c = addCoin(aimX + (Math.random() - 0.5) * 0.006, DROP.y, DROP.z + (Math.random() - 0.5) * 0.01, gold, { gate: true, vy: -0.4, star });
-    if (c && star && !sim) { burst(c.body.translation().x, DROP.y, DROP.z, 25, 0.5, THEME.collect.col); pop(tr(THEME.id === 'macau' ? 'LUCKY COIN!' : 'CANDY COIN!'), 'star'); }
+    if (c && star && !sim) { burst(c.body.translation().x, DROP.y, DROP.z, 25, 0.5, THEME.collect.col); pop(tr({ macau: 'LUCKY COIN!', choco: 'CANDY COIN!', retro: 'NEON COIN!' }[THEME.id]), 'star'); }
     if (c && !sim) { beep(1800); info(); document.body.classList.add('pz-played'); window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-drop' } })); }
   }
 
   // ---------- the bonus lamp ----------
   const BONUS = [
     { k: 'shower', sym: 'COIN', p: 0.13, big: 'COIN SHOWER', small: '6 free coins' },
-    { k: 'gold', sym: 'GOLD', p: 0.12, big: 'GOLD RUSH', small: '2 gold coins' },
+    { k: 'claw', sym: 'CLAW', p: 0.12, big: 'CLAW GRAB', small: 'the claw picks up a prize' },
     { k: 'topple', sym: 'TOWER', p: 0.07, big: 'TOWER FALL', small: 'the coin tower comes down' },
     { k: 'walls', sym: 'WALL', p: 0.14, big: 'FUNNEL WALLS', small: 'walls guide the corners in for 15 seconds' },
     { k: 'star', sym: 'STAR', p: 0.015, big: 'STAR!', small: 'a star toward the super jackpot' },
@@ -479,7 +521,7 @@ function start() {
   const tRing = new THREE.Mesh(new THREE.RingGeometry(R * 1.25, R * 1.6, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.6, 0.5), transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
   tRing.rotation.x = -Math.PI / 2; tRing.visible = false; scene.add(tRing);
   const tLabel = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 96; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false })); sp.scale.set(0.15, 0.056, 1); sp.visible = false; scene.add(sp); let last = -1; sp.userData.set = n => { if (n === last) return; last = n; const g = c.getContext('2d'); g.clearRect(0, 0, 256, 96); g.fillStyle = 'rgba(20,6,10,.85)'; g.beginPath(); g.roundRect(6, 6, 244, 84, 42); g.fill(); g.strokeStyle = '#f2c14e'; g.lineWidth = 4; g.stroke(); g.fillStyle = '#ffe08a'; g.font = '800 50px "Libre Franklin", "PingFang SC", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(`${n} ${tr('high')}`, 128, 50); t.needsUpdate = true; }; return sp; })();
-  function buildTower(x0, z0, h) {
+  function buildTower(x0, z0, h, main = true) {
     const near = (p, x, z) => p.y < 0.08 && p.y > -0.01 && (p.x - x) ** 2 + (p.z - z) ** 2 < (R * 2.2) ** 2;
     let best = null;
     for (let k = 0; k < 12; k++) {
@@ -491,17 +533,19 @@ function start() {
     if (!best) return;
     const { x, z } = best;
     let taken = 0, gold = 0, spill = 0;
-    for (let i = coins.length - 1; i >= 0; i--) { const c = coins[i]; if (!c.star && near(c.body.translation(), x, z)) { if (taken < 6) { taken++; if (c.gold) gold++; } else spill++; removeCoin(i); } }
+    for (let i = coins.length - 1; i >= 0; i--) { const c = coins[i]; if (!c.star && !c.held && near(c.body.translation(), x, z)) { if (taken < (main ? 6 : 9)) { taken++; if (c.gold) gold++; } else spill++; removeCoin(i); } }
     // coins beyond the first few drop back onto the pile around the tower (none are lost)
     for (let i = 0; i < spill; i++) { const a = Math.random() * Math.PI * 2, r = R * (2.6 + Math.random() * 1.5); addCoin(Math.max(-W + R, Math.min(W - R, x + Math.cos(a) * r)), 0.08 + i * 0.012, Math.min(FRONT - 0.02, z + Math.sin(a) * r), false, { tumble: 1 }); }
     const n = Math.min(TOWER_MAX, h + taken);
+    if (n < 4) { return; }
     const golds = new Set([n - 1]); for (let i = 0; i < gold; i++) golds.add(i);
-    towers.push({ x, z, n, shown: 0, t: 0, body: null, golds, yaws: Array.from({ length: n }, () => Math.random() * 6), born: tp });
+    towers.push({ x, z, n, shown: 0, t: 0, body: null, golds: main ? golds : new Set(gold ? [n - 1] : []), yaws: Array.from({ length: n }, () => Math.random() * 6), born: tp, main });
   }
   // the column goes into the physics once it is fully built
+  const PRIZE_EVERY = 40;
   const TOWER_EVERY = 18, TOWER_START = 10, TOWER_MAX = 40;
   let towerDrops = 0, rebuildAt = 0;
-  const mainTower = () => towers.find(T => T.body && !T.free) || null;
+  const mainTower = () => towers.find(T => T.main && T.body && !T.free) || null;
   function setColumn(T) {
     // (re)make the column's collider for its current height, keeping its foot on the deck
     if (T.col) world.removeCollider(T.col, false);
@@ -550,7 +594,7 @@ function start() {
     const parts = [];
     for (let i = 0; i < T.n; i++) { towerCoinPose(T, i, P, Q); parts.push([P.clone(), Q.clone()]); }
     world.removeRigidBody(T.body); towers.splice(k, 1);
-    if (!towers.some(t => !t.free)) { rebuildAt = tp + 6; JP.tower = null; saveJP(); }
+    if (T.main && !towers.some(t => t.main && !t.free)) { rebuildAt = tp + 6; JP.tower = null; saveJP(); }
     parts.forEach(([pp, qq], i) => {
       // velocity of this point of the spinning column, plus a little scatter
       const rx = pp.x - p0.x, ry = pp.y - p0.y, rz = pp.z - p0.z;
@@ -666,7 +710,8 @@ function start() {
       showBanner(`${tr('JACKPOT!')} +${pot}`, tr('the whole pot is yours')); bannerHold(4500);
       lamp.redraw(tr('JACKPOT!'), `+${pot} ${tr('chips')}`, '#ff5a7a');
       fanfare(true); setTimeout(() => fanfare(true), 600); shake = 1.8; voice(...THEME.voice.jp);
-      if (THEME.jpFx === 'firecrackers') fxFirecrackers(); else fxSprinkles();
+      if (extras) extras.beaconOn(6);
+      if (THEME.jpFx === 'firecrackers') fxFirecrackers(); else if (THEME.jpFx === 'neon') fxNeon(); else fxSprinkles();
       window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: 'jackpot', pot } }));
       paintMeter(true);
     } else if (pk === 'STAR') {
@@ -717,6 +762,18 @@ function start() {
     });
     setTimeout(fxSprinkles, 1200);
   }
+  // Retro 2000: laser lines sweep the machine, then neon rings ripple out
+  function neonRing(x, y, z, n, sp, col) { for (let i = 0; i < n && parts.length < NP; i++) { const a = i / n * Math.PI * 2; parts.push({ x, y, z, vx: Math.cos(a) * sp, vy: 0.15, vz: Math.sin(a) * sp, life: 0.9, c: col }); } }
+  function fxLaser() {
+    let tt = 0; const cols = THEME.fx;
+    fxTasks.push(dt => {
+      tt += dt; if (tt > 3) return false;
+      for (let k = 0; k < 3; k++) { const y = 0.1 + k * 0.15, z = -0.5 + ((tt * 0.6 + k * 0.3) % 1) * 0.8; for (let i = 0; i < 6 && parts.length < NP; i++) parts.push({ x: (Math.random() - 0.5) * W * 2, y, z, vx: 0, vy: 0, vz: 0, life: 0.25, c: cols[k % 2] }); }
+    });
+    for (let k = 0; k < 5; k++) setTimeout(() => neonRing(0, 0.3, -0.1, 60, 0.7, THEME.fx[k % 2]), 600 + k * 450);
+    bloop(6);
+  }
+  function fxNeon() { for (let k = 0; k < 6; k++) setTimeout(() => { neonRing((Math.random() - 0.5) * 0.3, 0.25 + Math.random() * 0.25, -0.2 + Math.random() * 0.3, 50, 0.6, THEME.fx[k % 2]); beep(800 + k * 150); }, k * 220); }
   function fxSprinkles() {
     const cols = [[2, 0.5, 1.2], [0.4, 1.8, 1.4], [2, 1.7, 0.3], [0.9, 0.6, 2], [2, 0.8, 0.3]];
     bloop(8);
@@ -735,7 +792,7 @@ function start() {
   function applyBonus(b) {
     const rain = (n, gold) => { const base = rainQ.length ? rainQ[rainQ.length - 1].at : 0; for (let i = 0; i < n; i++) rainQ.push({ at: base + (i + 1) * 0.09, gold }); };
     if (b.k === 'shower') rain(6, false);
-    else if (b.k === 'gold') rain(2, true);
+    else if (b.k === 'claw') { if (!extras || !extras.clawGrab()) rain(4, false); }
     else if (b.k === 'walls') wallUp = 15;
     else if (b.k === 'topple') { if (!toppleTower()) rain(6, false); }
     else if (b.k === 'star') { JP.stars++; if (JP.stars >= 3) { if (sim) superJackpot(); else setTimeout(superJackpot, 1200); } else { saveJP(); if (!sim) paintMeter(true); } }
@@ -743,7 +800,7 @@ function start() {
     if (sim) return;
     window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'pusher-bonus', k: b.k } }));
     lamp.redraw(tr(b.big), tr(b.small), b.k === 'none' ? '#9a8a7a' : b.k === 'star' ? '#d9a8ff' : '#ffd36a');
-    if (b.k !== 'none') { showBanner(tr(b.big), tr(b.small)); fanfare(b.k === 'shower' || b.k === 'star'); shake = 0.8; burst(0, 0.56, BACK + 0.05, 50, 1.2); }
+    if (b.k !== 'none') { if (extras) extras.beaconOn(3); showBanner(tr(b.big), tr(b.small)); fanfare(b.k === 'shower' || b.k === 'star'); shake = 0.8; burst(0, 0.56, BACK + 0.05, 50, 1.2); }
     setTimeout(() => { if (!slot.active && !wheel.active) lamp.redraw(); }, 3000);
   }
   function gateHit(x) {
@@ -756,7 +813,7 @@ function start() {
   }
 
   // ---------- one physics step (also used by the fast test run) ----------
-  let tp = 0, rainT = 0, floodLeft = 0;
+  let tp = 0, rainT = 0, floodLeft = 0, extras = null, prizeDrops = 0;
   function physStep() {
     const dt = world.timestep; tp += dt;
     pusher1.setNextKinematicTranslation(pos1(tp)); pusher2.setNextKinematicTranslation(pos2(tp));
@@ -770,7 +827,7 @@ function start() {
       while (rainQ.length && rainQ[0].at <= rainT) { const r = rainQ.shift(); const zz = r.wide ? -0.25 + Math.random() * 0.5 : -0.2 + Math.random() * 0.4; addCoin((Math.random() - 0.5) * (W * 2 - 0.1), (r.wide ? 0.5 : 0.42) + Math.random() * 0.08, zz, r.gold, { tumble: 3, vy: r.wide ? -0.6 : -0.2 }); if (!sim) burst(0, 0.4, 0, r.wide ? 1 : 3, 0.3); }
       if (!rainQ.length) rainT = 0;
     }
-    if (rebuildAt && tp > rebuildAt) { rebuildAt = 0; if (!towers.some(t => !t.free)) buildTower(0, 0.17, TOWER_START); }
+    if (rebuildAt && tp > rebuildAt) { rebuildAt = 0; if (!towers.some(t => t.main && !t.free)) buildTower(0, 0.17, TOWER_START); }
     for (const T of towers) {
       if (T.body) continue;
       T.t += dt;
@@ -787,6 +844,7 @@ function start() {
       }
       if (!sim && Math.random() < 0.3) burst((Math.random() - 0.5) * 0.6, 0.55, -0.1, 2, 0.3, THEME.fx[0]);
     } else if (capNow > MAXC && coins.length <= MAXC) capNow = MAXC;
+    if (extras) extras.step(dt);
     world.step();
     // a tower that leans too far, or slides off the edge, bursts into its coins
     for (let k = towers.length - 1; k >= 0; k--) {
@@ -815,10 +873,11 @@ function start() {
   const BOARD = 'ol-pz-board'; let jammed = false;
   function savePile() {
     if (jammed) return;
+    if (extras) extras.save();
     try {
       const list = coins.filter(c => !c.paid).map(c => { const p = c.body.translation(), q = c.body.rotation(); return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, c.star ? 2 : c.gold ? 1 : 0].map(v => Math.round(v * 1e4) / 1e4); });
       const P = new THREE.Vector3(), Q = new THREE.Quaternion();
-      towers.forEach(T => { if (T.free || !T.body) for (let i = 0; i < (T.body ? T.n : T.shown); i++) { towerCoinPose(T, i, P, Q); list.push([P.x, P.y, P.z, Q.x, Q.y, Q.z, Q.w, T.golds.has(i) ? 1 : 0].map(v => Math.round(v * 1e4) / 1e4)); } });
+      towers.forEach(T => { if (!T.main || T.free || !T.body) for (let i = 0; i < (T.body ? T.n : T.shown); i++) { towerCoinPose(T, i, P, Q); list.push([P.x, P.y, P.z, Q.x, Q.y, Q.z, Q.w, T.golds.has(i) ? 1 : 0].map(v => Math.round(v * 1e4) / 1e4)); } });
       saveTower();
       localStorage.setItem(BOARD, JSON.stringify({ t: tp, list }));
     } catch (e) { /* private mode: the pile just won't be kept */ }
@@ -837,6 +896,15 @@ function start() {
     for (let i = 0; i < 240; i++) physStep();
   }
   { const st = JP.tower; buildTower(st ? st.x : 0, st ? st.z : 0.17, st ? Math.max(TOWER_START, Math.min(TOWER_MAX, st.n | 0)) : TOWER_START); const T = towers[towers.length - 1]; if (T && st) { T.n = Math.max(TOWER_START, Math.min(TOWER_MAX, st.n | 0)); T.yaws = Array.from({ length: T.n }, () => Math.random() * 6); T.golds = new Set([T.n - 1]); } }
+  if (!saved || !(saved.list && saved.list.length > 30)) [[-0.2, 0.2], [0.21, 0.15], [-0.05, 0.24]].forEach(([x, z]) => buildTower(x, z, 0, false));
+  extras = createExtras({ THREE, RAPIER, scene, world, W, FRONT, BACK, WIN, tr, host,
+    accent: THEME.accent, ledA: THEME.ledA, ledB: THEME.ledB,
+    isSim: () => !!sim, simCount: k => { if (sim) sim[k] = (sim[k] || 0) + 1; },
+    pay: v => { if (sim) { sim.won += v; return; } pending += v; won += v; },
+    coins: () => coins, burst, pop,
+    celebrate: (big, small, huge) => { showBanner(big, small); if (huge) bannerHold(4000); fanfare(true); shake = huge ? 1.5 : 0.8; extras.beaconOn(4); voice(big, big); },
+    sound: k => { if (k === 'card') clink(0.6); else if (k === 'bar') { clink(2, true); fanfare(false); } else if (k === 'chip') clink(1.2); else if (k === 'claw') beep(600); else if (k === 'grab') { beep(400); clink(1, true); } else if (k === 'release') clink(1.5, true); },
+  });
   sim = null;
   setInterval(savePile, 8000); window.addEventListener('pagehide', savePile);
   document.documentElement.classList.remove('t3d-wait');
@@ -847,6 +915,7 @@ function start() {
   const aim = e => { const r = cv.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); if (ray.ray.intersectPlane(aimPlane, hit)) aimX = Math.max(-W + 0.04, Math.min(W - 0.04, hit.x)); };
   cv.addEventListener('pointermove', aim);
   cv.addEventListener('pointerdown', e => { aim(e); audio(); drop(); });
+  document.querySelectorAll('[data-chute]').forEach(b => { b.onclick = () => { audio(); aimX = +b.dataset.chute; drop(); }; });
   $('#pzDrop').onclick = () => { audio(); drop(); };
   let auto = false, autoT = 0;
   const paintAuto = () => { $('#pzAuto').setAttribute('aria-pressed', String(auto)); $('#pzAuto').classList.toggle('on', auto); $('#pzAuto').textContent = auto ? 'Auto on' : 'Auto'; };
@@ -877,7 +946,8 @@ function start() {
     showBanner(tr('COIN AVALANCHE!'), `1,000 ${tr('coins')}`); bannerHold(5000);
     lamp.redraw(tr('COIN AVALANCHE!'), `1,000 ${tr('coins')}`, '#ffd24a');
     fanfare(true); shake = 1.5; voice(...(THEME.voice.flood || ['Coin avalanche!', '金币雪崩！']));
-    if (THEME.superFx === 'dragon') fxDragon(); else fxWaterfall();
+    if (extras) extras.beaconOn(8);
+    if (THEME.superFx === 'dragon') fxDragon(); else if (THEME.superFx === 'laser') fxLaser(); else fxWaterfall();
     setTimeout(() => { if (!slot.active && !wheel.active) lamp.redraw(); }, 9000);
   }
   meter.addEventListener('dblclick', openCodeBox);
@@ -916,7 +986,7 @@ function start() {
     silverI.instanceMatrix.needsUpdate = true; goldI.instanceMatrix.needsUpdate = true; starI.instanceMatrix.needsUpdate = true;
   }
   function drawTowerMarks(t) {
-    const T = towers.find(x => !x.free) || null;
+    const T = towers.find(x => x.main && !x.free) || null;
     tRing.visible = tLabel.visible = !!T;
     if (!T) return;
     const p = T.body ? T.body.translation() : { x: T.x, y: 0, z: T.z }, top = T.body ? p.y + T.hh : T.shown * TH;
@@ -963,7 +1033,7 @@ function start() {
     if (jammed) { composer.render(); return; }
     p1Mesh.position.copy(pusher1.translation()); p2Mesh.position.copy(pusher2.translation());
     FW.list.forEach((f, i) => { fwMeshes[i].position.copy(f.b.translation()); fwMeshes[i].visible = wallH > 0.02; fwMeshes[i].material.opacity = 0.35 + 0.45 * wallH; });
-    drawCoins(); drawTowerMarks(t);
+    drawCoins(); drawTowerMarks(t); if (extras) extras.draw(dt, t, UI.wallet.chips + pending, won);
     // the gate, the chute and the aim marker
     ring.position.x = gateX(tp);
     if (tp >= gateReady) ringM.color.setRGB(2.2 + Math.sin(t * 12) * 0.6, 1.6, 0.4); else { const k = 1 - (gateReady - tp) / (GATE_CD + 1.6); ringM.color.setRGB(0.25 + k * 0.5, 0.18 + k * 0.35, 0.1); }
@@ -1019,6 +1089,10 @@ function start() {
     column(x = 0, z = 0.08) { return coins.map(c => c.body.translation()).filter(p => (p.x - x) ** 2 + (p.z - z) ** 2 < 0.0004).map(p => +p.y.toFixed(3)).sort((a, b) => a - b); },
     bonus(k) { if (slot.active || wheel.active) return; spinSlot(BONUS.find(b => b.k === k) || BONUS[0]); },
     jp() { jpChance(); },
+    claw() { return extras.clawGrab(); },
+    prizes: () => extras.prizes.map(p => p.kind + (p.held ? '*' : '')),
+    prizePos: () => extras.prizes.map(p => { const t = p.body.translation(); return `${p.kind}@${t.x.toFixed(2)},${t.y.toFixed(3)},${t.z.toFixed(2)}`; }),
+    stacks: () => towers.map(T => ({ main: !!T.main, n: T.n, built: !!T.body, z: T.body ? +T.body.translation().z.toFixed(2) : T.z })),
     flood: () => ({ real: floodLeft, ghost: ghostLeft, flying: ghosts.length }),
     fx(kind, sec = 1.6) { if (kind === 'waterfall') fxWaterfall(); else if (kind === 'dragon') fxDragon(); else if (kind === 'sprinkles') fxSprinkles(); else fxFirecrackers(); for (let i = 0; i < Math.round(sec * 60); i++) { stepFx(1 / 60, i / 60); stepSparks(1 / 60); } },
     jpPocket(pk) { jpResult(pk); },

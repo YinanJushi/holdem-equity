@@ -887,3 +887,18 @@ body.pz-theme-choco .pz-banner.hold { border-color: #ff8fc4; box-shadow: 0 0 60p
 body.pz-theme-choco .pz-banner.hold b { color: #ffe4f0; text-shadow: 0 0 22px #ff2f8a; }
 .pz-codeform input { width: 100%; font-size: 18px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.25); }
 .pz-jp { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+/* coin pusher: the poker hand and the drop chutes */
+.pz-hand { position: fixed; left: 10px; top: 56px; z-index: 4; display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: rgba(10,6,24,.82); border: 1px solid rgba(255,255,255,.2); pointer-events: none; }
+.pz-hand small { font: 700 10px var(--sans); color: rgba(255,255,255,.7); margin-right: 4px; letter-spacing: .04em; }
+.pz-hc { width: 22px; height: 30px; border-radius: 4px; background: #fbf8f1; color: #16161c; font: 800 11px/1 Georgia, serif; font-style: normal; display: grid; place-items: center; align-content: center; gap: 1px; box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.pz-hc b { font: 400 11px/1 Arial; }
+.pz-hc.red { color: #c4142c; }
+.pz-hc.empty { background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.pz-hand.flash { animation: pzJp 1s ease-out; }
+@media (max-width: 640px) { .pz-hand { top: 98px; left: 6px; } }
+.pz-chutes { display: flex; gap: 6px; }
+.pz-chutes .ghostbtn { padding: 12px 12px; }
+body.pz-theme-retro .pz-jp { background: linear-gradient(90deg, rgba(28,31,74,.92), rgba(80,20,110,.92)); border-color: #35e0ff; box-shadow: 0 0 18px rgba(53,224,255,.45); }
+body.pz-theme-retro .pz-stars i.on { color: #35e0ff; text-shadow: 0 0 10px #18c8e8, 0 0 3px #fff; }
+body.pz-theme-retro .pz-banner.hold { border-color: #ff4fd8; box-shadow: 0 0 60px rgba(255,80,220,.7), inset 0 0 20px rgba(53,224,255,.3); }
+body.pz-theme-retro .pz-banner.hold b { color: #ffe14d; text-shadow: 0 0 22px #ff4fd8; }
