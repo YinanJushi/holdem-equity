@@ -964,3 +964,12 @@ body.cl-super .cl-host { box-shadow: inset 0 0 60px rgba(255,200,90,.35); }
 .t3-visits { margin: 6px 0 0; padding: 8px 12px 4px; border-top: 1px solid rgba(201,154,46,.3); font: 600 12px var(--sans); color: #ffe6b0; white-space: nowrap; }
 .st-visits { display: inline-block; margin: 4px 0 10px; padding: 6px 12px; border-radius: 999px; background: rgba(201,154,46,.15); border: 1px solid rgba(201,154,46,.45); font: 600 13px var(--sans); }
 .foot .visits { opacity: .85; }
+/* takoyaki machine: progress strip above the buttons (stars toward the prize, holes to the full-plate win, lines) */
+.cl-tako { position: fixed; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 8px; width: min(440px, 92vw); padding: 6px 12px; border-radius: 999px; background: rgba(20,8,10,.72); border: 1px solid rgba(242,193,78,.45); font: 600 12px var(--sans); color: #ffe9c2; pointer-events: none; box-sizing: border-box; }
+.cl-tako[hidden] { display: none; }
+.cl-tako .ct-star { color: #f2c14e; font-size: 15px; letter-spacing: 1px; white-space: nowrap; }
+.cl-tako .ct-bar { flex: 0 0 70px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.15); overflow: hidden; }
+.cl-tako .ct-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff9a2e, #f2c14e); transition: width .3s; }
+.cl-tako .ct-txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-tako.hot { border-color: #f2c14e; box-shadow: 0 0 18px rgba(242,193,78,.6); animation: ctHot .6s ease-in-out infinite alternate; }
+@keyframes ctHot { to { box-shadow: 0 0 4px rgba(242,193,78,.3); } }

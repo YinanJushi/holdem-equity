@@ -14,6 +14,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=148';
+import { TAKO_PRIZES, buildTako, takoArt } from './tako-prizes.js?v=153';
 import { headerChrome, onQuality } from './chrome3d.js?v=148';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
@@ -59,7 +60,7 @@ function start() {
   // takoyaki machine: the funnel scoop (half-cone: top radius, bottom radius, height) and the plate. PL: centre x/z,
   // half-size, top surface height, 5x5 holes at spacing sp, hole radius rh and depth d, shield height above the plate
   const FUN = { rt: 0.08, rb: 0.014, h: 0.095 };
-  const PL = { x: 0.14, z: -0.01, half: 0.134, y: 0.06, n: 5, sp: 0.052, rh: 0.022, d: 0.016, shield: 0.035 };
+  const PL = { x: 0.14, z: -0.01, half: 0.134, y: 0.06, n: 5, sp: 0.052, rh: 0.022, d: 0.016, shield: 0.025 };
   const BALL_R = 0.02, ROPE_DROP = ROPE_MIN;   // a ping-pong ball is 40 mm; the scoop opens at the very top, so balls fall far and some bounce off
   const HOLES = []; for (let i = 0; i < PL.n; i++) for (let j = 0; j < PL.n; j++) HOLES.push({ x: PL.x + (i - (PL.n - 1) / 2) * PL.sp, z: PL.z + (j - (PL.n - 1) / 2) * PL.sp, kind: 'plain' });
 
@@ -138,7 +139,7 @@ function start() {
 
   // ---------- the claw: carriage (kinematic), head on a springy cable, three motorised prongs ----------
   // like a real machine, the claw waits over the prize chute and comes back there after every play
-  const START = TAKO ? { x: PL.x, z: PL.z } : FIGURE ? { x: -X + 0.25, z: ZF - 0.13 } : { x: (CH.x0 + CH.x1) / 2, z: (CH.z0 + CH.z1) / 2 };   // the figure claw starts far enough from the glass to spread both arms
+  const START = TAKO ? { x: -0.13, z: 0.1 } : FIGURE ? { x: -X + 0.25, z: ZF - 0.13 } : { x: (CH.x0 + CH.x1) / 2, z: (CH.z0 + CH.z1) / 2 };   // the figure claw starts far enough from the glass to spread both arms
   const carriage = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(START.x, TOP, START.z));
   const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(START.x, TOP - ROPE_MIN, START.z).setLinearDamping(0.6).setCcdEnabled(true));
   headBody.setEnabledRotations(false, false, false, true);
@@ -210,7 +211,7 @@ function start() {
     deck_holo: { name: 'Prism Ace', value: 500, rarity: 'Legendary' },
   };
   if (POKER) { for (const k of Object.keys(KINDS)) delete KINDS[k]; Object.assign(KINDS, { card: { name: 'Loose card', value: 5 } }, DECKS); }
-  if (TAKO) { for (const k of Object.keys(KINDS)) delete KINDS[k]; Object.assign(KINDS, { tako_gold: { name: 'Gold hole jackpot', value: 120 }, tako_red: { name: 'Red hole', value: 10 } }); }
+  if (TAKO) { for (const k of Object.keys(KINDS)) delete KINDS[k]; Object.assign(KINDS, { tako_red: { name: 'Red hole', value: 5 }, tako_line: { name: 'Line bonus', value: 10 } }); for (const id of Object.keys(TAKO_PRIZES)) KINDS['tp_' + id] = { name: TAKO_PRIZES[id].name, value: TAKO_PRIZES[id].value, rarity: TAKO_PRIZES[id].rarity }; }
   if (FIGURE) { for (const k of Object.keys(KINDS)) delete KINDS[k]; for (const id of Object.keys(FIGS)) KINDS['fig_' + id] = { name: FIGS[id].name, value: 300 }; }
   const boxArt = {};   // front of each figure box (for the collection book)
   const chipFace = (base, stripe, mark = '') => canvasTex(128, 128, g => { g.fillStyle = base; g.beginPath(); g.arc(64, 64, 64, 0, 7); g.fill(); g.fillStyle = stripe; for (let i = 0; i < 8; i++) { g.save(); g.translate(64, 64); g.rotate(i * Math.PI / 4); g.fillRect(-6, -64, 12, 16); g.restore(); } g.strokeStyle = stripe; g.lineWidth = 3; g.beginPath(); g.arc(64, 64, 38, 0, 7); g.stroke(); if (mark) { g.fillStyle = stripe; g.font = '700 40px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 64, 67); } });
@@ -458,9 +459,24 @@ function start() {
     paintHoles = () => HOLES.forEach((h, i) => { holeRings[i].visible = h.kind !== 'plain'; holeRings[i].material.color.setRGB(...(h.kind === 'gold' ? [2.2, 1.5, 0.4] : [2, 0.25, 0.2])); });
     paintHoles();
     // a little sign on the shield
-    const sign = canvasTex(256, 64, g2 => { g2.fillStyle = '#f2c14e'; g2.font = '800 24px "Libre Franklin", Arial'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText('GOLD 120 · RED 10', 128, 34); });
+    const sign = canvasTex(256, 64, g2 => { g2.fillStyle = '#f2c14e'; g2.font = '800 24px "Libre Franklin", Arial'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText('GOLD = ★   RED = 5', 128, 34); });
     const sg = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.04), new THREE.MeshBasicMaterial({ map: sign, transparent: true })); sg.position.set(PL.x, PL.y + PL.shield - 0.02, PL.z + PL.half + 0.007); scene.add(sg);
   }
+  // the prize shelf on the back wall above the plate: the chosen Tako-chan stands on it with a pusher behind; when
+  // it's won the pusher shoves it off and it drops into the lit prize slot in the floor below
+  let takoPick = (() => { try { const v = localStorage.getItem('ol-tako-pick'); return TAKO_PRIZES[v] ? v : 'red'; } catch (e) { return 'red'; } })();
+  const SH = { x: PL.x, y: 0.22, z: ZB + 0.045 };
+  let shelfPrize = null, pusher = null, slotGlow = null, prizeAnim = null;
+  if (TAKO) {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.008, 0.07), new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.3, roughness: 0.05, clearcoat: 1, depthWrite: false })); shelf.position.set(SH.x, SH.y - 0.004, SH.z); scene.add(shelf);
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.006, 0.004), gold); lip.position.set(SH.x, SH.y - 0.004, SH.z + 0.035); scene.add(lip);
+    [-1, 1].forEach(sx => { const br = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.05, 0.06), gold); br.position.set(SH.x + sx * 0.077, SH.y - 0.03, SH.z - 0.004); scene.add(br); });
+    pusher = new THREE.Mesh(new RoundedBoxGeometry(0.1, 0.02, 0.012, 2, 0.003), gold); pusher.position.set(SH.x, SH.y + 0.012, SH.z - 0.03); scene.add(pusher);
+    const spot = new THREE.SpotLight('#fff3e0', 0.9, 0.6, 0.5, 0.6, 1.5); spot.position.set(SH.x, SH.y + 0.2, SH.z + 0.12); spot.target.position.set(SH.x, SH.y, SH.z); scene.add(spot, spot.target);
+    const slot = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.07), new THREE.MeshBasicMaterial({ color: '#050203' })); slot.rotation.x = -Math.PI / 2; slot.position.set(SH.x, 0.001, SH.z + 0.05); scene.add(slot);
+    slotGlow = new THREE.Mesh(new THREE.RingGeometry(0.058, 0.064, 4, 1), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.4, 1, 0.4), toneMapped: false })); slotGlow.rotation.set(-Math.PI / 2, 0, Math.PI / 4); slotGlow.scale.set(1, 0.6, 1); slotGlow.position.set(SH.x, 0.0015, SH.z + 0.05); scene.add(slotGlow);
+  }
+  function placeShelfPrize() { if (!TAKO) return; if (shelfPrize) scene.remove(shelfPrize); shelfPrize = buildTako(takoPick); shelfPrize.scale.setScalar(1.25); shelfPrize.position.set(SH.x, SH.y, SH.z); scene.add(shelfPrize); }
   // the hole in the floor where the chute is (drawn dark over the velvet)
   const hole = new THREE.Mesh(new THREE.PlaneGeometry(CH.x1 - CH.x0, CH.z1 - CH.z0), new THREE.MeshBasicMaterial({ color: '#050203' })); hole.rotation.x = -Math.PI / 2; hole.position.set((CH.x0 + CH.x1) / 2, 0.0005, (CH.z0 + CH.z1) / 2); if (CHUTE) scene.add(hole);
   const acrylic = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.18, roughness: 0.05, clearcoat: 1, depthWrite: false });
@@ -547,6 +563,11 @@ function start() {
       renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(pScene, pCam); renderer.setRenderTarget(null); renderer.setClearColor(cc, ca);
     };
   }
+  if (TAKO) applyTheme = id => {
+    const P = TAKO_PRIZES[id]; lacquer.color.set(P.col).multiplyScalar(0.45); const c = new THREE.Color(P.col); ledBase.setRGB(c.r * 1.4 + 0.2, c.g * 1.4 + 0.2, c.b * 1.4 + 0.2);
+    const mg = marqueeTex.image.getContext('2d'); drawMarquee(mg, `●  ${P.name.toUpperCase()}  ●`); marqueeTex.needsUpdate = true;
+    placeShelfPrize();
+  };
   const mframe = new THREE.Mesh(new THREE.BoxGeometry(CW + 0.02, 0.18, 0.04), gold); mframe.position.set(0, 0.67, ZF - 0.025); scene.add(mframe);
   const bulbs = []; for (let i = 0; i < 26; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.007, 10, 8), new THREE.MeshBasicMaterial({ color: '#fff' })); const u = i / 26; const per = 2 * (CW + 0.16); let d = u * per, x, y; if (d < CW) { x = -CW / 2 + d; y = 0.75; } else if ((d -= CW) < 0.16) { x = CW / 2; y = 0.75 - d; } else if ((d -= 0.16) < CW) { x = CW / 2 - d; y = 0.59; } else { d -= CW; x = -CW / 2; y = 0.59 + d; } b.position.set(x, y, ZF + 0.018); scene.add(b); bulbs.push(b); }
   // control deck
@@ -643,7 +664,7 @@ function start() {
     G.grip = TUNE.GRIP * (0.85 + Math.random() * 0.3);   // this play's motor strength
     if (FIGURE) G.grip *= G.strong ? 1.6 : 1.05;   // figure arms are weak: they tip and shift a box, they can't carry it away
     if (superClaw) { G.strong = true; G.grip = TUNE.GRIP * 4; }
-    if (TAKO) { G.strong = true; G.grip = superClaw ? 2 : 0.8; HOME = { x: START.x + (Math.random() - 0.5) * 0.05, z: START.z + (Math.random() - 0.5) * 0.05 }; }   // it opens over a slightly different spot each time   // the scoop always closes firmly: the luck is in the bounce
+    if (TAKO) { G.strong = true; G.grip = superClaw ? 2 : 0.8; HOME = { x: PL.x + (Math.random() - 0.5) * 0.05, z: PL.z + (Math.random() - 0.5) * 0.05 }; }   // it opens over a slightly different spot each time   // the scoop always closes firmly: the luck is in the bounce
     G.playWins = 0;
     G.state = 'aim'; G.timer = 30; saveBank();
   }
@@ -711,24 +732,55 @@ function start() {
       }
     }
   }
-  // a ball that sits still in a paying hole for half a second wins. Red: the ball is taken out and the hole stays
-  // open. Gold: the jackpot, and then the attendant clears the plate and sets a new gold hole.
-  let clearT = 0;
+  // Holes are checked a few times a second. A ball that stays in a paying hole for half a second counts:
+  // red pays a little and the ball is taken out (the hole stays open); gold earns a star toward the chosen prize,
+  // then the attendant clears the plate and sets a new gold hole. Plain holes keep their ball: five in a row
+  // (red holes count as free) pays a line bonus, and once every plain hole is full the whole plate becomes the
+  // gold hole, so the next ball that settles anywhere on it wins.
+  let clearT = 0, scanT = 0, fullPlate = false, plainFilled = 0, plainCount = 0;
+  const doneLines = new Set(), filled = HOLES.map(() => false);
+  const LINES = [];
+  for (let a = 0; a < PL.n; a++) { LINES.push([...Array(PL.n)].map((_, b) => a * PL.n + b)); LINES.push([...Array(PL.n)].map((_, b) => b * PL.n + a)); }
+  LINES.push([...Array(PL.n)].map((_, b) => b * PL.n + b)); LINES.push([...Array(PL.n)].map((_, b) => b * PL.n + (PL.n - 1 - b)));
+  const stars = (() => { try { return JSON.parse(localStorage.getItem('ol-tako-stars') || '{}') || {}; } catch (e) { return {}; } })();
+  const saveStars = () => { try { localStorage.setItem('ol-tako-stars', JSON.stringify(stars)); } catch (e) { /* ignore */ } };
+  const ballStill = b => { const v = b.body.linvel(); return Math.hypot(v.x, v.y, v.z) < 0.05; };
+  function scanPlate() {
+    HOLES.forEach((h, i) => { filled[i] = h.kind === 'plain' && balls.some(b => { const t = b.body.translation(); return Math.hypot(t.x - h.x, t.z - h.z) < 0.009 && t.y < PL.y + 0.012 && ballStill(b); }); });
+    plainCount = HOLES.filter(h => h.kind === 'plain').length; plainFilled = filled.filter(Boolean).length;
+    LINES.forEach((L, k) => { if (doneLines.has(k)) return; if (L.every(i => filled[i] || HOLES[i].kind === 'red')) { doneLines.add(k); win({ kind: 'tako_line', ...KINDS.tako_line }); if (!G.sim) { say(tr('Line! Five in a row')); tone(880, 0.12, 0.06, 'triangle'); tone(1320, 0.18, 0.05, 'triangle'); } } });
+    if (!fullPlate && plainFilled >= plainCount) { fullPlate = true; if (!G.sim) { say(tr('Full plate! The next ball that settles anywhere wins')); bulbsHot = 3; } }
+    paintTakoHud();
+  }
+  function hitGold() {
+    const P = TAKO_PRIZES[takoPick];
+    if (G.sim) { G.simKinds.star = (G.simKinds.star || 0) + 1; }
+    else { stars[takoPick] = (stars[takoPick] || 0) + 1; saveStars(); }
+    const have = G.sim ? P.need : stars[takoPick];
+    if (have >= P.need) {
+      if (!G.sim) { stars[takoPick] = 0; saveStars(); prizeAnim = { t: 0 }; }
+      win({ kind: 'tp_' + takoPick, ...KINDS['tp_' + takoPick] });
+    } else if (!G.sim) { fanfare(); showStar(have, P.need); }
+    if (!G.sim) { atari(); bulbsHot = 4; }
+    clearT = 2.5; paintTakoHud(); paintFig();
+  }
   function takoCheck(dt) {
-    if (clearT > 0) { clearT -= dt; if (clearT <= 0) { clearPlate(); pickHoles(); } return; }
+    if (clearT > 0) { clearT -= dt; if (clearT <= 0) { clearPlate(); pickHoles(); doneLines.clear(); fullPlate = false; filled.fill(false); plainFilled = 0; paintTakoHud(); } return; }
+    scanT += dt; if (scanT > 0.25) { scanT = 0; scanPlate(); }
     for (const b of balls) {
       const t = b.body.translation();
       if (t.y < -0.05) { const s2 = pitSpot(); b.body.setTranslation({ x: s2.x, y: 0.25, z: s2.z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); continue; }
       // a ball balanced on the iron between holes gets a tiny nudge (the machine hums), so it always rolls into one
       if (onPlate(t) && t.y > PL.y + 0.012 && t.y < PL.y + 0.03 && Math.hypot(b.body.linvel().x, b.body.linvel().z) < 0.01 && Math.random() < 0.05) { b.body.applyImpulse({ x: (Math.random() - 0.5) * 3e-5, y: 0, z: (Math.random() - 0.5) * 3e-5 }, true); }
+      // full plate: any ball that comes to rest on top of the others is the winner
+      if (fullPlate && onPlate(t) && t.y > PL.y + 0.012 && t.y < PL.y + 0.08 && ballStill(b)) { b.t += dt; if (b.t > 0.6) { b.t = 0; hitGold(); return; } continue; }
       if (t.y > PL.y + 0.012 || t.y < PL.y - PL.d) { b.t = 0; continue; }
       const h = HOLES.find(o => Math.hypot(t.x - o.x, t.z - o.z) < 0.009);
-      const v = b.body.linvel();
-      if (!h || h.kind === 'plain' || Math.hypot(v.x, v.y, v.z) > 0.05) { b.t = 0; continue; }
+      if (!h || h.kind === 'plain' || !ballStill(b)) { b.t = 0; continue; }
       b.t += dt; if (b.t < 0.5) continue;
       b.t = 0;
       if (h.kind === 'red') { const s2 = pitSpot(); b.body.setTranslation({ x: s2.x, y: 0.25, z: s2.z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); win({ kind: 'tako_red', ...KINDS.tako_red }); }
-      else { win({ kind: 'tako_gold', ...KINDS.tako_gold }); h.kind = 'won'; clearT = 2.5; if (!G.sim) say(tr('Jackpot! The attendant will reset the plate')); return; }
+      else { h.kind = 'won'; hitGold(); return; }
     }
   }
   const collection = (() => { try { return JSON.parse(localStorage.getItem('ol-claw-col' + SUFFIX) || '{}') || {}; } catch (e) { return {}; } })();
@@ -740,9 +792,9 @@ function start() {
     if (G.sim) { G.simWon += v; G.simWins++; G.simKinds[p.kind] = (G.simKinds[p.kind] || 0) + 1; return; }
     pending += v; wonTotal += v; G.got = true;
     collection[p.kind] = (collection[p.kind] || 0) + 1; try { localStorage.setItem('ol-claw-col' + SUFFIX, JSON.stringify(collection)); } catch (e) { /* ignore */ }
-    fanfare(); if (p.kind === 'tako_red') tone(1200, 0.2, 0.06, 'triangle'); else if (p.value < 150) voice(bonus ? 'Double!' : 'Got it!', bonus ? '一抓两个！' : '抓到啦！');
+    fanfare(); if (p.kind === 'tako_red' || p.kind === 'tako_line') tone(1200, 0.2, 0.06, 'triangle'); else if (TAKO) { /* atari() already called */ } else if (p.value < 150) voice(bonus ? 'Double!' : 'Got it!', bonus ? '一抓两个！' : '抓到啦！');
     showWin(p, bonus);
-    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, drinks: ['rocks', 'highball', 'martini'].filter(k => collection[k]).length, decks: Object.keys(DECKS).filter(k => collection[k]).length, figs: Object.keys(FIGS).filter(k => collection['fig_' + k]).length, machine: MACHINE, combo: bonus > 0 } }));
+    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, drinks: ['rocks', 'highball', 'martini'].filter(k => collection[k]).length, decks: Object.keys(DECKS).filter(k => collection[k]).length, figs: Object.keys(FIGS).filter(k => collection['fig_' + k]).length, takos: Object.keys(TAKO_PRIZES).filter(k => collection['tp_' + k]).length, machine: MACHINE, combo: bonus > 0 } }));
     paint();
   }
 
@@ -756,7 +808,23 @@ function start() {
     winCard.classList.toggle('big', p.value >= 150 || !!bonus);
     winCard.hidden = false; winCard.classList.remove('go'); void winCard.offsetWidth; winCard.classList.add('go');
     clearTimeout(showWin.t); showWin.t = setTimeout(() => { winCard.hidden = true; }, 2600);
-    if (p.value >= 150) { const leg = p.kind === 'golden' || p.kind === 'deck_holo' || p.kind === 'tako_gold'; voice(leg ? 'Legendary! Jackpot!' : 'Big prize!', leg ? '传说级！大奖！' : '大奖！'); bulbsHot = 4; }
+    if (p.value >= 150) { const leg = p.kind === 'golden' || p.kind === 'deck_holo' || p.kind === 'tp_king'; voice(leg ? 'Legendary! Jackpot!' : 'Big prize!', leg ? '传说级！大奖！' : '大奖！'); bulbsHot = 4; }
+  }
+  // a gold hole that doesn't finish the prize yet: show the stars so far
+  function showStar(have, need) {
+    winCard.innerHTML = `<small>${tr('Gold hole!')}</small><b>${'★'.repeat(have)}${'☆'.repeat(Math.max(0, need - have))}</b><em>${tr('{0} more to win', need - have).replace('{0}', need - have)}</em>`;
+    winCard.classList.add('big'); winCard.hidden = false; winCard.classList.remove('go'); void winCard.offsetWidth; winCard.classList.add('go');
+    clearTimeout(showWin.t); showWin.t = setTimeout(() => { winCard.hidden = true; }, 2600);
+  }
+  // the attendant's call, in Japanese like a real game centre: "Atari!" (a hit!)
+  function atari() { try { if (!UI.soundOn() || !window.speechSynthesis) return; const u = new SpeechSynthesisUtterance('あたり！'); u.lang = 'ja-JP'; u.rate = 1.1; u.pitch = 1.3; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { /* none */ } }
+  // the progress strip above the buttons: stars toward the prize, holes left to the full-plate guarantee, lines
+  const takoHud = document.createElement('div'); takoHud.className = 'cl-tako'; takoHud.hidden = !TAKO; host.appendChild(takoHud);
+  function paintTakoHud() {
+    if (!TAKO) return;
+    const P = TAKO_PRIZES[takoPick], have = stars[takoPick] || 0, left = Math.max(0, plainCount - plainFilled), pct = plainCount ? Math.round(plainFilled / plainCount * 100) : 0;
+    takoHud.innerHTML = `<span class="ct-star">${'★'.repeat(have)}${'☆'.repeat(Math.max(0, P.need - have))}</span><span class="ct-bar"><i style="width:${fullPlate ? 100 : pct}%"></i></span><span class="ct-txt">${fullPlate ? tr('Full plate: next ball wins!') : tr('{0} holes to the full-plate win', left).replace('{0}', left)} · ${tr('Lines')} ${doneLines.size}</span>`;
+    takoHud.classList.toggle('hot', fullPlate);
   }
   function paint() {
     $('#clInsert').disabled = G.state !== 'idle';
@@ -770,7 +838,9 @@ function start() {
   $('#clCol').onclick = () => {
     let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
     if (TAKO) {
-      d.innerHTML = `<h2>${tr('Lucky Tako')}</h2><p class="sub">${tr('Scoop ping-pong balls with the funnel. It carries them over the takoyaki plate and lets them go; they bounce from hole to hole.')}</p><p class="sub">${tr('A ball that stops in the gold hole wins 120. A red hole wins 10. Balls in plain holes stay put, so each play leaves fewer places to land.')}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
+      const ids = Object.keys(TAKO_PRIZES), have = ids.filter(k => collection['tp_' + k]).length, zh = window.I18N && I18N.lang === 'zh';
+      const cards = ids.map(k => { const P = TAKO_PRIZES[k]; return `<figure class="cl-deck${collection['tp_' + k] ? '' : ' no'}"><img src="${takoArt(k).toDataURL()}" alt=""><figcaption><b>${zh ? P.zh : P.name}</b><span class="r-${P.rarity.toLowerCase()}">${tr(P.rarity)}</span><small>${'★'.repeat(P.need)} · ${tr('worth')} ${P.value} · × ${collection['tp_' + k] || 0}</small></figcaption></figure>`; }).join('');
+      d.innerHTML = `<h2>${tr('Tako-chan collection')}</h2><p class="sub">${tr('Collected')} <b>${have}</b> / ${ids.length}. ${tr('Pick a prize, then drop balls in the gold hole to earn its stars. Common prizes need one star, rare two, limited three.')}</p><div class="cl-book">${cards}</div><p class="sub">${tr('Red hole: 5 chips. Five balls in a row (red holes count as free): 10 chips. Fill every plain hole and the whole plate becomes the gold hole.')}</p><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
     } else if (FIGURE) {
       const keys = Object.keys(KINDS), have = keys.filter(k => collection[k]).length;
       const cards = keys.map(k => { if (!boxArt[k]) boxArt[k] = buildBox(k.slice(4), BOX).artCanvas; const zh = window.I18N && I18N.lang === 'zh'; return `<figure class="cl-deck cl-figbox${collection[k] ? '' : ' no'}"><img src="${boxArt[k].toDataURL()}" alt=""><figcaption><b>${zh ? FIGS[k.slice(4)].zh : FIGS[k.slice(4)].name}</b><small>${tr('worth')} ${KINDS[k].value} · × ${collection[k] || 0}</small></figcaption></figure>`; }).join('');
@@ -823,9 +893,15 @@ function start() {
   if (mBtn) { mBtn.textContent = tr(M_NAME[NEXT_M[MACHINE]]); mBtn.onclick = () => { const n = NEXT_M[MACHINE]; try { localStorage.setItem('ol-claw-m', n); } catch (e) { /* ignore */ } flush(); location.href = location.pathname + '?m=' + n; }; }
   // figure machine: pick which figure sits on the bridge, or ask the attendant to set the box straight again
   const fBtn = $('#clFig'), rBtn = $('#clReset'), cBtn2 = $('#clClaw');
-  if (fBtn) fBtn.hidden = !FIGURE; if (rBtn) rBtn.hidden = !FIGURE && !TAKO; if (cBtn2 && (FIGURE || TAKO)) cBtn2.hidden = true;
+  if (fBtn) fBtn.hidden = !FIGURE && !TAKO; if (rBtn) rBtn.hidden = !FIGURE && !TAKO; if (cBtn2 && (FIGURE || TAKO)) cBtn2.hidden = true;
+  if (TAKO) {
+    applyTheme(takoPick); paintFig(); paintTakoHud();
+    fBtn.onclick = () => { if (G.state !== 'idle' || prizeAnim) { say(tr('Change the prize between plays')); return; } const ids = Object.keys(TAKO_PRIZES); takoPick = ids[(ids.indexOf(takoPick) + 1) % ids.length]; try { localStorage.setItem('ol-tako-pick', takoPick); } catch (e) { /* ignore */ } applyTheme(takoPick); paintFig(); paintTakoHud(); };
+    const placeHud = () => { const b = $('#clBar').getBoundingClientRect(); takoHud.style.bottom = Math.max(8, innerHeight - b.top + 6) + 'px'; };
+    new ResizeObserver(placeHud).observe($('#clBar')); addEventListener('resize', placeHud); placeHud();
+  }
   if (TAKO && rBtn) rBtn.onclick = () => { if (G.state !== 'idle' || clearT > 0) { say(tr('The attendant can reset the plate between plays')); return; } clearPlate(); say(tr('The attendant cleared the plate')); };
-  const paintFig = () => { if (fBtn) fBtn.textContent = (window.I18N && I18N.lang === 'zh' ? FIGS[figPick].zh : FIGS[figPick].name) + ' ▸'; };
+  function paintFig() { if (!fBtn) return; const zh = window.I18N && I18N.lang === 'zh'; if (TAKO) { const P = TAKO_PRIZES[takoPick]; fBtn.textContent = `${zh ? P.zh : P.name} ${'★'.repeat(stars[takoPick] || 0)}${'☆'.repeat(Math.max(0, P.need - (stars[takoPick] || 0)))} ▸`; return; } fBtn.textContent = (zh ? FIGS[figPick].zh : FIGS[figPick].name) + ' ▸'; }
   if (FIGURE) {
     paintFig(); applyTheme(figPick);
     fBtn.onclick = () => { if (G.state !== 'idle') { say(tr('Change the figure between plays')); return; } const ids = Object.keys(FIGS); figPick = ids[(ids.indexOf(figPick) + 1) % ids.length]; try { localStorage.setItem('ol-claw-fig', figPick); } catch (e) { /* ignore */ } placeBox(); paintFig(); applyTheme(figPick); };
@@ -898,7 +974,20 @@ function start() {
     fingers.forEach((f, i) => { const p = f.body.translation(), q = f.body.rotation(); fingerMeshes[i].position.set(p.x, p.y, p.z); fingerMeshes[i].quaternion.copy(m4q.set(q.x, q.y, q.z, q.w)); });
     for (const p of prizes) { const tt = p.body.translation(), q = p.body.rotation(); p.obj.position.set(tt.x, tt.y, tt.z); p.obj.quaternion.set(q.x, q.y, q.z, q.w); }
     for (const b of balls) { const tt = b.body.translation(), q = b.body.rotation(); b.obj.position.set(tt.x, tt.y, tt.z); b.obj.quaternion.set(q.x, q.y, q.z, q.w); }
-    HOLES.forEach((h, i) => { if (h.kind === 'gold' && holeRings[i]) holeRings[i].material.color.setRGB(1.8 + Math.sin(t * 5) * 0.6, 1.3 + Math.sin(t * 5) * 0.4, 0.4); });
+    if (TAKO && shelfPrize) {
+      // the prize being won: the pusher shoves it forward, it tips off the shelf, drops and sinks into the slot
+      if (prizeAnim) {
+        const a = prizeAnim; a.t += 1 / 60;
+        if (a.t < 0.7) { const k = a.t / 0.7; pusher.position.z = SH.z - 0.03 + k * 0.045; shelfPrize.position.z = SH.z + k * 0.045; }
+        else if (a.t < 1.5) { const k = (a.t - 0.7) / 0.8; pusher.position.z = SH.z + 0.015 - k * 0.045; shelfPrize.position.set(SH.x, Math.max(0.0, SH.y - 4.9 * Math.pow(a.t - 0.7, 2) * 0.55), SH.z + 0.045 + k * 0.01); shelfPrize.rotation.x = Math.min(1.2, k * 2.2); }
+        else if (a.t < 2.4) { shelfPrize.position.y = -(a.t - 1.5) * 0.12; }
+        else if (a.t < 3.4) { if (!a.swapped) { a.swapped = true; placeShelfPrize(); } shelfPrize.scale.setScalar(1.25 * Math.min(1, (a.t - 2.4) * 2)); }
+        else prizeAnim = null;
+      }
+      slotGlow.material.color.setRGB(prizeAnim || bulbsHot > 0 ? 2 + Math.sin(t * 20) : 1.4, prizeAnim || bulbsHot > 0 ? 1.4 + Math.sin(t * 20) * 0.5 : 1, 0.4);
+      if (!prizeAnim) shelfPrize.rotation.y = Math.sin(t * 0.8) * 0.35;
+    }
+    HOLES.forEach((h, i) => { if ((h.kind === 'gold' || (fullPlate && h.kind === 'plain')) && holeRings[i]) { holeRings[i].visible = true; holeRings[i].material.color.setRGB(1.8 + Math.sin(t * 5) * 0.6, 1.3 + Math.sin(t * 5) * 0.4, 0.4); } });
     aimRing.visible = G.state === 'aim'; aimRing.position.set(G.cx, FIGURE ? BR.y + BR.r + BOX[1] + 0.004 : 0.003, G.cz); aimRing.material.opacity = 0.45 + Math.sin(t * 6) * 0.2;
     stick.rotation.set(input.z * 0.35, 0, -input.x * 0.35);
     if (bulbsHot > 0) bulbsHot -= 1 / 60;
@@ -952,6 +1041,7 @@ function start() {
     dropBall: (x, y, z) => { const b = balls.find(q => !onPlate(q.body.translation())); b.body.setTranslation({ x, y, z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); b.body.setAngvel({ x: 0, y: 0, z: 0 }, true); G.sim = true; G.simKinds = {}; G.simWon = 0; G.simWins = 0; for (let i = 0; i < 480; i++) step(world.timestep); G.sim = false; const t2 = b.body.translation(); return [+t2.x.toFixed(3), +t2.y.toFixed(3), +t2.z.toFixed(3)]; },
     trace: (x, y, z, n = 240) => { const b = balls.find(q => !onPlate(q.body.translation()) && q.body.translation().y < 0.05); b.body.setTranslation({ x, y, z }, true); b.body.setLinvel({ x: 0, y: 0, z: 0 }, true); const out = []; G.sim = true; G.simKinds = {}; for (let i = 0; i < n; i++) { step(world.timestep); if (i % 6 === 0) { const t2 = b.body.translation(), v = b.body.linvel(); out.push([+t2.x.toFixed(3), +t2.y.toFixed(3), +t2.z.toFixed(3), +Math.hypot(v.x, v.y, v.z).toFixed(2)]); } } G.sim = false; return out; },
     probe: (x, y, z, r = 0.02) => { const out = []; world.intersectionsWithShape({ x, y, z }, { x: 0, y: 0, z: 0, w: 1 }, new RAPIER.Ball(r), c => { const b = c.parent(); out.push({ shape: c.shapeType(), body: b ? (b === headBody ? 'head' : fingers.some(f => f.body === b) ? 'finger' : balls.some(q => q.body === b) ? 'ball' : prizes.some(q => q.body === b) ? 'prize' : b.isFixed() ? 'fixed' : 'other') : 'none', pos: c.translation() }); return true; }); return out; },
+    prizeDrop: () => { prizeAnim = { t: 0 }; },
     clear: () => { clearPlate(); G.sim = true; G.simKinds = {}; for (let i = 0; i < 240; i++) step(world.timestep); G.sim = false; },
     ray: (x, z) => { const h = world.castRay(new RAPIER.Ray({ x, y: 0.3, z }, { x: 0, y: -1, z: 0 }), 1, true, undefined, undefined, undefined, undefined, b => !balls.some(q => q.body === b)); return h ? +(0.3 - (h.timeOfImpact ?? h.toi)).toFixed(4) : null; },
     balls: () => ({ total: balls.length, plate: balls.filter(b => onPlate(b.body.translation())).length, holes: HOLES.map(h => h.kind[0]).join(''), filled: HOLES.map(h => balls.some(b => { const t2 = b.body.translation(); return Math.hypot(t2.x - h.x, t2.z - h.z) < 0.009 && t2.y < PL.y + 0.012; }) ? 1 : 0).join('') }),
