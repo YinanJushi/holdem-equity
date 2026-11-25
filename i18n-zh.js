@@ -977,7 +977,19 @@ Object.assign(I18N.dict, {
 "Welcome to the Lucky Claw. Each play costs {0} chips; drop a prize into the PRIZE chute at the front left to win its value.": "欢迎来到幸运抓娃娃机。每次 {0} 筹码；把奖品丢进左前方的 PRIZE 出口，就能赢得它的价值。",
 "Press Play, then steer the claw with the joystick (or the arrow keys). The gold ring on the floor shows where it will land.": "按“开始”，再用摇杆（或方向键）移动爪子。地上的金色圆圈就是爪子落下的位置。",
 "Press Drop (or Space) to lower the claw. Grab near the middle of a prize; the claw swings, so let it settle first.": "按“下爪”（或空格键）放下爪子。尽量抓奖品的中间；爪子会晃，等它稳住再下。",
-"Prizes shows what each prize is worth and everything you have won.": "“奖品”里能看到每样奖品的价值和你赢到的所有奖品。"
+"Prizes shows what each prize is worth and everything you have won.": "“奖品”里能看到每样奖品的价值和你赢到的所有奖品。",
+"Loose chip": "散筹码",
+"Card deck": "一副扑克牌",
+"Highball cocktail": "高球鸡尾酒",
+"Martini": "马天尼",
+"Champagne": "香槟",
+"Golden lucky chip": "黄金幸运筹码",
+"Double grab!": "一抓两个！",
+"Happy Hour": "欢乐时光",
+"Win all three kinds of cocktail from the claw machine.": "在抓娃娃机集齐三种鸡尾酒。",
+"Lucky Chip": "幸运筹码",
+"Win the golden lucky chip from the claw machine.": "在抓娃娃机抓到黄金幸运筹码。",
+"Drop two prizes in one play for a +{0} combo bonus. The golden lucky chip is the jackpot.": "一次抓下两个奖品，额外奖励 +{0}。黄金幸运筹码是大奖。"
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],

@@ -2,36 +2,27 @@
 // The claw head hangs from the gantry on a springy cable, so it swings as the carriage starts and stops. Three
 // prongs are hinged to the head and driven by motors; the motor's strength is the grip, decided for each play
 // (most plays loosen a little once the prize is lifted, some hold tight all the way), which is how real machines
-// set their payout. Prizes: plush rabbits, poker-chip stacks, cash bundles, gold bars and big casino dice.
+// set their payout. Prizes are all casino things: cocktails, champagne, chips, cards, dice, cash and gold.
 // Drop a prize down the chute in the front-left corner to win its value.
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=105';
+import { headerChrome, onQuality } from './chrome3d.js?v=106';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
 const COST = 25;
 let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
-if (renderer && host) Promise.all([RAPIER.init(), loadRabbits()]).then(([, rabbits]) => start(rabbits)).catch(e => { console.error(e); document.documentElement.classList.remove('t3d-wait'); });
+if (renderer && host) RAPIER.init().then(() => start()).catch(e => { console.error(e); document.documentElement.classList.remove('t3d-wait'); });
 else document.documentElement.classList.remove('t3d-wait');
 
-// the three plush rabbits (Quaternius, CC0)
-function loadRabbits() {
-  const loader = new GLTFLoader();
-  const files = ['models/rabbit-grey.glb', 'models/rabbit-cyan.glb', 'models/rabbit-pigtails.glb'];
-  return Promise.all(files.map(f => new Promise(res => loader.load(f, g => res(g), undefined, () => res(null)))));
-}
-
-function start(rabbitGltfs) {
+function start() {
   document.body.classList.add('cl-on');
   renderer.toneMapping = THREE.NeutralToneMapping; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.domElement.className = 'cl-canvas'; host.appendChild(renderer.domElement);
@@ -105,23 +96,17 @@ function start(rabbitGltfs) {
   setGrip(OPEN, 0.05);
 
   // ---------- prizes ----------
-  const prizes = [];   // { kind, body, obj, value, name, mixer }
+  // all casino things: cocktails from the lounge bar, champagne, chips, cards, dice, cash and gold
+  const prizes = [];   // { kind, body, obj, value, name }
   const KINDS = {
-    rabbitGrey: { name: 'Grey bunny', value: 40 }, rabbitCyan: { name: 'Mint bunny', value: 50 }, rabbitPig: { name: 'Pigtail bunny', value: 60 },
-    chips: { name: 'Chip stack', value: 60 }, dice: { name: 'Lucky dice', value: 50 }, cash: { name: 'Cash bundle', value: 150 }, bar: { name: 'Gold bar', value: 250 },
+    chip: { name: 'Loose chip', value: 10 }, chips: { name: 'Chip stack', value: 60 }, dice: { name: 'Lucky dice', value: 40 }, cards: { name: 'Card deck', value: 40 },
+    rocks: { name: 'Old Fashioned', value: 50 }, highball: { name: 'Highball cocktail', value: 60 }, martini: { name: 'Martini', value: 70 },
+    cash: { name: 'Cash bundle', value: 150 }, champagne: { name: 'Champagne', value: 200 }, bar: { name: 'Gold bar', value: 250 }, golden: { name: 'Golden lucky chip', value: 500 },
   };
-  // rabbit models: scale each to about 9 cm tall, standing on its feet
-  const rabbitProto = rabbitGltfs.map(g => {
-    if (!g) return null;
-    const root = g.scene; root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
-    const s = 0.125 / Math.max(size.y, 1e-6);
-    const holder = new THREE.Group(); root.scale.setScalar(s); root.position.set(-(box.min.x + box.max.x) / 2 * s, -box.min.y * s - 0.062, -(box.min.z + box.max.z) / 2 * s); holder.add(root);
-    root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
-    return { holder, anims: g.animations };
-  });
-  const chipFace = (base, stripe) => canvasTex(128, 128, g => { g.fillStyle = base; g.beginPath(); g.arc(64, 64, 64, 0, 7); g.fill(); g.fillStyle = stripe; for (let i = 0; i < 8; i++) { g.save(); g.translate(64, 64); g.rotate(i * Math.PI / 4); g.fillRect(-6, -64, 12, 16); g.restore(); } g.strokeStyle = stripe; g.lineWidth = 3; g.beginPath(); g.arc(64, 64, 38, 0, 7); g.stroke(); });
-  const chipSets = [['#c8102e', '#fff'], ['#1f4fb8', '#fff'], ['#151515', '#f2c14e'], ['#1e8a4a', '#fff']].map(([a, b]) => { const f = chipFace(a, b); const edge = canvasTex(128, 8, g => { g.fillStyle = a; g.fillRect(0, 0, 128, 8); g.fillStyle = b; for (let i = 0; i < 8; i++) g.fillRect(i * 16 + 4, 0, 7, 8); }); return [new THREE.MeshStandardMaterial({ map: edge, roughness: 0.4 }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35 }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35 })]; });
+  const chipFace = (base, stripe, mark = '') => canvasTex(128, 128, g => { g.fillStyle = base; g.beginPath(); g.arc(64, 64, 64, 0, 7); g.fill(); g.fillStyle = stripe; for (let i = 0; i < 8; i++) { g.save(); g.translate(64, 64); g.rotate(i * Math.PI / 4); g.fillRect(-6, -64, 12, 16); g.restore(); } g.strokeStyle = stripe; g.lineWidth = 3; g.beginPath(); g.arc(64, 64, 38, 0, 7); g.stroke(); if (mark) { g.fillStyle = stripe; g.font = '700 40px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 64, 67); } });
+  const chipMats = (a, b, mark, extra = {}) => { const f = chipFace(a, b, mark); const edge = canvasTex(128, 8, g => { g.fillStyle = a; g.fillRect(0, 0, 128, 8); g.fillStyle = b; for (let i = 0; i < 8; i++) g.fillRect(i * 16 + 4, 0, 7, 8); }); return [new THREE.MeshStandardMaterial({ map: edge, roughness: 0.4, ...extra }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35, ...extra }), new THREE.MeshStandardMaterial({ map: f, roughness: 0.35, ...extra })]; };
+  const chipSets = [['#c8102e', '#fff', '5'], ['#1f4fb8', '#fff', '10'], ['#151515', '#f2c14e', '100'], ['#1e8a4a', '#fff', '25'], ['#6a2a9a', '#fff', '500']].map(([a, b, m]) => chipMats(a, b, m));
+  const goldChipM = chipMats('#e0a628', '#7a3a06', '★', { metalness: 0.9, roughness: 0.22, emissive: '#6a4206', emissiveIntensity: 0.35 });
   const noteTex = canvasTex(256, 128, g => {
     g.fillStyle = '#d9e8cf'; g.fillRect(0, 0, 256, 128); g.strokeStyle = '#3f6a3a'; g.lineWidth = 6; g.strokeRect(6, 6, 244, 116);
     g.fillStyle = '#3f6a3a'; g.font = '800 40px Georgia, serif'; g.textAlign = 'center'; g.fillText('100', 52, 52); g.fillText('100', 204, 104);
@@ -133,51 +118,110 @@ function start(rabbitGltfs) {
   const bandM = new THREE.MeshStandardMaterial({ color: '#f2c14e', roughness: 0.5 });
   const barGeo = (() => { const s = new THREE.Shape(), b = 0.049, t = 0.039, h = 0.03; s.moveTo(-b, -h / 2); s.lineTo(b, -h / 2); s.lineTo(t, h / 2); s.lineTo(-t, h / 2); s.closePath(); const g = new THREE.ExtrudeGeometry(s, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.0025, bevelSize: 0.002, bevelSegments: 2 }); g.translate(0, 0, -0.02); return g; })();
   const barM = new THREE.MeshStandardMaterial({ color: '#f0b83a', metalness: 1, roughness: 0.18, envMapIntensity: 1.2, emissive: '#5a3a08', emissiveIntensity: 0.2 });
-  const pipTex = canvasTex(128, 128, g => { g.fillStyle = '#d9102e'; g.fillRect(0, 0, 128, 128); });
   const diceFace = n => canvasTex(128, 128, g => { g.fillStyle = '#d9102e'; g.fillRect(0, 0, 128, 128); g.fillStyle = '#fff'; const P = { 1: [[64, 64]], 2: [[34, 34], [94, 94]], 3: [[30, 30], [64, 64], [98, 98]], 4: [[34, 34], [94, 34], [34, 94], [94, 94]], 5: [[30, 30], [98, 30], [64, 64], [30, 98], [98, 98]], 6: [[34, 28], [94, 28], [34, 64], [94, 64], [34, 100], [94, 100]] }[n]; P.forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 11, 0, 7); g.fill(); }); });
-  const diceMats = [1, 6, 2, 5, 3, 4].map(n => new THREE.MeshPhysicalMaterial({ map: diceFace(n), roughness: 0.15, clearcoat: 1, transmission: 0 }));
-  void pipTex;
+  const diceMats = [1, 6, 2, 5, 3, 4].map(n => new THREE.MeshPhysicalMaterial({ map: diceFace(n), roughness: 0.15, clearcoat: 1 }));
+  // a deck of cards in its box: the lounge's card back on the front, white card edges at the open end
+  const deckBack = canvasTex(128, 180, g => { g.fillStyle = '#8a0e1e'; g.fillRect(0, 0, 128, 180); g.strokeStyle = '#f2c14e'; g.lineWidth = 4; g.strokeRect(8, 8, 112, 164); g.strokeStyle = 'rgba(242,193,78,.35)'; g.lineWidth = 1; for (let k = -180; k < 180; k += 10) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 180, 180); g.stroke(); g.beginPath(); g.moveTo(k + 180, 0); g.lineTo(k, 180); g.stroke(); } g.fillStyle = '#f2c14e'; g.font = 'italic 700 30px Georgia, serif'; g.textAlign = 'center'; g.fillText('OL', 64, 100); });
+  const deckSide = new THREE.MeshStandardMaterial({ color: '#7a0c1a', roughness: 0.5 }), deckEdge = new THREE.MeshStandardMaterial({ color: '#f4efe4', roughness: 0.7 });
+  const deckMats = [deckSide, deckSide, deckEdge, deckSide, new THREE.MeshStandardMaterial({ map: deckBack, roughness: 0.45 }), new THREE.MeshStandardMaterial({ map: deckBack, roughness: 0.45 })];
+  // cocktail glasses (lathe profiles: radius, height in metres), with the drink inside and a garnish
+  const V2 = (x, y) => new THREE.Vector2(x, y);
+  const GLASSES = {
+    martini: { outer: [[0, 0], [0.022, 0], [0.022, 0.003], [0.004, 0.005], [0.003, 0.042], [0.005, 0.047], [0.04, 0.085]], inner: [[0, 0.05], [0.037, 0.084]], top: 0.085, fill: 0.8 },
+    rocks: { outer: [[0, 0], [0.026, 0], [0.028, 0.003], [0.029, 0.057]], inner: [[0, 0.009], [0.026, 0.009], [0.027, 0.057]], top: 0.057, fill: 0.7 },
+    highball: { outer: [[0, 0], [0.019, 0], [0.02, 0.003], [0.021, 0.092]], inner: [[0, 0.009], [0.018, 0.009], [0.019, 0.092]], top: 0.092, fill: 0.78 },
+  };
+  const DRINK_LOOKS = {
+    martini: [{ col: '#e0446a', garnish: 'lime' }, { col: '#eef2dc', garnish: 'olive' }, { col: '#2e1a10', garnish: 'beans', foam: '#d9b98a' }],
+    rocks: [{ col: '#b8651b', garnish: 'cherry', ice: true }],
+    highball: [{ col: '#d6ecb0', garnish: 'lime', ice: true, straw: '#1d1d1d' }, { col: '#ff9a2e', col2: '#c8102e', garnish: 'cherry', ice: true, straw: '#ff5a8a' }],
+  };
+  const glassM = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transparent: true, opacity: 0.25, clearcoat: 1, envMapIntensity: 2, depthWrite: false, side: THREE.DoubleSide });
+  const lathe = pts => new THREE.LatheGeometry(pts.map(([r, y]) => V2(r, y)), 28);
+  const innerR = (prof, y) => { for (let i = 1; i < prof.length; i++) { const [r0, y0] = prof[i - 1], [r1, y1] = prof[i]; if (y <= y1) return r0 + (r1 - r0) * Math.max(0, (y - y0) / Math.max(1e-6, y1 - y0)); } return prof[prof.length - 1][0]; };
+  const iceM = new THREE.MeshPhysicalMaterial({ color: '#f4fbff', roughness: 0.12, transparent: true, opacity: 0.55, clearcoat: 1, depthWrite: false });
+  function buildDrink(type) {
+    const G = GLASSES[type], D = DRINK_LOOKS[type][Math.floor(Math.random() * DRINK_LOOKS[type].length)];
+    const g = new THREE.Group();
+    const shell = new THREE.Mesh(lathe([...G.outer, [G.outer[G.outer.length - 1][0] - 0.0012, G.top + 0.0008], ...G.inner.slice().reverse()]), glassM); shell.renderOrder = 2; g.add(shell);
+    const y0 = G.inner[0][1] + 0.0005, yl = y0 + (G.top - y0) * G.fill, pts = [V2(0, y0)];
+    for (let i = 0; i <= 8; i++) { const y = y0 + (yl - y0) * i / 8; pts.push(V2(Math.max(0.0005, innerR(G.inner, y) - 0.001), y)); }
+    pts.push(V2(0, yl));
+    const lg = new THREE.LatheGeometry(pts, 24);
+    if (D.col2) { const c1 = new THREE.Color(D.col2), c2 = new THREE.Color(D.col), cols = [], pos = lg.attributes.position; for (let i = 0; i < pos.count; i++) { const t = Math.min(1, Math.max(0, (pos.getY(i) - y0) / ((yl - y0) * 0.6))); const c = c1.clone().lerp(c2, t); cols.push(c.r, c.g, c.b); } lg.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); }
+    g.add(new THREE.Mesh(lg, new THREE.MeshPhysicalMaterial({ color: D.col2 ? '#ffffff' : D.col, vertexColors: !!D.col2, roughness: 0.25, clearcoat: 0.4, emissive: D.col2 ? '#000' : D.col, emissiveIntensity: 0.02 })));
+    const rTop = innerR(G.inner, G.top - 0.003);
+    if (D.ice) for (let i = 0; i < 2; i++) { const ic = new THREE.Mesh(new RoundedBoxGeometry(0.016, 0.016, 0.016, 2, 0.003), iceM); ic.position.set(i ? 0.005 : -0.005, yl - 0.006 - i * 0.012, 0); ic.rotation.set(i, i * 1.3, 0.3); g.add(ic); }
+    if (D.foam) { const fm = new THREE.Mesh(new THREE.CylinderGeometry(innerR(G.inner, yl) - 0.001, innerR(G.inner, yl - 0.003) - 0.001, 0.003, 24), new THREE.MeshStandardMaterial({ color: D.foam, roughness: 0.9 })); fm.position.y = yl; g.add(fm); }
+    if (D.garnish === 'cherry') { const c = new THREE.Mesh(new THREE.SphereGeometry(0.007, 14, 10), new THREE.MeshPhysicalMaterial({ color: '#8a0614', roughness: 0.15, clearcoat: 1 })); c.position.set(-rTop * 0.3, yl + 0.004, 0); g.add(c); }
+    if (D.garnish === 'olive') { const o = new THREE.Mesh(new THREE.SphereGeometry(0.0065, 12, 10), new THREE.MeshPhysicalMaterial({ color: '#6f7d2a', roughness: 0.3, clearcoat: 0.6 })); o.scale.set(1, 1.3, 1); o.position.set(0.004, yl - 0.004, 0); g.add(o); const pk = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 0.001, 0.06, 5), bandM); pk.position.set(0.012, yl + 0.014, 0); pk.rotation.z = 0.55; g.add(pk); }
+    if (D.garnish === 'beans') for (let i = 0; i < 3; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.0038, 8, 6), new THREE.MeshPhysicalMaterial({ color: '#2a160c', roughness: 0.25, clearcoat: 0.8 })); b.scale.set(1, 0.6, 1.4); b.position.set((i - 1) * 0.008, yl + 0.004, 0); g.add(b); }
+    if (D.garnish === 'lime') { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.003, 24), [new THREE.MeshStandardMaterial({ color: '#6cb33a' }), new THREE.MeshStandardMaterial({ color: '#d8ec9a' }), new THREE.MeshStandardMaterial({ color: '#d8ec9a' })]); w.rotation.set(Math.PI / 2, 0, 0.5); w.position.set(rTop * 0.9, G.top - 0.003, 0); g.add(w); }
+    if (D.straw) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.0022, 0.0022, G.top * 1.25, 8), new THREE.MeshStandardMaterial({ color: D.straw, roughness: 0.4 })); st.position.set(rTop * 0.35, G.top * 0.62, 0); st.rotation.z = -0.15; g.add(st); }
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    // centre the glass on its middle (the physics body's origin)
+    g.position.y = -G.top / 2; const holder = new THREE.Group(); holder.add(g);
+    // collider: the glass outline turned into a convex hull
+    const hull = []; G.outer.forEach(([r, y]) => { for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; hull.push(Math.cos(a) * Math.max(r, 0.001), y - G.top / 2, Math.sin(a) * Math.max(r, 0.001)); } });
+    return { obj: holder, hull: new Float32Array(hull) };
+  }
+  // champagne bottle: dark green glass, gold foil, cream label
+  const bottleProf = [[0, 0], [0.023, 0], [0.024, 0.004], [0.024, 0.085], [0.02, 0.1], [0.011, 0.118], [0.0095, 0.15], [0.011, 0.152], [0, 0.152]];
+  const bottleGeo = lathe(bottleProf), foilGeo = new THREE.CylinderGeometry(0.0105, 0.014, 0.04, 20), labelGeo = new THREE.CylinderGeometry(0.0243, 0.0243, 0.035, 28, 1, true);
+  const bottleM = new THREE.MeshPhysicalMaterial({ color: '#0f3a1e', roughness: 0.12, clearcoat: 1, metalness: 0.1 });
+  const foilM = new THREE.MeshStandardMaterial({ color: '#e2b04a', metalness: 1, roughness: 0.3 });
+  const labelTex = canvasTex(256, 64, g => { g.fillStyle = '#f3ead2'; g.fillRect(0, 0, 256, 64); g.fillStyle = '#7a0c1a'; g.font = 'italic 700 26px Georgia, serif'; g.textAlign = 'center'; g.fillText('Odds Lounge', 128, 32); g.font = '700 12px Georgia, serif'; g.fillStyle = '#9a7020'; g.fillText('BRUT · RÉSERVE', 128, 52); });
+  const labelM = new THREE.MeshStandardMaterial({ map: labelTex, roughness: 0.7 });
 
   function spawnPrize(kind, x, y, z) {
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * 6, 0));
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(kind === 'champagne' ? Math.PI / 2 : 0, Math.random() * 6, 0, 'YXZ'));
     const d = RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setLinearDamping(0.4).setAngularDamping(0.8).setCcdEnabled(true);
     const body = world.createRigidBody(d);
-    let obj, mixer = null;
+    let obj;
     const col = desc => world.createCollider(desc, body);
-    if (kind.startsWith('rabbit')) {
-      // a plush: soft body (ball) and head (ball), grippy and light
-      col(RAPIER.ColliderDesc.ball(0.036).setTranslation(0, -0.024, 0).setDensity(250).setFriction(1.1).setRestitution(0.05));
-      col(RAPIER.ColliderDesc.ball(0.03).setTranslation(0, 0.03, 0).setDensity(250).setFriction(1.1).setRestitution(0.05));
-      const proto = rabbitProto[{ rabbitGrey: 0, rabbitCyan: 1, rabbitPig: 2 }[kind]];
-      if (proto) {
-        obj = new THREE.Group(); const inst = cloneSkinned(proto.holder); obj.add(inst);
-        const idle = proto.anims.find(a => /idle/i.test(a.name)) || proto.anims[0];
-        if (idle) { mixer = new THREE.AnimationMixer(inst); const act = mixer.clipAction(idle); act.play(); act.time = Math.random() * idle.duration; mixer.timeScale = 0.6; }
-      } else { obj = new THREE.Mesh(new THREE.SphereGeometry(0.03, 20, 14), new THREE.MeshStandardMaterial({ color: '#ddd' })); }
-    } else if (kind === 'chips') {
+    if (kind === 'chips') {
       col(RAPIER.ColliderDesc.cylinder(0.022, 0.036).setDensity(500).setFriction(0.7));
       obj = new THREE.Group(); const set = chipSets[Math.floor(Math.random() * chipSets.length)];
       for (let i = 0; i < 6; i++) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.0072, 32), set); m.position.set((Math.random() - 0.5) * 0.002, -0.018 + i * 0.0073, (Math.random() - 0.5) * 0.002); m.rotation.y = Math.random() * 6; m.castShadow = m.receiveShadow = true; obj.add(m); }
+    } else if (kind === 'chip' || kind === 'golden') {
+      const r = kind === 'golden' ? 0.04 : 0.036, h = kind === 'golden' ? 0.024 : 0.0075;
+      col(RAPIER.ColliderDesc.cylinder(h / 2, r).setDensity(kind === 'golden' ? 500 : 700).setFriction(kind === 'golden' ? 0.8 : 0.55));
+      obj = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 36), kind === 'golden' ? goldChipM : chipSets[Math.floor(Math.random() * chipSets.length)]); obj.castShadow = obj.receiveShadow = true;
     } else if (kind === 'cash') {
       col(RAPIER.ColliderDesc.cuboid(0.052, 0.015, 0.026).setDensity(300).setFriction(0.8));
       obj = new THREE.Group();
       const stack = new THREE.Mesh(new RoundedBoxGeometry(0.104, 0.03, 0.052, 2, 0.003), [noteEdge, noteEdge, noteTop, noteEdge, noteEdge, noteEdge]); stack.castShadow = stack.receiveShadow = true; obj.add(stack);
-      const band = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.032, 0.054), bandM); obj.add(band);
+      obj.add(new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.032, 0.054), bandM));
     } else if (kind === 'bar') {
       col(RAPIER.ColliderDesc.cuboid(0.047, 0.015, 0.022).setDensity(500).setFriction(0.6));
       obj = new THREE.Mesh(barGeo, barM); obj.castShadow = obj.receiveShadow = true;
+    } else if (kind === 'cards') {
+      col(RAPIER.ColliderDesc.cuboid(0.03, 0.042, 0.011).setDensity(500).setFriction(0.6));
+      obj = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.084, 0.022, 2, 0.002), deckMats); obj.castShadow = obj.receiveShadow = true;
+    } else if (kind === 'champagne') {
+      const hull = []; bottleProf.forEach(([r, yy]) => { for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; hull.push(Math.cos(a) * Math.max(r, 0.001), yy - 0.076, Math.sin(a) * Math.max(r, 0.001)); } });
+      col(RAPIER.ColliderDesc.convexHull(new Float32Array(hull)).setDensity(350).setFriction(0.85));
+      obj = new THREE.Group(); const b = new THREE.Group(); b.position.y = -0.076; obj.add(b);
+      const bm = new THREE.Mesh(bottleGeo, bottleM); bm.castShadow = true; b.add(bm);
+      const fo = new THREE.Mesh(foilGeo, foilM); fo.position.y = 0.134; b.add(fo);
+      const lb = new THREE.Mesh(labelGeo, labelM); lb.position.y = 0.05; b.add(lb);
+    } else if (GLASSES[kind]) {
+      const dr = buildDrink(kind);
+      col(RAPIER.ColliderDesc.convexHull(dr.hull).setDensity(kind === 'martini' ? 500 : 380).setFriction(0.95));
+      obj = dr.obj;
     } else {
       col(RAPIER.ColliderDesc.roundCuboid(0.021, 0.021, 0.021, 0.004).setDensity(400).setFriction(0.6));
       obj = new THREE.Mesh(new RoundedBoxGeometry(0.05, 0.05, 0.05, 3, 0.005), diceMats); obj.castShadow = obj.receiveShadow = true;
     }
     scene.add(obj);
-    const p = { kind, body, obj, mixer, ...KINDS[kind] };
+    const p = { kind, body, obj, ...KINDS[kind] };
     prizes.push(p); return p;
   }
   const randomSpot = () => { let x, z; do { x = (Math.random() * 2 - 1) * (X - 0.04); z = ZB + 0.04 + Math.random() * (ZF - ZB - 0.08); } while (x < CH.x1 + 0.04 && z > CH.z0 - 0.04); return { x, z }; };
-  // a fixed mix of prizes (each one won is restocked with the same kind)
-  const STOCK = ['rabbitGrey', 'rabbitGrey', 'rabbitGrey', 'rabbitCyan', 'rabbitCyan', 'rabbitPig', 'chips', 'chips', 'chips', 'cash', 'cash', 'bar', 'dice', 'dice'];
-  STOCK.forEach((k, i) => { const s = randomSpot(); spawnPrize(k, s.x, 0.08 + (i % 4) * 0.07, s.z); });
+  // a fixed mix of prizes, piled up (each one won is restocked with the same kind)
+  const STOCK = ['chip', 'chip', 'chip', 'chip', 'chip', 'chip', 'chip', 'chip', 'chips', 'chips', 'chips', 'chips', 'dice', 'dice', 'dice', 'cards', 'cards', 'cards',
+    'rocks', 'rocks', 'rocks', 'highball', 'highball', 'highball', 'martini', 'martini', 'martini', 'cash', 'cash', 'champagne', 'bar', 'golden'];
+  STOCK.forEach((k, i) => { const s = randomSpot(); spawnPrize(k, s.x, 0.08 + (i % 6) * 0.06, s.z); });
   for (let i = 0; i < 240; i++) world.step();
 
   // ---------- the cabinet (looks) ----------
@@ -266,13 +310,16 @@ function start(rabbitGltfs) {
   // for a prize (plus a small random chance). On the other plays it relaxes at the top (LOOSE angle, WEAK torque)
   // and the prize usually slips. So over many plays about 90% of what goes in comes back out, however well you aim.
   // GRIP: the closing torque cap in N·m. P_STRONG: forces the share of strong plays (testing only; null = bank).
-  const TUNE = { TARGET: 0.9, STRONG_AT: 50, LUCKY: 0.06, BANK_MAX: 300, GRIP: 0.05, WEAK: 0.15, LOOSE: 0.3, P_STRONG: null };
+  // Even a strong play isn't a sure thing: SLIP is the chance it eases to MID strength at the top, and the swing on
+  // the way to the chute can still shake a prize loose. COMBO: bonus for each extra prize dropped in the same play.
+  const TUNE = { TARGET: 0.9, STRONG_AT: 50, LUCKY: 0.06, BANK_MAX: 300, GRIP: 0.09, WEAK: 0.15, LOOSE: 0.3, SLIP: 0.35, MID: 0.4, COMBO: 50, P_STRONG: null };
   let bank = (() => { try { return +localStorage.getItem('ol-claw-bank') || 0; } catch (e) { return 0; } })();
   const saveBank = () => { if (!G.sim) try { localStorage.setItem('ol-claw-bank', String(Math.round(bank))); } catch (e) { /* ignore */ } };
   function newPlay() {
     bank = Math.min(TUNE.BANK_MAX, bank + COST * TUNE.TARGET);
     G.strong = TUNE.P_STRONG != null ? Math.random() < TUNE.P_STRONG : (bank >= TUNE.STRONG_AT || Math.random() < TUNE.LUCKY);
     G.grip = TUNE.GRIP * (0.85 + Math.random() * 0.3);   // this play's motor strength
+    G.playWins = 0;
     G.state = 'aim'; G.timer = 30; saveBank();
   }
   const input = { x: 0, z: 0 };
@@ -314,7 +361,7 @@ function start(rabbitGltfs) {
     else if (G.state === 'raise') {
       G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt);
       // at the top the grip relaxes on most plays: what's held loosely may slip on the way
-      if (G.rope <= ROPE_MIN + 0.001) { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); G.state = 'carry'; G.t = 0; }
+      if (G.rope <= ROPE_MIN + 0.001) { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; }
     } else if (G.state === 'carry') { if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5) { G.state = 'release'; G.t = 0; setGrip(OPEN, 0.08); tone(500, 0.12, 0.04, 'square'); } }
     else if (G.state === 'release') { if (G.t > 1.0) { G.state = 'home'; G.t = 0; } }
     else if (G.state === 'home') { if (Math.hypot(0.12 - G.cx, -0.02 - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, 0.05); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
@@ -333,13 +380,16 @@ function start(rabbitGltfs) {
   }
   const collection = (() => { try { return JSON.parse(localStorage.getItem('ol-claw-col') || '{}') || {}; } catch (e) { return {}; } })();
   function win(p) {
-    bank -= p.value; saveBank();
-    if (G.sim) { G.simWon += p.value; G.simWins++; G.simKinds[p.kind] = (G.simKinds[p.kind] || 0) + 1; return; }
-    pending += p.value; wonTotal += p.value; G.got = true;
+    // a second (third…) prize in the same play earns the combo bonus
+    G.playWins = (G.playWins || 0) + 1;
+    const bonus = G.playWins >= 2 && G.state !== 'idle' ? TUNE.COMBO : 0, v = p.value + bonus;
+    bank -= v; saveBank();
+    if (G.sim) { G.simWon += v; G.simWins++; G.simKinds[p.kind] = (G.simKinds[p.kind] || 0) + 1; return; }
+    pending += v; wonTotal += v; G.got = true;
     collection[p.kind] = (collection[p.kind] || 0) + 1; try { localStorage.setItem('ol-claw-col', JSON.stringify(collection)); } catch (e) { /* ignore */ }
-    fanfare(); voice('Got it!', '抓到啦！');
-    showWin(p);
-    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, bunnies: ['rabbitGrey', 'rabbitCyan', 'rabbitPig'].filter(k => collection[k]).length } }));
+    fanfare(); if (p.value < 150) voice(bonus ? 'Double!' : 'Got it!', bonus ? '一抓两个！' : '抓到啦！');
+    showWin(p, bonus);
+    window.dispatchEvent(new CustomEvent('ol-event', { detail: { type: 'claw-win', kind: p.kind, value: p.value, drinks: ['rocks', 'highball', 'martini'].filter(k => collection[k]).length, combo: bonus > 0 } }));
     paint();
   }
 
@@ -347,10 +397,12 @@ function start(rabbitGltfs) {
   const msg = document.createElement('div'); msg.className = 'cl-msg'; msg.setAttribute('role', 'status'); host.appendChild(msg);
   const say = h => { msg.textContent = h; };
   const winCard = document.createElement('div'); winCard.className = 'cl-win'; winCard.hidden = true; host.appendChild(winCard);
-  function showWin(p) {
-    winCard.innerHTML = `<small>${tr('You won')}</small><b>${tr(p.name)}</b><em>+${p.value}</em>`;
+  function showWin(p, bonus) {
+    winCard.innerHTML = bonus ? `<small>${tr('Double grab!')}</small><b>${tr(p.name)}</b><em>+${p.value} +${bonus}</em>` : `<small>${tr('You won')}</small><b>${tr(p.name)}</b><em>+${p.value}</em>`;
+    winCard.classList.toggle('big', p.value >= 150 || !!bonus);
     winCard.hidden = false; winCard.classList.remove('go'); void winCard.offsetWidth; winCard.classList.add('go');
     clearTimeout(showWin.t); showWin.t = setTimeout(() => { winCard.hidden = true; }, 2600);
+    if (p.value >= 150) { voice(p.kind === 'golden' ? 'Lucky chip! Jackpot!' : 'Big prize!', p.kind === 'golden' ? '幸运金币！大奖！' : '大奖！'); bulbsHot = 4; }
   }
   function paint() {
     $('#clInsert').disabled = G.state !== 'idle';
@@ -363,7 +415,7 @@ function start(rabbitGltfs) {
   $('#clDrop').onclick = () => { audio(); dropClaw(); };
   $('#clCol').onclick = () => {
     let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
-    d.innerHTML = `<h2>${tr('Prize collection')}</h2><p class="sub">${tr('Everything you have won from the claw machine.')}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
+    d.innerHTML = `<h2>${tr('Prize collection')}</h2><p class="sub">${tr('Everything you have won from the claw machine.')}</p><p class="sub">${tr('Drop two prizes in one play for a +50 combo bonus. The golden lucky chip is the jackpot.')}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
     d.onclick = e => { if (e.target.closest('[data-close]')) d.close(); }; d.showModal();
   };
   // joystick: drag inside the pad; or arrow keys / WASD
@@ -401,7 +453,7 @@ function start(rabbitGltfs) {
   }
   new ResizeObserver(resize).observe(host); resize();
   onQuality(q => { const hi = q === 'high'; renderer.setPixelRatio(hi ? Math.min(2, devicePixelRatio || 1) : 1); bloom.enabled = hi; renderer.shadowMap.enabled = hi; key.castShadow = hi; });
-  const m4q = new THREE.Quaternion();
+  const m4q = new THREE.Quaternion(); let bulbsHot = 0;
   function draw(t) {
     const hp = headBody.translation();
     bridge.position.set(0, TOP + 0.016, G.cz); carM.position.set(G.cx, TOP + 0.03, G.cz);
@@ -412,7 +464,9 @@ function start(rabbitGltfs) {
     for (const p of prizes) { const tt = p.body.translation(), q = p.body.rotation(); p.obj.position.set(tt.x, tt.y, tt.z); p.obj.quaternion.set(q.x, q.y, q.z, q.w); }
     aimRing.visible = G.state === 'aim'; aimRing.position.set(G.cx, 0.003, G.cz); aimRing.material.opacity = 0.45 + Math.sin(t * 6) * 0.2;
     stick.rotation.set(input.z * 0.35, 0, -input.x * 0.35);
-    bulbs.forEach((b, i) => { const on = G.state === 'idle' ? (i + Math.floor(t * 5)) % 3 === 0 : (i + Math.floor(t * 12)) % 2 === 0; b.material.color.setRGB(on ? 1.8 : 0.45, on ? 1.35 : 0.3, on ? 0.55 : 0.1); });
+    if (bulbsHot > 0) bulbsHot -= 1 / 60;
+    goldChipM.forEach(m => { m.emissiveIntensity = 0.3 + Math.max(0, Math.sin(t * 2.2)) * 0.5; });
+    bulbs.forEach((b, i) => { const on = bulbsHot > 0 ? (i + Math.floor(t * 30)) % 2 === 0 : G.state === 'idle' ? (i + Math.floor(t * 5)) % 3 === 0 : (i + Math.floor(t * 12)) % 2 === 0; b.material.color.setRGB(on ? 1.8 : 0.45, on ? 1.35 : 0.3, on ? 0.55 : 0.1); });
     ledM.color.setRGB(1.3 + Math.sin(t * 3) * 0.25, 0.95, 0.4);
     camera.position.x = Math.sin(t * 0.25) * 0.012; camera.lookAt(look);
   }
@@ -420,7 +474,6 @@ function start(rabbitGltfs) {
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.05, clock.getDelta()); t += dt; acc += dt;
     let n = 0; while (acc >= world.timestep && n < 8) { step(world.timestep); acc -= world.timestep; n++; } if (n === 8) acc = 0;
-    for (const p of prizes) if (p.mixer) p.mixer.update(dt);
     if (G.state === 'aim') { const s = Math.ceil(G.timer); $('#clTimer').textContent = s; $('#clTimer').classList.toggle('low', s <= 5); }
     draw(t); composer.render();
   });
@@ -433,7 +486,7 @@ function start(rabbitGltfs) {
       const bank0 = bank; G.sim = true; G.simWon = 0; G.simWins = 0; G.simKinds = {}; const tries = {}; let cost = 0;
       for (let k = 0; k < n; k++) {
         cost += COST; newPlay();
-        const tgt = prizes.filter(p => { const t2 = p.body.translation(); return !(t2.x < CH.x1 + 0.03 && t2.z > CH.z0 - 0.03) && t2.y < 0.1; });
+        const tgt = prizes.filter(p => { const t2 = p.body.translation(); return p.kind !== 'chip' && !(t2.x < CH.x1 + 0.03 && t2.z > CH.z0 - 0.03) && t2.y < 0.1; });
         const p = tgt[Math.floor(Math.random() * tgt.length)]; if (!p) continue; tries[p.kind] = (tries[p.kind] || 0) + 1;
         const ox = (Math.random() - 0.5) * noise, oz = (Math.random() - 0.5) * noise;
         let guard = 0;
@@ -455,6 +508,6 @@ function start(rabbitGltfs) {
     bank: v => (v != null ? (bank = v) : bank),
     jt: () => fingers.map(f => f.joint.type()),
     fingers: () => fingers.map(f => { const p = f.body.translation(), h = headBody.translation(); const r = Math.hypot(p.x - h.x, p.z - h.z); return [+r.toFixed(3), +(p.y - h.y).toFixed(3)]; }),
-    list: () => prizes.map(p => { const t2 = p.body.translation(); return [p.kind, +t2.x.toFixed(3), +t2.y.toFixed(3), +t2.z.toFixed(3), !!p.mixer]; }),
+    list: () => prizes.map(p => { const t2 = p.body.translation(); return [p.kind, +t2.x.toFixed(3), +t2.y.toFixed(3), +t2.z.toFixed(3)]; }),
   };
 }

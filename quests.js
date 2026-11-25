@@ -50,7 +50,8 @@
     { id: 'pz_jackpot', icon: '✦', reward: 800, name: 'Pusher Jackpot', text: 'Hit the JACKPOT on the coin pusher bonus lamp.' },
     { id: 'pz_super', icon: '★', reward: 1000, name: 'Coin Flood', text: 'Win the coin pusher SUPER JACKPOT (three star coins).' },
     { id: 'cl_gold', icon: '▰', reward: 500, name: 'Golden Grab', text: 'Win a gold bar from the claw machine.' },
-    { id: 'cl_bunnies', icon: '♡', reward: 300, name: 'Bunny Family', text: 'Win all three bunnies from the claw machine.' },
+    { id: 'cl_happy', icon: '🍸', reward: 300, name: 'Happy Hour', text: 'Win all three kinds of cocktail from the claw machine.' },
+    { id: 'cl_lucky', icon: '✪', reward: 800, name: 'Lucky Chip', text: 'Win the golden lucky chip from the claw machine.' },
     { id: 'high_roller', icon: '$', reward: 300, name: 'High Roller', text: 'Bet 1,000 chips or more at once.' },
     { id: 'bartender', icon: '🍸', reward: 200, name: 'Regular at the Bar', text: 'Order 5 drinks.' },
     { id: 'explorer', icon: '⌂', reward: 500, name: 'Grand Tour', text: 'Play every game in the lounge.' },
@@ -176,7 +177,8 @@
       } else if (d.type === 'claw-win') {
         bump('cl_win'); won(d.value);
         if (d.kind === 'bar') unlock('cl_gold');
-        if (d.bunnies >= 3) unlock('cl_bunnies');
+        if (d.drinks >= 3) unlock('cl_happy');
+        if (d.kind === 'golden') unlock('cl_lucky');
       } else if (d.type === 'drink') {
         bump('drink'); A.drinks = (A.drinks || 0) + 1; save(AKEY, A); if (A.drinks >= 5) unlock('bartender');
       }

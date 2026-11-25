@@ -936,3 +936,5 @@ body.cl-aiming .cl-timer { display: block; }
 .cl-bar .pz-tip { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); }
 @media (max-width: 640px) { .cl-pad { width: 84px; height: 84px; } .cl-timer { top: 56px; font-size: 28px; } .cl-bar .pz-tip { display: none; } }
 @media (max-width: 640px) { .cl-msg { top: calc(58px + env(safe-area-inset-top)); } }
+.cl-win.big { border-color: #fff1c4; box-shadow: 0 0 60px rgba(255,200,90,.85), inset 0 0 24px rgba(255,190,80,.35); }
+.cl-win.big em { font-size: 38px; }
