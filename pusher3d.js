@@ -12,8 +12,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { headerChrome, onQuality } from './chrome3d.js?v=128';
-import { createExtras } from './pusher-extras.js?v=128';
+import { headerChrome, onQuality } from './chrome3d.js?v=134';
+import { createExtras } from './pusher-extras.js?v=134';
 
 
 // ---------- themes: each one dresses the whole machine and has its own way of celebrating the big wins ----------

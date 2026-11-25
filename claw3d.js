@@ -13,8 +13,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { FIGS, buildBox, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=128';
-import { headerChrome, onQuality } from './chrome3d.js?v=128';
+import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=134';
+import { headerChrome, onQuality } from './chrome3d.js?v=134';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
@@ -45,8 +45,10 @@ function start() {
   // ---------- sizes (metres) ----------
   const X = 0.28, ZB = -0.26, ZF = 0.24, TOP = 0.52;            // inside of the prize box
   const CH = { x0: -X, x1: -0.11, z0: 0.07, z1: ZF };          // the prize chute (front-left)
-  const HEAD = { r: 0.032, h: 0.04 }, FING = FIGURE ? { n: 2, len: 0.16, r: 0.034 } : CLAW === 'two' ? { n: 2, len: 0.1, r: 0.034 } : { n: 3, len: 0.095, r: 0.026 };
+  const HEAD = { r: 0.032, h: 0.04 }, FING = FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
   // a three-prong claw's wire prong, side view (x outward, y up; the hinge is at the top): it bows out, then hooks in
+  // a UFO-catcher arm, side view (x outward, hinge at the top): it angles out, then an elbow turns the finger in
+  const ARM = [[0, FING.len / 2], [0.016, -FING.len / 2 + FING.len * 0.32], [-FING.len * 0.13, -FING.len / 2 + 0.004]];
   const PRONG = [[0, 0.0475], [0.011, 0.02], [0.012, -0.01], [0.004, -0.035], [-0.012, -0.0465]];
   const ROPE_MIN = 0.05, ROPE_MAX = 0.46;
 
@@ -82,13 +84,15 @@ function start() {
   }
   // the figure machine: no floor, just a "bridge" of two bars over the drop. The boxed figure rests across them;
   // tip, turn and shuffle it until it slips through the gap. Fences keep it from walking off the ends.
-  const BR = { y: 0.2, r: 0.008, gap: 0.144, z0: ZB + 0.03, z1: ZF - 0.03, fence: 0.25 };
+  const BR = { y: 0.2, r: 0.008, gap: 0.116, z0: ZB + 0.03, z1: ZF - 0.03, fence: 0.25 };
   const BOX = [0.18, 0.068, 0.13];   // the figure box lies flat: long side across the bars, window up
   if (FIGURE) {
     [-1, 1].forEach(sx => {
       const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
       world.createCollider(RAPIER.ColliderDesc.cylinder((BR.z1 - BR.z0) / 2, BR.r).setTranslation(sx * BR.gap / 2, BR.y, (BR.z0 + BR.z1) / 2).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setFriction(0.35));
       fixedBox(0.004, 0.06, (BR.z1 - BR.z0) / 2, sx * BR.fence, BR.y + 0.03, (BR.z0 + BR.z1) / 2, 0.2);
+      // solid ledges outside the bars (a little lower), so a box pushed off the side lands there instead of dropping
+      const lx0 = BR.gap / 2 + BR.r + 0.006; fixedBox((BR.fence - lx0) / 2, 0.005, (BR.z1 - BR.z0) / 2, sx * (lx0 + BR.fence) / 2, BR.y - 0.012, (BR.z0 + BR.z1) / 2, 0.5);
     });
     [BR.z0 - 0.004, BR.z1 + 0.004].forEach(z => fixedBox(BR.fence, 0.06, 0.004, 0, BR.y + 0.03, z, 0.2));
   }
@@ -109,7 +113,7 @@ function start() {
   const carriage = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(START.x, TOP, START.z));
   const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(START.x, TOP - ROPE_MIN, START.z).setLinearDamping(0.6).setCcdEnabled(true));
   headBody.setEnabledRotations(false, false, false, true);
-  world.createCollider((CLAW === 'two' ? RAPIER.ColliderDesc.cuboid(0.038, HEAD.h / 2, 0.022) : RAPIER.ColliderDesc.cylinder(HEAD.h / 2, HEAD.r)).setDensity(CLAW === 'two' ? 2400 : 3000).setFriction(0.3), headBody);
+  world.createCollider((CLAW === 'two' ? RAPIER.ColliderDesc.cuboid(FING.r + 0.012, HEAD.h / 2, 0.024) : RAPIER.ColliderDesc.cylinder(HEAD.h / 2, HEAD.r)).setDensity(CLAW === 'two' ? 2400 : 3000).setFriction(0.3), headBody);
   const FG = (0x0002 << 16) | 0xfffd;   // prongs don't collide with each other
   const fingers = Array.from({ length: FING.n }, (_, i) => {
     const th = FING.n === 2 ? i * Math.PI : i * Math.PI * 2 / 3 + Math.PI / 6, o = { x: Math.cos(th), z: Math.sin(th) };
@@ -118,9 +122,13 @@ function start() {
     const fb = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(hp.x + o.x * FING.r, hp.y - HEAD.h / 2 - FING.len / 2, hp.z + o.z * FING.r).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setAngularDamping(2).setCcdEnabled(true));
     // local -x points toward the centre of the claw
     if (CLAW === 'two') {
-      // a UFO-catcher arm: a flat plate down, then a foot turned inward with a rubber pad
-      world.createCollider(RAPIER.ColliderDesc.cuboid(0.004, FING.len / 2, 0.014).setDensity(2600).setFriction(0.8).setCollisionGroups(FG), fb);
-      world.createCollider(RAPIER.ColliderDesc.cuboid(0.014, 0.004, 0.015).setTranslation(-0.012, -FING.len / 2 + 0.004, 0).setDensity(2600).setFriction(1.6).setCollisionGroups(FG), fb);
+      // a UFO-catcher arm: a flat bar angled out, an elbow, then a finger turned inward with a rubber pad on its tip
+      for (let k = 1; k < ARM.length; k++) {
+        const [x0, y0] = ARM[k - 1], [x1, y1] = ARM[k], len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(x1 - x0, y1 - y0);
+        const qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang);
+        world.createCollider(RAPIER.ColliderDesc.cuboid(0.0045, len / 2, 0.013).setTranslation((x0 + x1) / 2, (y0 + y1) / 2, 0).setRotation({ x: qz.x, y: qz.y, z: qz.z, w: qz.w }).setDensity(2000).setFriction(0.8).setCollisionGroups(FG), fb);
+      }
+      world.createCollider(RAPIER.ColliderDesc.cuboid(0.009, 0.005, 0.014).setTranslation(ARM[2][0] + 0.006, ARM[2][1] + 0.002, 0).setDensity(1500).setFriction(1.6).setCollisionGroups(FG), fb);
     } else {
       // a wire prong: capsules along its curve, with a small rubber ball at the tip
       for (let k = 1; k < PRONG.length; k++) {
@@ -139,7 +147,7 @@ function start() {
   const setGrip = (target, torque) => fingers.forEach(f => { f.joint.configureMotorPosition(target, 4000, 130); f.joint.setMotorMaxForce(torque); });
   // the figure machine's long arms open wide so their feet can land past the ends of a box and slide under it
   const OPEN_T = FIGURE ? 0.35 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
-  const OPEN = FIGURE ? 0.92 : CLAW === 'two' ? 0.6 : 0.55, CLOSED = FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
+  const OPEN = FIGURE ? 0.6 : CLAW === 'two' ? 0.6 : 0.55, CLOSED = FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
   setGrip(OPEN, OPEN_T);
 
   // ---------- prizes ----------
@@ -362,6 +370,7 @@ function start() {
     [-1, 1].forEach(sx => {
       const b = new THREE.Mesh(new THREE.CylinderGeometry(BR.r, BR.r, BR.z1 - BR.z0 + 0.02, 20), barMat); b.rotation.x = Math.PI / 2; b.position.set(sx * BR.gap / 2, BR.y, (BR.z0 + BR.z1) / 2); b.castShadow = true; scene.add(b);
       [BR.z0, BR.z1].forEach(z => { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, BR.y + 0.12, 12), barMat); post.position.set(sx * BR.gap / 2, (BR.y - 0.12) / 2, z); scene.add(post); });
+      const lx0 = BR.gap / 2 + BR.r + 0.006, ledge = new THREE.Mesh(new THREE.BoxGeometry(BR.fence - lx0, 0.01, BR.z1 - BR.z0), new THREE.MeshStandardMaterial({ color: '#1a1030', roughness: 0.6, metalness: 0.3 })); ledge.position.set(sx * (lx0 + BR.fence) / 2, BR.y - 0.012, (BR.z0 + BR.z1) / 2); ledge.receiveShadow = true; scene.add(ledge);
       const fence = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.12, BR.z1 - BR.z0), new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.12, roughness: 0.05, depthWrite: false })); fence.position.set(sx * BR.fence, BR.y + 0.03, (BR.z0 + BR.z1) / 2); scene.add(fence);
     });
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(BR.gap * 2.2, BR.z1 - BR.z0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.5, 1.2), transparent: true, opacity: 0.35, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(0, -0.11, (BR.z0 + BR.z1) / 2); scene.add(glow);
@@ -384,7 +393,7 @@ function start() {
   [[-X - 0.003, 0, 1], [X + 0.003, 0, 1]].forEach(([x]) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(ZF - ZB, 0.56), glass); p.rotation.y = Math.PI / 2; p.position.set(x, 0.27, (ZF + ZB) / 2); scene.add(p); });
   const frontGlass = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, 0.56), glass); frontGlass.position.set(0, 0.27, ZF + 0.003); scene.add(frontGlass);
   // gold corner pillars with LED strips
-  const ledM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.8, 0.34) });
+  const ledM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.1, 0.8, 0.34) }); const ledBase = new THREE.Color(1.1, 0.8, 0.34);
   [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
     const px = sx * (X + 0.012), pz = sz > 0 ? ZF + 0.012 : ZB - 0.012;
     const p = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.58, 0.024), gold); p.position.set(px, 0.27, pz); p.castShadow = true; scene.add(p);
@@ -392,14 +401,66 @@ function start() {
   });
   // roof and marquee
   const roof = new THREE.Mesh(new RoundedBoxGeometry(0.72, 0.04, 0.68, 3, 0.01), lacquer); roof.position.set(0, 0.57, -0.01); scene.add(roof);
-  const marqueeTex = canvasTex(1024, 256, g => {
+  function drawMarquee(g, sub) {
     g.fillStyle = '#0a0406'; g.fillRect(0, 0, 1024, 256);
     const gr = g.createLinearGradient(0, 60, 0, 200); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#e0a23a');
     g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(POKER ? 'Deck Hunter' : FIGURE ? 'Figure Stage' : 'Lucky Claw', 512, 120);
-    g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText(POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣', 512, 212);
-  });
+    g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText(sub, 512, 212);
+  }
+  const marqueeTex = canvasTex(1024, 256, g => drawMarquee(g, POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣'));
   const marquee = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.05), [blackGloss, blackGloss, blackGloss, blackGloss, new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false }), blackGloss]);
   marquee.position.set(0, 0.67, ZF - 0.01); scene.add(marquee);
+  // ---------- figure machine: display shelves, posters, and colours that follow the chosen figure ----------
+  let applyTheme = () => {};
+  if (FIGURE) {
+    const ids = Object.keys(FIGS), shelfM = new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.25, roughness: 0.05, clearcoat: 1, depthWrite: false });
+    // two corner towers of glass shelves on the back wall, three figures each
+    [-1, 1].forEach((sx, col) => {
+      const cx = sx * 0.2, cz = ZB + 0.035;
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.33, 0.004), new THREE.MeshStandardMaterial({ color: '#140a24', roughness: 0.7 })); frame.position.set(cx, 0.355, ZB + 0.004); scene.add(frame);
+      [0.215, 0.32, 0.425].forEach((y, row) => {
+        const sh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.005, 0.06), shelfM); sh.position.set(cx, y, cz); scene.add(sh);
+        const lip = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.004, 0.003), gold); lip.position.set(cx, y + 0.002, cz + 0.03); scene.add(lip);
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.002, 0.004), ledM); strip.position.set(cx, y - 0.004, cz + 0.026); scene.add(strip);
+        const fig = buildFigure(ids[col * 3 + row]); fig.scale.setScalar(0.95); fig.position.set(cx, y + 0.0025, cz); fig.rotation.y = -sx * 0.35; scene.add(fig);
+      });
+    });
+    // posters: the chosen figure rendered from our own model onto a printed background
+    const rt = new THREE.WebGLRenderTarget(512, 768, { samples: 4 }); rt.texture.colorSpace = THREE.SRGBColorSpace;
+    const pScene = new THREE.Scene(); pScene.add(new THREE.HemisphereLight('#ffffff', '#806070', 1.6)); const pKey = new THREE.DirectionalLight('#ffffff', 2.4); pKey.position.set(0.4, 0.8, 1); pScene.add(pKey);
+    const pCam = new THREE.PerspectiveCamera(24, 512 / 768, 0.01, 5); pCam.position.set(0.05, 0.07, 0.32); pCam.lookAt(0, 0.048, 0);
+    let pFig = null;
+    const posterBg = canvasTex(512, 768, () => {});
+    const posterMats = [new THREE.MeshStandardMaterial({ map: posterBg, roughness: 0.6 }), new THREE.MeshBasicMaterial({ map: rt.texture, transparent: true, toneMapped: true })];
+    const makePoster = (w, h, x, y, z, ry = 0) => {
+      const g2 = new THREE.Group(); g2.position.set(x, y, z); g2.rotation.y = ry; scene.add(g2);
+      const bg = new THREE.Mesh(new THREE.PlaneGeometry(w, h), posterMats[0]); g2.add(bg);
+      const fg = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.92, h * 0.92), posterMats[1]); fg.position.set(0, -h * 0.02, 0.0008); g2.add(fg);
+      const fr = new THREE.Mesh(new THREE.BoxGeometry(w + 0.01, h + 0.01, 0.003), gold); fr.position.z = -0.002; g2.add(fr);
+    };
+    makePoster(0.19, 0.285, 0, 0.36, ZB + 0.005);             // the big one on the back wall, above the bridge
+    makePoster(0.15, 0.225, 0.13, -0.24, 0.325);               // on the cabinet front, beside the prize door
+    applyTheme = id => {
+      const f = FIGS[id], zh = window.I18N && I18N.lang === 'zh';
+      // cabinet lacquer and lights take the character's colours
+      lacquer.color.set(f.bg[1]).multiplyScalar(0.42); const hc = new THREE.Color(f.hair); ledBase.setRGB(hc.r * 1.5 + 0.2, hc.g * 1.5 + 0.2, hc.b * 1.5 + 0.2);
+      const mg = marqueeTex.image.getContext('2d'); drawMarquee(mg, `♪  ${f.name.toUpperCase()} FAIR  ♪`); marqueeTex.needsUpdate = true;
+      // the poster background
+      const g = posterBg.image.getContext('2d'), W = 512, H = 768;
+      const gr = g.createLinearGradient(0, 0, W, H); gr.addColorStop(0, f.bg[0]); gr.addColorStop(1, f.bg[1]); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      g.globalAlpha = 0.25; for (let i = 0; i < 14; i++) { g.fillStyle = '#fff'; g.beginPath(); g.arc(256, 330, 60 + i * 34, 0, 7); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); } g.globalAlpha = 1;
+      g.fillStyle = 'rgba(255,255,255,.9)'; for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; g.font = '28px Georgia, serif'; g.fillText('♪', 256 + Math.cos(a) * 220 - 8, 330 + Math.sin(a) * 260); }
+      g.textAlign = 'center'; g.fillStyle = '#fff'; g.font = '900 64px "Libre Franklin", Arial'; g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 12; g.fillText(f.jp, W / 2, 668); g.shadowBlur = 0;
+      g.font = '700 26px "Libre Franklin", Arial'; g.fillText(`ODDS LOUNGE × ${f.name.toUpperCase()} FAIR`, W / 2, 712);
+      g.font = '500 14px Arial'; g.fillStyle = 'rgba(255,255,255,.75)'; g.fillText('© Crypton Future Media, INC. www.piapro.net · fan art (PCL)', W / 2, 748);
+      g.font = '700 30px "Libre Franklin", Arial'; g.fillStyle = '#fff'; g.fillText(zh ? '限定手办 登场！' : 'PRIZE FIGURE ON STAGE', W / 2, 60);
+      posterBg.needsUpdate = true;
+      // render the figure into the poster
+      if (pFig) pScene.remove(pFig); pFig = buildFigure(id); pFig.rotation.y = -0.35; pScene.add(pFig);
+      const cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha();
+      renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(pScene, pCam); renderer.setRenderTarget(null); renderer.setClearColor(cc, ca);
+    };
+  }
   const mframe = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.18, 0.04), gold); mframe.position.set(0, 0.67, ZF - 0.025); scene.add(mframe);
   const bulbs = []; for (let i = 0; i < 26; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.007, 10, 8), new THREE.MeshBasicMaterial({ color: '#fff' })); const u = i / 26; const per = 2 * (0.7 + 0.16); let d = u * per, x, y; if (d < 0.7) { x = -0.35 + d; y = 0.75; } else if ((d -= 0.7) < 0.16) { x = 0.35; y = 0.75 - d; } else if ((d -= 0.16) < 0.7) { x = 0.35 - d; y = 0.59; } else { d -= 0.7; x = -0.35; y = 0.59 + d; } b.position.set(x, y, ZF + 0.018); scene.add(b); bulbs.push(b); }
   // control deck
@@ -424,9 +485,12 @@ function start() {
   const rubber = new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.85 });
   if (CLAW === 'two') {
     // box head with a motor housing on top and the two arm pivots at its ends
-    const hb = new THREE.Mesh(new RoundedBoxGeometry(0.076, HEAD.h, 0.044, 3, 0.006), chrome); hb.castShadow = true; headM.add(hb);
-    const mot = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.03, 20), gold); mot.rotation.z = Math.PI / 2; mot.position.y = HEAD.h / 2 + 0.008; headM.add(mot);
-    const band = new THREE.Mesh(new THREE.BoxGeometry(0.078, 0.006, 0.046), gold); band.position.y = -HEAD.h / 2 + 0.006; headM.add(band);
+    // a wide UFO-catcher head: a long body the arms hang from at its ends, a domed motor cover and side plates
+    const HW = FING.r * 2 + 0.024;
+    const hb = new THREE.Mesh(new RoundedBoxGeometry(HW, HEAD.h * 0.8, 0.05, 3, 0.008), chrome); hb.castShadow = true; headM.add(hb);
+    const domeT = new THREE.Mesh(new THREE.SphereGeometry(0.028, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), gold); domeT.scale.set(1.3, 0.8, 0.9); domeT.position.y = HEAD.h * 0.4; headM.add(domeT);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(HW + 0.002, 0.006, 0.052), gold); band.position.y = -HEAD.h * 0.4 + 0.004; headM.add(band);
+    [-1, 1].forEach(sx => { const pl = new THREE.Mesh(new RoundedBoxGeometry(0.02, HEAD.h * 0.9, 0.056, 2, 0.004), gold); pl.position.set(sx * (FING.r + 0.004), -0.004, 0); headM.add(pl); });
   } else {
     // round head: a domed cap, a spring housing and a rim the three prongs hang from
     const hm = new THREE.Mesh(new THREE.CylinderGeometry(HEAD.r * 0.8, HEAD.r, HEAD.h * 0.7, 28), chrome); hm.position.y = -HEAD.h * 0.15; hm.castShadow = true; headM.add(hm);
@@ -437,10 +501,13 @@ function start() {
   const fingerMeshes = fingers.map(() => {
     const g = new THREE.Group();
     if (CLAW === 'two') {
-      const arm = new THREE.Mesh(new RoundedBoxGeometry(0.008, FING.len, 0.028, 2, 0.003), chrome); arm.castShadow = true; g.add(arm);
-      const foot = new THREE.Mesh(new RoundedBoxGeometry(0.028, 0.008, 0.03, 2, 0.003), chrome); foot.position.set(-0.012, -FING.len / 2 + 0.004, 0); g.add(foot);
-      const pad = new THREE.Mesh(new RoundedBoxGeometry(0.024, 0.004, 0.026, 2, 0.0015), rubber); pad.position.set(-0.013, -FING.len / 2 + 0.0095, 0); g.add(pad);
-      const pivot = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.032, 14), gold); pivot.rotation.x = Math.PI / 2; pivot.position.y = FING.len / 2; g.add(pivot);
+      for (let k = 1; k < ARM.length; k++) {
+        const [x0, y0] = ARM[k - 1], [x1, y1] = ARM[k], len = Math.hypot(x1 - x0, y1 - y0);
+        const seg = new THREE.Mesh(new RoundedBoxGeometry(0.009, len + 0.006, 0.026, 2, 0.003), chrome); seg.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0); seg.rotation.z = -Math.atan2(x1 - x0, y1 - y0); seg.castShadow = true; g.add(seg);
+      }
+      const elbow = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.0065, 0.03, 14), gold); elbow.rotation.x = Math.PI / 2; elbow.position.set(ARM[1][0], ARM[1][1], 0); g.add(elbow);
+      const pad = new THREE.Mesh(new RoundedBoxGeometry(0.02, 0.01, 0.028, 2, 0.003), rubber); pad.position.set(ARM[2][0] + 0.006, ARM[2][1] + 0.002, 0); g.add(pad);
+      const pivot = new THREE.Mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.034, 14), gold); pivot.rotation.x = Math.PI / 2; pivot.position.y = FING.len / 2; g.add(pivot);
     } else {
       const curve = new THREE.CatmullRomCurve3(PRONG.map(([x, y]) => new THREE.Vector3(x, y, 0)));
       const wire = new THREE.Mesh(new THREE.TubeGeometry(curve, 28, 0.0032, 8), chrome); wire.castShadow = true; g.add(wire);
@@ -481,6 +548,7 @@ function start() {
     if (!superClaw) bank = Math.min(TUNE.BANK_MAX, bank + COST * TUNE.TARGET);
     G.strong = TUNE.P_STRONG != null ? Math.random() < TUNE.P_STRONG : (bank >= TUNE.STRONG_AT || Math.random() < TUNE.LUCKY);
     G.grip = TUNE.GRIP * (0.85 + Math.random() * 0.3);   // this play's motor strength
+    if (FIGURE) G.grip *= G.strong ? 0.45 : 0.18;   // figure arms are weak: they tip and shift a box, they can't carry it away
     if (superClaw) { G.strong = true; G.grip = TUNE.GRIP * 4; }
     G.playWins = 0;
     G.state = 'aim'; G.timer = 30; saveBank();
@@ -530,7 +598,8 @@ function start() {
     else if (G.state === 'raise') {
       G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt);
       // at the top the grip relaxes on most plays: what's held loosely may slip on the way
-      if (G.rope <= ROPE_MIN + 0.001) { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; }
+      if (G.rope <= ROPE_MIN + 0.001) { if (FIGURE) { G.state = 'release'; G.t = 0; setGrip(OPEN, OPEN_T * 1.6); tone(500, 0.12, 0.04, 'square'); }   // bridge machines let go at the top: the box drops back, shifted
+        else { if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; } }
     } else if (G.state === 'carry') { if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5) { G.state = 'release'; G.t = 0; setGrip(OPEN, OPEN_T * 1.6); tone(500, 0.12, 0.04, 'square'); } }
     else if (G.state === 'release') { if (G.t > 1.0) { G.state = 'home'; G.t = 0; } }
     else if (G.state === 'home') { if (Math.hypot(START.x - G.cx, START.z - G.cz) < 0.006) { G.state = 'idle'; motor(false); setGrip(OPEN, OPEN_T); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
@@ -641,8 +710,8 @@ function start() {
   if (fBtn) fBtn.hidden = !FIGURE; if (rBtn) rBtn.hidden = !FIGURE; if (cBtn2 && FIGURE) cBtn2.hidden = true;
   const paintFig = () => { if (fBtn) fBtn.textContent = (window.I18N && I18N.lang === 'zh' ? FIGS[figPick].zh : FIGS[figPick].name) + ' ▸'; };
   if (FIGURE) {
-    paintFig();
-    fBtn.onclick = () => { if (G.state !== 'idle') { say(tr('Change the figure between plays')); return; } const ids = Object.keys(FIGS); figPick = ids[(ids.indexOf(figPick) + 1) % ids.length]; try { localStorage.setItem('ol-claw-fig', figPick); } catch (e) { /* ignore */ } placeBox(); paintFig(); };
+    paintFig(); applyTheme(figPick);
+    fBtn.onclick = () => { if (G.state !== 'idle') { say(tr('Change the figure between plays')); return; } const ids = Object.keys(FIGS); figPick = ids[(ids.indexOf(figPick) + 1) % ids.length]; try { localStorage.setItem('ol-claw-fig', figPick); } catch (e) { /* ignore */ } placeBox(); paintFig(); applyTheme(figPick); };
     rBtn.onclick = () => { if (G.state !== 'idle') { say(tr('The attendant can reset the box between plays')); return; } placeBox(); say(tr('The attendant set the box back on the bridge')); };
     const credit = document.createElement('p'); credit.className = 'cl-credit'; credit.translate = false; credit.textContent = window.I18N && I18N.lang === 'zh' ? FIG_CREDIT_ZH : FIG_CREDIT; host.appendChild(credit);
   }
@@ -714,7 +783,7 @@ function start() {
     goldChipM.forEach(m => { m.emissiveIntensity = 0.3 + Math.max(0, Math.sin(t * 2.2)) * 0.5; });
     bulbs.forEach((b, i) => { const on = bulbsHot > 0 ? (i + Math.floor(t * 30)) % 2 === 0 : G.state === 'idle' ? (i + Math.floor(t * 5)) % 3 === 0 : (i + Math.floor(t * 12)) % 2 === 0; b.material.color.setRGB(on ? 1.5 : 0.4, on ? 1.1 : 0.28, on ? 0.45 : 0.1); });
     chrome.emissive.setRGB(superClaw ? 0.55 + Math.sin(t * 6) * 0.25 : 0, superClaw ? 0.35 + Math.sin(t * 6) * 0.15 : 0, 0);
-    ledM.color.setRGB(1.1 + Math.sin(t * 3) * 0.2, 0.8, 0.34);
+    ledM.color.setRGB(ledBase.r + Math.sin(t * 3) * 0.2, ledBase.g, ledBase.b);
     animView(); controls.update();
   }
   const clock = new THREE.Clock(); let acc = 0, t = 0;
@@ -750,7 +819,7 @@ function start() {
     },
     state: () => ({ ...G, prizes: prizes.length }),
     head: () => { const h = headBody.translation(); return [+h.x.toFixed(3), +h.y.toFixed(3), +h.z.toFixed(3)]; },
-    play: (x, z) => { newPlay(); for (let i = 0; i < 4000; i++) { const dx = x - G.cx, dz = z - G.cz, d = Math.hypot(dx, dz); input.x = d > 0.003 ? dx / d * Math.min(1, d * 15) : 0; input.z = d > 0.003 ? dz / d * Math.min(1, d * 15) : 0; step(world.timestep); if (d < 0.003 && Math.hypot(G.vx, G.vz) < 0.005) break; } input.x = input.z = 0; for (let i = 0; i < 360; i++) step(world.timestep); dropClaw(); let g = 0; const tr2 = {}; while (G.state !== 'idle' && g++ < 6000) { step(world.timestep); if (!tr2[G.state]) tr2[G.state] = { head: OL_CLAW.head(), f: OL_CLAW.fingers(), box: prizes[0] && [+prizes[0].body.translation().y.toFixed(3)] }; if (prizes[0]) tr2.maxBoxY = Math.max(tr2.maxBoxY || 0, prizes[0].body.translation().y); if (G.state === 'lower' && g % 30 === 0) (tr2.trace = tr2.trace || []).push([+G.rope.toFixed(3), OL_CLAW.head()[1], OL_CLAW.fingers().map(q => q[0])]); } tr2.list = OL_CLAW.list(); return tr2; },
+    play: (x, z) => { G.sim = true; G.simWon = 0; G.simWins = 0; G.simKinds = {}; newPlay(); for (let i = 0; i < 4000; i++) { const dx = x - G.cx, dz = z - G.cz, d = Math.hypot(dx, dz); input.x = d > 0.003 ? dx / d * Math.min(1, d * 15) : 0; input.z = d > 0.003 ? dz / d * Math.min(1, d * 15) : 0; step(world.timestep); if (d < 0.003 && Math.hypot(G.vx, G.vz) < 0.005) break; } input.x = input.z = 0; for (let i = 0; i < 360; i++) step(world.timestep); dropClaw(); let g = 0; const tr2 = {}; while (G.state !== 'idle' && g++ < 6000) { step(world.timestep); if (!tr2[G.state]) tr2[G.state] = { head: OL_CLAW.head(), f: OL_CLAW.fingers(), box: prizes[0] && [+prizes[0].body.translation().y.toFixed(3)] }; if (prizes[0]) tr2.maxBoxY = Math.max(tr2.maxBoxY || 0, prizes[0].body.translation().y); if (G.state === 'lower' && g % 30 === 0) (tr2.trace = tr2.trace || []).push([+G.rope.toFixed(3), OL_CLAW.head()[1], OL_CLAW.fingers().map(q => q[0])]); } tr2.list = OL_CLAW.list(); tr2.won = G.simWins; G.sim = false; return tr2; },
     step: n => { for (let i = 0; i < n; i++) step(world.timestep); },
     grip: (a, k) => setGrip(a, k),
     tune: o => Object.assign(TUNE, o),
