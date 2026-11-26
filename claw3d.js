@@ -501,7 +501,7 @@ function start() {
   // a fixed mix of prizes, piled up (each one won is restocked with the same kind)
   const STOCK_MIX = POKER ? { card: 40, deck_red: 16, deck_blue: 16, deck_noir: 8, deck_jade: 8, deck_sakura: 8, deck_neon: 7, deck_gold: 4, deck_ice: 4, deck_ember: 3, deck_holo: 1 }
     : RING_M ? { ring_candy: 9, ring_choco: 7, ring_matcha: 7, ring_cookie: 5, ring_gold: 2 } : CAPS ? { caps_red: 50, caps_blue: 50, caps_green: 40, caps_purple: 30, caps_silver: 18, caps_gold: 8 }
-    : { chip: 40, chips: 20, dice: 15, cards: 15, rocks: 13, highball: 13, martini: 13, cash: 9, champagne: 5, bar: 3, golden: 1 };
+    : { chip: 60, chips: 30, dice: 22, cards: 22, rocks: 18, highball: 18, martini: 18, cash: 13, champagne: 7, bar: 4, golden: 1 };   // a full machine (the chute walls stay the same height)
   const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
   // pour them in a few at a time, letting each layer settle, so they pile up instead of exploding
   for (let i = 0; i < (FIGURE || TAKO || SHOOK ? 0 : STOCK.length); i += 16) {
