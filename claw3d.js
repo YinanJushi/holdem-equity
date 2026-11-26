@@ -15,18 +15,20 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=148';
 import { TAKO_PRIZES, buildTako, takoArt } from './tako-prizes.js?v=153';
-import { RING_BOXES, SNACK_BAGS, CAPSULES, BAG, CAP_R, RING, buildRingBox, buildBag, buildHook, buildCapsule } from './claw-snacks.js?v=200';
+import { RING_BOXES, SNACK_BAGS, CAPSULES, YAMA_SNACKS, BAG, CAP_R, RING, buildRingBox, buildBag, buildHook, buildCapsule, buildYama } from './claw-snacks.js?v=212';
 import { headerChrome, onQuality } from './chrome3d.js?v=148';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
 const host = $('#clHost');
 // two machines share this page: the casino machine and the poker-deck machine (switch with the Machine button)
-const MACHINE = (() => { let m = new URLSearchParams(location.search).get('m'); try { m = m || localStorage.getItem('ol-claw-m'); } catch (e) { /* ignore */ } return ['poker', 'figure', 'tako', 'ring', 'shook', 'caps'].includes(m) ? m : 'casino'; })();
+const MACHINE = (() => { let m = new URLSearchParams(location.search).get('m'); try { m = m || localStorage.getItem('ol-claw-m'); } catch (e) { /* ignore */ } return ['poker', 'figure', 'tako', 'ring', 'shook', 'caps', 'yama'].includes(m) ? m : 'casino'; })();
 const POKER = MACHINE === 'poker', FIGURE = MACHINE === 'figure', TAKO = MACHINE === 'tako', SUFFIX = MACHINE === 'casino' ? '' : '-' + MACHINE;
 // the snack machines: RING (hook the ring on a snack box), SHOOK (push an S-hook off its rod), CAPS (capsule spinner)
 const RING_M = MACHINE === 'ring', SHOOK = MACHINE === 'shook', CAPS = MACHINE === 'caps';
+// the avalanche machine (山崩し): a mountain of small snacks on three steps; push it so it slides into the trough in front
+const YAMA = MACHINE === 'yama';
 const FUNNEL = TAKO || CAPS;   // both scoop balls with the three-petal funnel
-const CHUTE = !FIGURE && !TAKO && !SHOOK && !CAPS;   // the takoyaki machine has no prize chute: balls go onto the plate instead
+const CHUTE = !FIGURE && !TAKO && !SHOOK && !CAPS && !YAMA;   // the takoyaki machine has no prize chute: balls go onto the plate instead
 // two kinds of claw, like real machines: a round head with three curved wire prongs (the classic crane claw),
 // or a box head with two arms and rubber feet (the UFO-catcher style). Switch with the Claw button.
 // the figure machine always uses the two-arm claw, like real prize-figure machines
@@ -81,7 +83,7 @@ function start() {
   const canvasTex = (w, h, draw, srgb = true) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
   const gold = new THREE.MeshStandardMaterial({ color: '#d4a444', metalness: 1, roughness: 0.25, envMapIntensity: 1 });
   const chrome = new THREE.MeshStandardMaterial({ color: '#b8bcc6', metalness: 1, roughness: 0.28, envMapIntensity: 0.9 });
-  const lacquer = new THREE.MeshPhysicalMaterial({ color: POKER ? '#0e3a2a' : FIGURE ? '#2a1450' : TAKO ? '#7a2c0a' : RING_M ? '#5a1a44' : SHOOK ? '#1e2e62' : CAPS ? '#0e4a52' : '#6e0d1d', metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const lacquer = new THREE.MeshPhysicalMaterial({ color: POKER ? '#0e3a2a' : FIGURE ? '#2a1450' : TAKO ? '#7a2c0a' : RING_M ? '#5a1a44' : SHOOK ? '#1e2e62' : CAPS ? '#0e4a52' : YAMA ? '#5a3a12' : '#6e0d1d', metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
   const blackGloss = new THREE.MeshPhysicalMaterial({ color: '#120a0c', metalness: 0.3, roughness: 0.3, clearcoat: 1 });
   const velvetTex = canvasTex(256, 256, g => { g.fillStyle = POKER ? '#0d5236' : '#5a0a16'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : POKER ? '140,255,190' : '255,120,140'},${Math.random() * 0.08})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); } });
   velvetTex.wrapS = velvetTex.wrapT = THREE.RepeatWrapping; velvetTex.repeat.set(3, 3);
@@ -107,6 +109,13 @@ function start() {
   // S-hook machine: floor only under the rods' roots on the right; the left half is the open prize drop
   const SH_FLOOR = 0.07;
   if (SHOOK) fixedBox((X - SH_FLOOR) / 2, 0.02, (ZF - ZB) / 2, (X + SH_FLOOR) / 2, -0.02, (ZF + ZB) / 2);
+  // avalanche machine: three steps rising to the back; the front step overhangs a trough the full width of the machine
+  const YT = 0.13, STEPS = [{ z0: 0.0, z1: YT, y: 0.04 }, { z0: -0.12, z1: 0.0, y: 0.09 }, { z0: ZB, z1: -0.12, y: 0.14 }];
+  // each step leans a little toward the front, so the heap is always close to sliding
+  const TILT = 0.17, tiltQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), TILT);
+  if (YAMA) STEPS.forEach(st => world.createCollider(RAPIER.ColliderDesc.cuboid(X, (st.y + 0.02) / 2, (st.z1 - st.z0) / 2 + 0.01).setTranslation(0, (st.y - 0.02) / 2, (st.z0 + st.z1) / 2).setRotation({ x: tiltQ.x, y: tiltQ.y, z: tiltQ.z, w: tiltQ.w }).setFriction(0.42).setRestitution(0.05)));
+  // a low lip along the front edge: it holds the heap still, but a shove tips snacks over it
+  if (YAMA) { const st = STEPS[0], fy = st.y - ((st.z1 - st.z0) / 2 + 0.01) * Math.sin(TILT); fixedBox(X, 0.004, 0.002, 0, fy + 0.002, st.z1 + 0.008, 0.3); }
   if (CHUTE) {
     fixedBox((X - CH.x1) / 2, 0.02, (ZF - ZB) / 2, CH.x1 + (X - CH.x1) / 2, -0.02, (ZF + ZB) / 2);
     fixedBox((CH.x1 - CH.x0) / 2, 0.02, (CH.z0 - ZB) / 2, (CH.x0 + CH.x1) / 2, -0.02, (CH.z0 + ZB) / 2);
@@ -222,7 +231,7 @@ function start() {
 
   // ---------- the claw: carriage (kinematic), head on a springy cable, three motorised prongs ----------
   // like a real machine, the claw waits over the prize chute and comes back there after every play
-  const START = TAKO ? { x: -0.13, z: 0.1 } : SHOOK ? { x: -0.16, z: 0.12 } : CAPS ? { x: -0.14, z: 0.12 } : FIGURE ? { x: -X + 0.25, z: ZF - 0.13 } : { x: (CH.x0 + CH.x1) / 2, z: (CH.z0 + CH.z1) / 2 };   // the figure claw starts far enough from the glass to spread both arms
+  const START = YAMA ? { x: 0, z: (YT + ZF) / 2 } : TAKO ? { x: -0.13, z: 0.1 } : SHOOK ? { x: -0.16, z: 0.12 } : CAPS ? { x: -0.14, z: 0.12 } : FIGURE ? { x: -X + 0.25, z: ZF - 0.13 } : { x: (CH.x0 + CH.x1) / 2, z: (CH.z0 + CH.z1) / 2 };   // the figure claw starts far enough from the glass to spread both arms
   const carriage = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(START.x, TOP, START.z));
   const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(START.x, TOP - ROPE_MIN, START.z).setLinearDamping(0.6).setCcdEnabled(true));
   headBody.setEnabledRotations(false, false, false, true);
@@ -309,7 +318,7 @@ function start() {
   if (POKER) { for (const k of Object.keys(KINDS)) delete KINDS[k]; Object.assign(KINDS, { card: { name: 'Loose card', value: 5 } }, DECKS); }
   if (TAKO) { for (const k of Object.keys(KINDS)) delete KINDS[k]; Object.assign(KINDS, { tako_red: { name: 'Red hole', value: 5 }, tako_line: { name: 'Line bonus', value: 10 } }); for (const id of Object.keys(TAKO_PRIZES)) KINDS['tp_' + id] = { name: TAKO_PRIZES[id].name, value: TAKO_PRIZES[id].value, rarity: TAKO_PRIZES[id].rarity }; }
   const useKinds = o => { for (const k of Object.keys(KINDS)) delete KINDS[k]; for (const [k, v] of Object.entries(o)) KINDS[k] = { name: v.name, value: v.value }; };
-  if (RING_M) useKinds(RING_BOXES); if (SHOOK) useKinds(SNACK_BAGS); if (CAPS) useKinds(CAPSULES);
+  if (YAMA) useKinds(YAMA_SNACKS); if (RING_M) useKinds(RING_BOXES); if (SHOOK) useKinds(SNACK_BAGS); if (CAPS) useKinds(CAPSULES);
   if (FIGURE) { for (const k of Object.keys(KINDS)) delete KINDS[k]; for (const id of Object.keys(FIGS)) KINDS['fig_' + id] = { name: FIGS[id].name, value: 300 }; }
   const boxArt = {};   // front of each figure box (for the collection book)
   const chipFace = (base, stripe, mark = '') => canvasTex(128, 128, g => { g.fillStyle = base; g.beginPath(); g.arc(64, 64, 64, 0, 7); g.fill(); g.fillStyle = stripe; for (let i = 0; i < 8; i++) { g.save(); g.translate(64, 64); g.rotate(i * Math.PI / 4); g.fillRect(-6, -64, 12, 16); g.restore(); } g.strokeStyle = stripe; g.lineWidth = 3; g.beginPath(); g.arc(64, 64, 38, 0, 7); g.stroke(); if (mark) { g.fillStyle = stripe; g.font = '700 40px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(mark, 64, 67); } });
@@ -440,6 +449,10 @@ function start() {
       }
       obj = buildRingBox(kind);
       const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 0.4); body.setRotation({ x: qy.x, y: qy.y, z: qy.z, w: qy.w }, true);   // rings face roughly left-right
+    } else if (YAMA_SNACKS[kind]) {
+      const Y = YAMA_SNACKS[kind], [w, h, d] = Y.size;
+      col((Y.round ? RAPIER.ColliderDesc.cylinder(h / 2, w / 2) : RAPIER.ColliderDesc.cuboid(w / 2, h / 2, d / 2)).setDensity(Y.gold ? 300 : 240).setFriction(0.42).setRestitution(0.1));
+      obj = buildYama(kind);
     } else if (CAPSULES[kind]) {
       col(RAPIER.ColliderDesc.ball(CAP_R).setDensity(90).setFriction(0.45).setRestitution(0.3));   // hollow plastic: light and slippery, it flows into the funnel
       obj = buildCapsule(kind);
@@ -494,13 +507,14 @@ function start() {
     const p = { kind, body, obj, ...KINDS[kind] };
     prizes.push(p); return p;
   }
-  const randomSpot = () => { if (CAPS) return { x: -X + 0.025 + Math.random() * (PIT.x1 + X - 0.05), z: PIT.z0 + 0.025 + Math.random() * (ZF - PIT.z0 - 0.05) }; let x, z; do { x = (Math.random() * 2 - 1) * (X - 0.04); z = ZB + 0.04 + Math.random() * (ZF - ZB - 0.08); } while (x < CH.x1 + 0.04 && z > CH.z0 - 0.04); return { x, z }; };
+  const randomSpot = () => { if (YAMA) return { x: (Math.random() + Math.random() - 1) * (X - 0.04), z: -0.17 + (Math.random() + Math.random()) / 2 * 0.27 };   // heaped toward the middle
+    if (CAPS) return { x: -X + 0.025 + Math.random() * (PIT.x1 + X - 0.05), z: PIT.z0 + 0.025 + Math.random() * (ZF - PIT.z0 - 0.05) }; let x, z; do { x = (Math.random() * 2 - 1) * (X - 0.04); z = ZB + 0.04 + Math.random() * (ZF - ZB - 0.08); } while (x < CH.x1 + 0.04 && z > CH.z0 - 0.04); return { x, z }; };
   function putBack() {
-    for (const p of prizes) { const t2 = p.body.translation(); if (t2.y < 0.02 && t2.x < CH.x1 + 0.005 && t2.z > CH.z0 - 0.005 || t2.y < -0.05) { const r = randomSpot(); p.body.setTranslation({ x: r.x, y: 0.3, z: r.z }, true); p.body.setLinvel({ x: 0, y: 0, z: 0 }, true); } }
+    for (const p of prizes) { const t2 = p.body.translation(); if (t2.y < 0.02 && t2.x < CH.x1 + 0.005 && t2.z > CH.z0 - 0.005 && !YAMA || (YAMA && t2.z > YT - 0.005 && t2.y < 0.035) || t2.y < -0.05) { const r = randomSpot(); p.body.setTranslation({ x: r.x, y: 0.3, z: r.z }, true); p.body.setLinvel({ x: 0, y: 0, z: 0 }, true); } }
   }
   // a fixed mix of prizes, piled up (each one won is restocked with the same kind)
-  const STOCK_MIX = POKER ? { card: 40, deck_red: 16, deck_blue: 16, deck_noir: 8, deck_jade: 8, deck_sakura: 8, deck_neon: 7, deck_gold: 4, deck_ice: 4, deck_ember: 3, deck_holo: 1 }
-    : RING_M ? { ring_candy: 9, ring_choco: 7, ring_matcha: 7, ring_cookie: 5, ring_gold: 2 } : CAPS ? { caps_red: 50, caps_blue: 50, caps_green: 40, caps_purple: 30, caps_silver: 18, caps_gold: 8 }
+  const STOCK_MIX = POKER ? { card: 58, deck_red: 23, deck_blue: 23, deck_noir: 12, deck_jade: 12, deck_sakura: 12, deck_neon: 10, deck_gold: 6, deck_ice: 6, deck_ember: 4, deck_holo: 1 }
+    : RING_M ? { ring_candy: 9, ring_choco: 7, ring_matcha: 7, ring_cookie: 5, ring_gold: 2 } : CAPS ? { caps_red: 50, caps_blue: 50, caps_green: 40, caps_purple: 30, caps_silver: 18, caps_gold: 8 } : YAMA ? { yama_choco: 52, yama_candy: 38, yama_cookie: 28, yama_jelly: 20, yama_gift: 12 }
     : { chip: 60, chips: 30, dice: 22, cards: 22, rocks: 18, highball: 18, martini: 18, cash: 13, champagne: 7, bar: 4, golden: 1 };   // a full machine (the chute walls stay the same height)
   const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
   // pour them in a few at a time, letting each layer settle, so they pile up instead of exploding
@@ -539,6 +553,7 @@ function start() {
     pickHoles();
     for (let i = 0; i < 340; i++) { const s2 = pitSpot(); addBall(s2.x, 0.2 + (i % 10) * 0.045, s2.z); if (i % 10 === 9) for (let k = 0; k < 50; k++) world.step(); }   // poured in ten at a time, each at its own height
   }
+  if (YAMA) { spawnPrize('yama_gold', 0, 0.42, -0.14); for (let k = 0; k < 4; k++) { for (let i = 0; i < 300; i++) world.step(); putBack(); } }   // the golden box goes on the peak; the heap settles before anyone plays
   for (let i = 0; i < 240; i++) world.step();
   putBack();
   [headBody, ...fingers.map(f => f.body)].forEach(b => { b.setGravityScale(1, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); });
@@ -546,7 +561,7 @@ function start() {
   // ---------- the cabinet (looks) ----------
   // base with a sloping control deck, prize door, glass box with gold pillars, a lit marquee
   const base = new THREE.Mesh(new RoundedBoxGeometry(CW, 0.5, CD, 4, 0.02), lacquer); base.position.set(0, -0.27, CZ); base.receiveShadow = true; scene.add(base);
-  const floorM = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.01, ZF - ZB), FIGURE ? new THREE.MeshStandardMaterial({ color: '#08080c', roughness: 0.9 }) : velvet); floorM.position.set(0, FIGURE ? -0.12 : -0.005, (ZF + ZB) / 2); floorM.receiveShadow = true; if (!SHOOK) scene.add(floorM);
+  const floorM = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.01, ZF - ZB), FIGURE ? new THREE.MeshStandardMaterial({ color: '#08080c', roughness: 0.9 }) : velvet); floorM.position.set(0, FIGURE ? -0.12 : -0.005, (ZF + ZB) / 2); floorM.receiveShadow = true; if (!SHOOK && !YAMA) scene.add(floorM);
   if (FIGURE) {
     // the bridge: four chrome bars on posts over a glowing drop
     const barMat = new THREE.MeshStandardMaterial({ color: '#d8dce4', metalness: 1, roughness: 0.18 });
@@ -555,6 +570,10 @@ function start() {
       [BR.z0, BR.z1].forEach(z => { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, bar.y + 0.12, 12), barMat); post.position.set(bar.x, (bar.y - 0.12) / 2, z); scene.add(post); });
     });
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.7, BR.z1 - BR.z0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.5, 1.2), transparent: true, opacity: 0.35, toneMapped: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(0, -0.11, (BR.z0 + BR.z1) / 2); scene.add(glow);
+    // the bottom of the cabinet under the bridge: a heap of small figures and figure boxes (decoration, the house stock)
+    { const ids = Object.keys(FIGS), FY = -0.02;
+      for (let k = 0; k < 20; k++) { const b = buildBox(ids[k % ids.length], [0.075, 0.03, 0.055]).obj; b.position.set((Math.random() - 0.5) * (X * 2 - 0.08), FY + 0.015 + (k % 3) * 0.022, ZB + 0.05 + Math.random() * (ZF - ZB - 0.1)); b.rotation.set((Math.random() - 0.5) * 0.3, Math.random() * 6, (Math.random() - 0.5) * 0.3); scene.add(b); }
+      for (let k = 0; k < 12; k++) { const f = buildFigure(ids[k % ids.length]); f.scale.setScalar(0.55); f.position.set((Math.random() - 0.5) * (X * 2 - 0.1), FY + 0.06, ZB + 0.06 + Math.random() * (ZF - ZB - 0.12)); f.rotation.set(k % 4 === 0 ? Math.PI / 2.2 : 0, Math.random() * 6, 0); scene.add(f); } }
   }
   // the takoyaki plate: cast iron from the same heightfield, a wooden base, gold and red rings on the paying holes
   if (TAKO) {
@@ -619,6 +638,21 @@ function start() {
     const skirt = new THREE.Mesh(new THREE.CylinderGeometry(T0.r + 0.011, T0.r + 0.013, T0.y - 0.006, 48, 1, true), new THREE.MeshStandardMaterial({ color: '#0e4a52', metalness: 0.3, roughness: 0.35, side: THREE.DoubleSide })); skirt.position.set(TW.x, (T0.y - 0.006) / 2, TW.z); scene.add(skirt);
     const pit = new THREE.Mesh(new THREE.CircleGeometry(T0.r, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 0.6, 1.4), toneMapped: false })); pit.rotation.x = -Math.PI / 2; pit.position.set(TW.x, 0.002, TW.z); scene.add(pit);
   }
+  // avalanche machine looks: three wooden steps with gold edges and lit fronts, a dark trough across the front
+  if (YAMA) {
+    const wood = new THREE.MeshStandardMaterial({ color: '#c98a3a', roughness: 0.6 }), woodD = new THREE.MeshStandardMaterial({ color: '#8a5420', roughness: 0.7 });
+    const stepLed = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.8, 1.1, 0.35), toneMapped: false });
+    STEPS.forEach((st, i) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(X * 2, st.y + 0.02, st.z1 - st.z0 + 0.02), [woodD, woodD, wood, woodD, woodD, woodD]); m.position.set(0, (st.y - 0.02) / 2, (st.z0 + st.z1) / 2); m.rotation.x = TILT; m.receiveShadow = true; scene.add(m);
+      const fy = st.y - ((st.z1 - st.z0) / 2 + 0.01) * Math.sin(TILT);   // the front edge sits a little lower on the tilted step
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(X * 2, i === 0 ? 0.008 : 0.004, 0.006), gold); edge.position.set(0, fy + (i === 0 ? 0.002 : 0), st.z1 + 0.01); scene.add(edge);
+      const led = new THREE.Mesh(new THREE.BoxGeometry(X * 2 - 0.02, 0.004, 0.002), stepLed); led.position.set(0, fy - 0.012, st.z1 + 0.012); scene.add(led);
+    });
+    const trough = new THREE.Mesh(new THREE.PlaneGeometry(X * 2, ZF - YT), new THREE.MeshBasicMaterial({ color: '#050203' })); trough.rotation.x = -Math.PI / 2; trough.position.set(0, -0.03, (YT + ZF) / 2); scene.add(trough);
+    const tg = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.003, 0.004), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 1.8, 0.6), toneMapped: false })); tg.position.set(0, -0.028, ZF - 0.004); scene.add(tg);
+    const sign = canvasTex(256, 64, g => { g.fillStyle = '#f2c14e'; g.font = '800 26px "Libre Franklin", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('▼ SLIDE ZONE ▼', 128, 34); });
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.04), new THREE.MeshBasicMaterial({ map: sign, transparent: true })); sg.position.set(0, STEPS[0].y - 0.03, YT + 0.002); scene.add(sg);
+  }
   // S-hook machine looks: chrome rods out of a panel on the right wall, a lit drop area on the left
   if (SHOOK) {
     const rodM = new THREE.MeshStandardMaterial({ color: '#d8dce4', metalness: 1, roughness: 0.18 });
@@ -661,10 +695,10 @@ function start() {
   function drawMarquee(g, sub) {
     g.fillStyle = '#0a0406'; g.fillRect(0, 0, 1024, 256);
     const gr = g.createLinearGradient(0, 60, 0, 200); gr.addColorStop(0, '#fff1c4'); gr.addColorStop(1, '#e0a23a');
-    g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(POKER ? 'Deck Hunter' : FIGURE ? 'Figure Stage' : TAKO ? 'Lucky Tako' : RING_M ? 'Snack Ring' : SHOOK ? 'Hook Shop' : CAPS ? 'Capsule Tower' : 'Lucky Claw', 512, 120);
+    g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(POKER ? 'Deck Hunter' : FIGURE ? 'Figure Stage' : TAKO ? 'Lucky Tako' : RING_M ? 'Snack Ring' : SHOOK ? 'Hook Shop' : CAPS ? 'Capsule Tower' : YAMA ? 'Snack Mountain' : 'Lucky Claw', 512, 120);
     g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText(sub, 512, 212);
   }
-  const marqueeTex = canvasTex(1024, 256, g => drawMarquee(g, POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : RING_M ? '●  HOOK THE RING · WIN THE SNACKS  ●' : SHOOK ? '◀  PUSH THE HOOK OFF THE ROD  ◀' : CAPS ? '◎  GREEN GOES ON · RED IS OUT · GOLD WINS  ◎' : TAKO ? '●  DROP A BALL IN THE GOLD HOLE  ●' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣'));
+  const marqueeTex = canvasTex(1024, 256, g => drawMarquee(g, YAMA ? '▲  PUSH THE PEAK · CATCH THE SLIDE  ▲' : POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : RING_M ? '●  HOOK THE RING · WIN THE SNACKS  ●' : SHOOK ? '◀  PUSH THE HOOK OFF THE ROD  ◀' : CAPS ? '◎  GREEN GOES ON · RED IS OUT · GOLD WINS  ◎' : TAKO ? '●  DROP A BALL IN THE GOLD HOLE  ●' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣'));
   const marquee = new THREE.Mesh(new THREE.BoxGeometry(CW, 0.16, 0.05), [blackGloss, blackGloss, blackGloss, blackGloss, new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false }), blackGloss]);
   marquee.position.set(0, 0.67, ZF - 0.01); scene.add(marquee);
   // ---------- figure machine: display shelves, posters, and colours that follow the chosen figure ----------
@@ -941,7 +975,7 @@ function start() {
         const s2 = randomSpot(); spawnPrize(p.kind, s2.x, 0.3, s2.z); continue;
       }
       if (t.y < -0.08) {
-        if (FIGURE || (CHUTE && t.x < CH.x1 + 0.02 && t.z > CH.z0 - 0.02)) win(p);
+        if (FIGURE || (CHUTE && t.x < CH.x1 + 0.02 && t.z > CH.z0 - 0.02) || (YAMA && t.z > YT - 0.01)) win(p);
         world.removeRigidBody(p.body); scene.remove(p.obj); prizes.splice(i, 1);
         if (FIGURE) { placeBox(); continue; }
         // the same kind of prize is restocked from the top, so the mix in the machine stays the same
@@ -1004,7 +1038,7 @@ function start() {
   function win(p) {
     // a second (third…) prize in the same play earns the combo bonus
     G.playWins = (G.playWins || 0) + 1;
-    const bonus = !TAKO && G.playWins >= 2 && G.state !== 'idle' ? TUNE.COMBO : 0, v = p.value + bonus;
+    const bonus = !TAKO && !YAMA && G.playWins >= 2 && G.state !== 'idle' ? TUNE.COMBO : 0, v = p.value + bonus;
     if (!superClaw) { bank -= v; saveBank(); }
     if (G.sim) { G.simWon += v; G.simWins++; G.simKinds[p.kind] = (G.simKinds[p.kind] || 0) + 1; return; }
     pending += v; wonTotal += v; G.got = true;
@@ -1058,9 +1092,9 @@ function start() {
   $('#clDrop').onclick = () => { audio(); dropClaw(); };
   $('#clCol').onclick = () => {
     let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
-    if (RING_M || SHOOK || CAPS) {
-      const tip = RING_M ? 'The J-hook stops at ring height. Drop it just to the right of a ring: as it swings left its tip threads the ring, then it lifts the box and carries it to the chute.' : SHOOK ? 'The forked pusher comes down astride a rod. Drop it just to the right of a hook: it sweeps left and shoves the hook along. Push it off the free end and the bag drops into the prize area.' : 'Scoop a handful from the capsule pit with the funnel. It carries them over the spinning tower and waits: steer a little, then press Let go. Top tier: two holes, green drops to the next tier, red is out. Middle tier: four holes, two green, two red. Every capsule that reaches a gold hole in the bottom tier is yours.';
-      d.innerHTML = `<h2>${tr(RING_M ? 'Ring machine' : SHOOK ? 'S-hook machine' : 'Capsule spinner')}</h2><p class="sub">${tr(tip)}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
+    if (RING_M || SHOOK || CAPS || YAMA) {
+      const tip = YAMA ? 'A mountain of snacks sits on three steps above a trough that runs the whole width of the machine. The claw doesn\'t have to lift anything: dig into the slope or knock the peak, and whatever slides off the front step into the trough is yours. Sometimes half the slope comes down at once. The golden box on top is worth 200.' : RING_M ? 'The J-hook stops at ring height. Drop it just to the right of a ring: as it swings left its tip threads the ring, then it lifts the box and carries it to the chute.' : SHOOK ? 'The forked pusher comes down astride a rod. Drop it just to the right of a hook: it sweeps left and shoves the hook along. Push it off the free end and the bag drops into the prize area.' : 'Scoop a handful from the capsule pit with the funnel. It carries them over the spinning tower and waits: steer a little, then press Let go. Top tier: two holes, green drops to the next tier, red is out. Middle tier: four holes, two green, two red. Every capsule that reaches a gold hole in the bottom tier is yours.';
+      d.innerHTML = `<h2>${tr(YAMA ? 'Avalanche machine' : RING_M ? 'Ring machine' : SHOOK ? 'S-hook machine' : 'Capsule spinner')}</h2><p class="sub">${tr(tip)}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
     } else if (TAKO) {
       const ids = Object.keys(TAKO_PRIZES), have = ids.filter(k => collection['tp_' + k]).length, zh = window.I18N && I18N.lang === 'zh';
       const cards = ids.map(k => { const P = TAKO_PRIZES[k]; return `<figure class="cl-deck${collection['tp_' + k] ? '' : ' no'}"><img src="${takoArt(k).toDataURL()}" alt=""><figcaption><b>${zh ? P.zh : P.name}</b><span class="r-${P.rarity.toLowerCase()}">${tr(P.rarity)}</span><small>${'★'.repeat(P.need)} · ${tr('worth')} ${P.value} · × ${collection['tp_' + k] || 0}</small></figcaption></figure>`; }).join('');
@@ -1121,6 +1155,7 @@ function start() {
     ['tako', '🐙', 'Takoyaki machine', 'Scoop ping-pong balls onto the takoyaki plate'],
     ['ring', '🍫', 'Ring machine', 'Thread the J-hook through the ring on a snack box'],
     ['shook', '🪝', 'S-hook machine', 'Shove the hook off the rod with the forked pusher'],
+    ['yama', '⛰️', 'Avalanche machine', 'Push the snack mountain so it slides into the trough'],
     ['caps', '🌀', 'Capsule spinner', 'Scoop capsules into a spinning tower: green holes go on, red holes are out'],
   ];
   function openMachines() {
@@ -1132,7 +1167,7 @@ function start() {
   if (mBtn) { const cur = MACHINES.find(m => m[0] === MACHINE); mBtn.textContent = `${cur[1]} ${tr('Machines')} ▾`; mBtn.onclick = openMachines; }
   // figure machine: pick which figure sits on the bridge, or ask the attendant to set the box straight again
   const fBtn = $('#clFig'), rBtn = $('#clReset'), cBtn2 = $('#clClaw');
-  if (fBtn) fBtn.hidden = !FIGURE && !TAKO; if (rBtn) rBtn.hidden = !FIGURE && !TAKO; if (cBtn2 && (FIGURE || TAKO || RING_M || SHOOK || CAPS)) cBtn2.hidden = true;
+  if (fBtn) fBtn.hidden = !FIGURE && !TAKO; if (rBtn) rBtn.hidden = !FIGURE && !TAKO; if (cBtn2 && (FIGURE || TAKO || RING_M || SHOOK || CAPS || YAMA)) cBtn2.hidden = true;
   if (TAKO) {
     applyTheme(takoPick); paintFig(); paintTakoHud();
     fBtn.onclick = () => { if (G.state !== 'idle' || prizeAnim) { say(tr('Change the prize between plays')); return; } const ids = Object.keys(TAKO_PRIZES); takoPick = ids[(ids.indexOf(takoPick) + 1) % ids.length]; try { localStorage.setItem('ol-tako-pick', takoPick); } catch (e) { /* ignore */ } applyTheme(takoPick); paintFig(); paintTakoHud(); };

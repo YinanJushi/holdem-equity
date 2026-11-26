@@ -109,3 +109,25 @@ export function buildDRingBag(kind) {
   const tab = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.004, 0.02), new THREE.MeshStandardMaterial({ color: '#f4f4f2', roughness: 0.5 })); tab.position.y = BAG[2] / 2 + 0.001; g.add(tab);
   return g;
 }
+
+// ---------- the avalanche machine: small snacks heaped into a mountain on three steps ----------
+// size: [width, height, depth] in metres (the cookie tin is round: [diameter, height, diameter])
+export const YAMA_SNACKS = {
+  yama_choco: { name: 'Mini choco bar', value: 5, col: '#5a2e1a', band: '#f2c14e', size: [0.05, 0.014, 0.022] },
+  yama_candy: { name: 'Candy cube', value: 8, col: '#ff7fae', band: '#ffffff', size: [0.03, 0.03, 0.03] },
+  yama_cookie: { name: 'Cookie tin', value: 10, col: '#2a5aa8', band: '#ffe9b0', size: [0.038, 0.014, 0.038], round: true },
+  yama_jelly: { name: 'Jelly box', value: 15, col: '#3ad8a8', band: '#ff5a8a', size: [0.034, 0.022, 0.034] },
+  yama_gift: { name: 'Snack gift box', value: 30, col: '#8a4ad8', band: '#f2c14e', size: [0.042, 0.03, 0.042] },
+  yama_gold: { name: 'Golden mountain box', value: 200, col: '#e0a628', band: '#c8102e', size: [0.056, 0.044, 0.056], gold: true },
+};
+export function buildYama(kind) {
+  const Y = YAMA_SNACKS[kind], [w, h, d] = Y.size, g = new THREE.Group();
+  const body = Y.gold ? mat(Y.col, { metalness: 0.9, roughness: 0.2, emissive: '#6a4206', emissiveIntensity: 0.4 }) : mat(Y.col);
+  const m = Y.round ? new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, h, 24), body) : new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, Math.min(w, h, d) * 0.12), body);
+  m.castShadow = m.receiveShadow = true; g.add(m);
+  const bandM = mat(Y.band, { roughness: 0.4 });
+  if (Y.round) { const lid = new THREE.Mesh(new THREE.TorusGeometry(w / 2 - 0.002, 0.0015, 6, 24), bandM); lid.rotation.x = Math.PI / 2; lid.position.y = h / 2; g.add(lid); }
+  else if (Y.gold || kind === 'yama_gift') { g.add(new THREE.Mesh(new THREE.BoxGeometry(w + 0.002, h + 0.002, 0.008), bandM), new THREE.Mesh(new THREE.BoxGeometry(0.008, h + 0.002, d + 0.002), bandM)); const bow = new THREE.Mesh(new THREE.TorusGeometry(0.007, 0.0025, 6, 12), bandM); bow.position.y = h / 2 + 0.003; g.add(bow); }
+  else { const b = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, h + 0.001, d + 0.001), bandM); g.add(b); }
+  return g;
+}
