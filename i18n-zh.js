@@ -1158,6 +1158,13 @@ Object.assign(I18N.dict, {
 "Move the scissors over a string, then press Cut": "把剪刀移到绳子上，然后按「剪」",
 "Move the key under a prize, then hold the button to raise it": "把钥匙移到奖品下面，然后按住按钮升高",
 "Press Scoop when the scoop is over a heap of candy": "铲子到糖果多的地方时按「铲」",
+"WASD or arrow keys to move · Space to cut · Enter to start": "WASD 或方向键移动 · 空格剪 · 回车开始",
+"A / D to move · hold Space to raise, let go to push · Enter to start": "A / D 左右移动 · 按住空格升高，松开插入 · 回车开始",
+"Space to scoop · Enter to start": "空格铲 · 回车开始",
+"WASD or arrow keys to move · Space to drop, Space again to let go · Enter to start": "WASD 或方向键移动 · 空格下爪，再按空格松爪 · 回车开始",
+"WASD or arrow keys to move · Space to drop · Enter to start": "WASD 或方向键移动 · 空格下爪 · 回车开始",
+"Enter": "回车键",
+"Space": "空格键",
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],

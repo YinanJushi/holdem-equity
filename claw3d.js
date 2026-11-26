@@ -987,7 +987,6 @@ function start() {
     EX = makeExtra(XM, { world, scene, X, ZB, ZF, TOP, G, input, win, say, tr, tone, motor, gold, chrome, canPay });
     if (!EX.gantry) { bridge.visible = false; carM.visible = false; rails.forEach(r => { r.visible = false; }); }
     if (EX.noPad) document.body.classList.add('cl-nopad');
-    const tipEl = $('.cl-bar .pz-tip'); if (tipEl) tipEl.textContent = tr(EX.startMsg);
   }
   const winCard = document.createElement('div'); winCard.className = 'cl-win'; winCard.hidden = true; host.appendChild(winCard);
   function showWin(p, bonus, small) {
@@ -1014,6 +1013,10 @@ function start() {
     takoHud.innerHTML = `<span class="ct-star">${'★'.repeat(have)}${'☆'.repeat(Math.max(0, P.need - have))}</span><span class="ct-bar"><i style="width:${fullPlate ? 100 : pct}%"></i></span><span class="ct-n">${fullPlate ? tr('Full!') : `${plainFilled}/${plainCount}`} · ${tr('Lines')} ${doneLines.size}</span><span class="ct-txt">${fullPlate ? tr('Full plate: next ball wins!') : tr('{0} holes to the full-plate win', left).replace('{0}', left)} · ${tr('Lines')} ${doneLines.size}</span>`;
     takoHud.classList.toggle('hot', fullPlate);
   }
+  // the key guide on computers (hidden on phones); and the keys on the buttons' tooltips
+  const KEYTIP = XM === 'cut' ? 'WASD or arrow keys to move · Space to cut · Enter to start' : XM === 'key' ? 'A / D to move · hold Space to raise, let go to push · Enter to start'
+    : XM === 'candy' ? 'Space to scoop · Enter to start' : CAPS ? 'WASD or arrow keys to move · Space to drop, Space again to let go · Enter to start' : 'WASD or arrow keys to move · Space to drop · Enter to start';
+  { const tipEl = $('.cl-bar .pz-tip'); if (tipEl) tipEl.textContent = tr(KEYTIP); $('#clInsert').title = tr('Enter'); $('#clDrop').title = tr('Space'); }
   function paint() {
     $('#clInsert').disabled = G.state !== 'idle';
     $('#clDrop').disabled = G.state !== 'aim' && G.state !== 'hover' && !(EX && EX.active());
@@ -1136,10 +1139,17 @@ function start() {
   pad.addEventListener('pointerup', padEnd); pad.addEventListener('pointercancel', padEnd);
   const keys = new Set();
   const keyInput = () => { input.x = (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0); input.z = (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0); };
+  // computer keys: WASD or the arrows move, Space drops (cuts, scoops; held down it raises the key), Enter starts a
+  // play. They work even when a button still has focus from a click, but not while typing or with a dialog open.
+  const typing = e => ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable || !!document.querySelector('dialog[open]');
   document.addEventListener('keydown', e => {
+    if (typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(e.code)) { keys.add(e.code); keyInput(); e.preventDefault(); }
-    if (e.code === 'Space' && e.target.tagName !== 'BUTTON') { e.preventDefault(); if (e.repeat) return; audio(); if (G.state === 'idle') insert(); else dropClaw(); }
+    if (e.code === 'Space') { e.preventDefault(); if (e.repeat) return; audio(); if (G.state === 'idle') insert(); else dropClaw(); }
+    if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); if (e.repeat) return; audio(); if (G.state === 'idle') insert(); }
   });
+  // a key let go while the window was in the background never sends keyup: forget held keys when focus leaves
+  addEventListener('blur', () => { keys.clear(); keyInput(); if (EX && EX.up) EX.up(); });
   document.addEventListener('keyup', e => { keys.delete(e.code); keyInput(); if (e.code === 'Space' && EX && EX.up) EX.up(); });
 
   // ---------- camera and rendering ----------
