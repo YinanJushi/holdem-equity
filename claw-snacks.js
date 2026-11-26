@@ -27,7 +27,7 @@ export const CAPSULES = {
   caps_silver: { name: 'Silver capsule', value: 120, col: '#c8ccd4', metal: true },
   caps_gold: { name: 'Gold capsule', value: 300, col: '#f2c14e', metal: true },
 };
-export const BAG = [0.06, 0.085, 0.022], CAP_R = 0.024, RING = { r: 0.02, tube: 0.003 };
+export const BAG = [0.06, 0.085, 0.022], CAP_R = 0.024, RING = { r: 0.026, tube: 0.003 };
 
 const tex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
 const mat = (color, o = {}) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.45, clearcoat: 0.6, ...o });

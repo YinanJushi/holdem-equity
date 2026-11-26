@@ -15,7 +15,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=148';
 import { TAKO_PRIZES, buildTako, takoArt } from './tako-prizes.js?v=153';
-import { RING_BOXES, SNACK_BAGS, CAPSULES, BAG, CAP_R, RING, buildRingBox, buildBag, buildHook, buildCapsule } from './claw-snacks.js?v=158';
+import { RING_BOXES, SNACK_BAGS, CAPSULES, BAG, CAP_R, RING, buildRingBox, buildBag, buildHook, buildCapsule } from './claw-snacks.js?v=167';
 import { headerChrome, onQuality } from './chrome3d.js?v=148';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
@@ -30,7 +30,9 @@ const CHUTE = !FIGURE && !TAKO && !SHOOK && !CAPS;   // the takoyaki machine has
 // or a box head with two arms and rubber feet (the UFO-catcher style). Switch with the Claw button.
 // the figure machine always uses the two-arm claw, like real prize-figure machines
 // the takoyaki machine always uses its funnel scoop: two half-cones that close into a cup and open at the bottom
-const CLAW = TAKO ? 'funnel' : FIGURE || RING_M || SHOOK ? 'two' : CAPS ? 'three' : (() => { try { return localStorage.getItem('ol-claw-type') === 'two' ? 'two' : 'three'; } catch (e) { return 'three'; } })();
+// each snack machine has its own claw: a single J-hook for the ring machine, a forked pusher for the S-hook machine,
+// and a four-finger mini grabber with rubber tips for the capsule spinner
+const CLAW = TAKO ? 'funnel' : RING_M ? 'hook' : SHOOK ? 'pusher' : CAPS ? 'four' : FIGURE ? 'two' : (() => { try { return localStorage.getItem('ol-claw-type') === 'two' ? 'two' : 'three'; } catch (e) { return 'three'; } })();
 const COST = 25;
 let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
@@ -54,14 +56,18 @@ function start() {
   const X = FIGURE ? 0.42 : 0.28, ZB = FIGURE ? -0.36 : -0.26, ZF = FIGURE ? 0.32 : 0.24, TOP = 0.52;
   const CW = X * 2 + 0.14, CD = ZF - ZB + 0.16, CZ = (ZF + ZB) / 2;   // outside of the cabinet
   const CH = { x0: -X, x1: -X + 0.17, z0: ZF - 0.17, z1: ZF };          // the prize chute (front-left)
-  const HEAD = { r: 0.032, h: 0.04 }, FING = TAKO ? { n: 3, len: 0.075, r: 0.008 } : FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
+  const HEAD = { r: 0.032, h: 0.04 }, FING = TAKO ? { n: 3, len: 0.075, r: 0.008 } : RING_M || SHOOK ? { n: 1, len: 0.115, r: 0.0 } : CAPS ? { n: 4, len: 0.095, r: 0.028 } : FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
   // a three-prong claw's wire prong, side view (x outward, y up; the hinge is at the top): it bows out, then hooks in
   // a UFO-catcher arm, side view (x outward, hinge at the top): it angles out, then an elbow turns the finger in
   const ARM = [[0, FING.len / 2], [0.016, -FING.len / 2 + FING.len * 0.32], [-FING.len * 0.13, -FING.len / 2 + 0.004]];
   const PRONG = [[0, 0.0475], [0.011, 0.02], [0.012, -0.01], [0.004, -0.035], [-0.012, -0.0465]];
   // ROPE_MAX: how far the cable pays out. The ring and S-hook machines have a descent limit (a real machine setting),
   // so the arms stop at the height of the ring or the hooks instead of sinking to the floor
-  const ROPE_MIN = 0.05, ROPE_MAX = RING_M ? 0.33 : SHOOK ? 0.12 : 0.46;
+  const ROPE_MIN = 0.05, ROPE_MAX = RING_M ? 0.316 : SHOOK ? 0.11 : 0.46;
+  // the J-hook (side view, x outward, hinge at the top): a straight shaft, then a cup that curls inward with its tip up
+  const JHOOK = [[0, 0.0575], [0, -0.0455], [-0.006, -0.0575], [-0.017, -0.0565], [-0.024, -0.044]];
+  // the pusher: a shaft ending in a crossbar and two tines that straddle the rod (tines at z = ±0.013)
+  const PUSH = { shaft: 0.07, tine: 0.045, gap: 0.013 };
   // takoyaki machine: the funnel scoop (half-cone: top radius, bottom radius, height) and the plate. PL: centre x/z,
   // half-size, top surface height, 5x5 holes at spacing sp, hole radius rh and depth d, shield height above the plate
   const FUN = { rt: 0.08, rb: 0.014, h: 0.095 };
@@ -148,7 +154,9 @@ function start() {
   // ---------- capsule spinner: a turntable with two holes, spinning on a kinematic body ----------
   // The disc is built from tiles laid in rings, leaving out the tiles over the two holes. A clear wall round it keeps
   // most capsules on the disc (they ride round and may still drop in later); one that falls through a hole wins.
-  const DISC = { x: 0.13, z: -0.02, y: 0.09, r: 0.11, hole: 0.039, at: 0.066, speed: 0.75 };
+  const DISC = { x: 0.13, z: -0.02, y: 0.09, r: 0.11, hole: 0.035, at: 0.066, speed: 2.6 };
+  // pegs on the disc that knock a landing capsule about (angle, radius on the disc)
+  const PEGS = [[Math.PI / 2, 0.066], [-Math.PI / 2, 0.066], [Math.PI / 4, 0.095], [3 * Math.PI / 4, 0.095], [-Math.PI / 4, 0.095], [-3 * Math.PI / 4, 0.095], [0, 0.0], [Math.PI / 2, 0.03], [-Math.PI / 2, 0.03]];
   let discBody = null, discAng = 0;
   if (CAPS) {
     discBody = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(DISC.x, DISC.y - 0.005, DISC.z));
@@ -162,15 +170,16 @@ function start() {
         tile(0.0098, 0.005, Math.PI * rc / n * 1.1, x, 0, z, -a);
       }
     }
-    for (let k = 0; k < 40; k++) { const a = (k + 0.5) / 40 * Math.PI * 2; tile(0.002, 0.009, Math.PI * DISC.r / 40 * 1.1, Math.cos(a) * (DISC.r + 0.002), 0.012, Math.sin(a) * (DISC.r + 0.002), -a); }   // a low lip
+    for (let k = 0; k < 40; k++) { const a = (k + 0.5) / 40 * Math.PI * 2; tile(0.002, 0.006, Math.PI * DISC.r / 40 * 1.1, Math.cos(a) * (DISC.r + 0.002), 0.009, Math.sin(a) * (DISC.r + 0.002), -a); }   // a low lip: a fast spin can fling a capsule over it
+    PEGS.forEach(([a, r]) => { if (r === 0) return; world.createCollider(RAPIER.ColliderDesc.cylinder(0.014, 0.0045).setTranslation(Math.cos(a) * r, 0.019, Math.sin(a) * r).setFriction(0.3).setRestitution(0.6), discBody); });
     // the clear wall round the turntable, from the floor to a little above the disc
-    const WH = DISC.y + 0.03;
+    const WH = DISC.y + 0.012;
     for (let k = 0; k < 32; k++) { const a = (k + 0.5) / 32 * Math.PI * 2, q2 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a); world.createCollider(RAPIER.ColliderDesc.cuboid(0.003, WH / 2, Math.PI * (DISC.r + 0.012) / 32 * 1.1).setTranslation(DISC.x + Math.cos(a) * (DISC.r + 0.012), WH / 2, DISC.z + Math.sin(a) * (DISC.r + 0.012)).setRotation({ x: q2.x, y: q2.y, z: q2.z, w: q2.w }).setFriction(0.3)); }
   }
   // ---------- S-hook machine: rods from the right wall; each prize hangs from an S-hook that slides along its rod ----------
   // The hook rides the rod on a sliding (prismatic) joint with friction. Push it to the free end and the joint is let
   // go: hook and bag drop into the open prize area on the left.
-  const RODS = SHOOK ? [-0.15, -0.03, 0.09].map(z => ({ z, y: 0.3, x0: 0.0, x1: X })) : [];
+  const RODS = SHOOK ? [-0.19, -0.08, 0.03, 0.14].map(z => ({ z, y: 0.3, x0: 0.0, x1: X })) : [];
   const hooks = [];   // { rod, kind, hook, bag, joint, hookObj, bagObj, free }
   let hookF = 0.9;   // sliding friction on the rods (N); lower on the plays the payout bank favours
   const HOOK_G = (0x0010 << 16) | 0xfff7, ROD_G = (0x0008 << 16) | 0xffef;   // hooks ride the rods without touching them
@@ -180,7 +189,7 @@ function start() {
   function addHook(ri, x) {
     const r = RODS[ri], kind = pickBag();
     const hook = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, r.y, r.z).setLinearDamping(0.5));
-    world.createCollider(RAPIER.ColliderDesc.cuboid(0.006, 0.016, 0.007).setTranslation(0, -0.008, 0).setDensity(900).setFriction(0.6).setCollisionGroups(HOOK_G), hook);
+    world.createCollider(RAPIER.ColliderDesc.cuboid(0.006, 0.016, 0.012).setTranslation(0, -0.008, 0).setDensity(900).setFriction(0.6).setCollisionGroups(HOOK_G), hook);
     const jd = RAPIER.JointData.prismatic({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }); jd.limitsEnabled = true; jd.limits = [-0.01, r.x1 - 0.02];
     const joint = world.createImpulseJoint(jd, rodBodies[ri], hook, true); joint.configureMotorVelocity(0, 1); joint.setMotorMaxForce(hookF);
     const bag = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, r.y - 0.026 - BAG[1] / 2, r.z).setLinearDamping(0.6).setAngularDamping(1.2));
@@ -193,10 +202,10 @@ function start() {
   function restockRod(ri) {
     // a new hook goes on at the back of the rod, behind any that are still there
     const xs = hooks.filter(h => h.rod === ri && !h.free).map(hookX), back = RODS[ri].x1 - 0.05;
-    if (xs.length >= 2 || xs.some(x => x > back - 0.075)) return false;
+    if (xs.length >= 3 || xs.some(x => x > back - 0.068)) return false;
     addHook(ri, back); return true;
   }
-  if (SHOOK) RODS.forEach((r, i) => { addHook(i, 0.05 + Math.random() * 0.05); addHook(i, 0.15 + Math.random() * 0.06); });
+  if (SHOOK) RODS.forEach((r, i) => { const x0 = 0.085 + Math.random() * 0.03; [0, 0.066, 0.132].forEach(dx => addHook(i, Math.min(r.x1 - 0.03, x0 + dx))); });
 
   // ---------- the claw: carriage (kinematic), head on a springy cable, three motorised prongs ----------
   // like a real machine, the claw waits over the prize chute and comes back there after every play
@@ -207,12 +216,25 @@ function start() {
   world.createCollider((CLAW === 'two' ? RAPIER.ColliderDesc.cuboid(FING.r + 0.012, HEAD.h / 2, 0.024) : RAPIER.ColliderDesc.cylinder(HEAD.h / 2, HEAD.r)).setDensity(CLAW === 'two' ? 2400 : 3000).setFriction(0.3), headBody);
   const FG = (0x0002 << 16) | 0xfffd;   // prongs don't collide with each other
   const fingers = Array.from({ length: FING.n }, (_, i) => {
-    const th = FING.n === 2 ? i * Math.PI : i * Math.PI * 2 / 3 + Math.PI / 6, o = { x: Math.cos(th), z: Math.sin(th) };
+    const th = FING.n === 1 ? 0 : FING.n === 2 ? i * Math.PI : FING.n === 4 ? i * Math.PI / 2 + Math.PI / 4 : i * Math.PI * 2 / 3 + Math.PI / 6, o = { x: Math.cos(th), z: Math.sin(th) };
     const hp = headBody.translation();
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -th);
     const fb = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(hp.x + o.x * FING.r, hp.y - HEAD.h / 2 - (TAKO ? 0 : FING.len / 2), hp.z + o.z * FING.r).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setAngularDamping(2).setCcdEnabled(true));
     // local -x points toward the centre of the claw
-    if (CLAW === 'funnel') {
+    if (CLAW === 'hook') {
+      // a steel J-hook: capsules along the shaft and round the cup
+      for (let k = 1; k < JHOOK.length; k++) {
+        const [x0, y0] = JHOOK[k - 1], [x1, y1] = JHOOK[k], len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(x1 - x0, y1 - y0);
+        const qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang);
+        world.createCollider(RAPIER.ColliderDesc.capsule(len / 2, 0.0032).setTranslation((x0 + x1) / 2, (y0 + y1) / 2, 0).setRotation({ x: qz.x, y: qz.y, z: qz.z, w: qz.w }).setDensity(5000).setFriction(0.9).setCollisionGroups(FG), fb);
+      }
+    } else if (CLAW === 'pusher') {
+      // shaft, crossbar, and two flat tines that come down either side of the rod and shove the hook along it
+      const L2 = FING.len / 2, yb = -L2 + PUSH.tine;
+      world.createCollider(RAPIER.ColliderDesc.cuboid(0.003, (L2 - yb) / 2 + 0.002, 0.004).setTranslation(0, (L2 + yb) / 2, 0).setDensity(4000).setCollisionGroups(FG), fb);
+      world.createCollider(RAPIER.ColliderDesc.cuboid(0.004, 0.003, PUSH.gap + 0.006).setTranslation(0, yb, 0).setDensity(4000).setCollisionGroups(FG), fb);
+      [-1, 1].forEach(sz => world.createCollider(RAPIER.ColliderDesc.cuboid(0.004, PUSH.tine / 2, 0.0035).setTranslation(0, -L2 + PUSH.tine / 2, sz * PUSH.gap).setDensity(4000).setFriction(0.4).setCollisionGroups(FG), fb));
+    } else if (CLAW === 'funnel') {
       // one petal (a third of a cone), hinged at the top near the centre: flat slats laid round the slope (local origin
       // = hinge, the cone's axis is at x = -FING.r). Closed, the three petals make a cup; opened, the bottom splits apart.
       const N = 4, SPAN = Math.PI * 2 / FING.n, sl = new THREE.Vector3(), tg = new THREE.Vector3(), nm = new THREE.Vector3(), mt = new THREE.Matrix4(), qq = new THREE.Quaternion();
@@ -238,19 +260,19 @@ function start() {
         const qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang);
         world.createCollider(RAPIER.ColliderDesc.capsule(len / 2, 0.0035).setTranslation((x0 + x1) / 2, (y0 + y1) / 2, 0).setRotation({ x: qz.x, y: qz.y, z: qz.z, w: qz.w }).setDensity(4000).setFriction(1.0).setCollisionGroups(FG), fb);
       }
-      world.createCollider(RAPIER.ColliderDesc.ball(0.0055).setTranslation(PRONG[4][0], PRONG[4][1], 0).setDensity(3000).setFriction(1.3).setCollisionGroups(FG), fb);
+      world.createCollider(RAPIER.ColliderDesc.ball(CLAW === 'four' ? 0.0065 : 0.0055).setTranslation(PRONG[4][0], PRONG[4][1], 0).setDensity(3000).setFriction(CLAW === 'four' ? 1.6 : 1.3).setCollisionGroups(FG), fb);
     }
     const jd = RAPIER.JointData.revoluteWithAxes({ x: o.x * FING.r, y: -HEAD.h / 2, z: o.z * FING.r }, { x: 0, y: TAKO ? 0 : FING.len / 2, z: 0 }, { x: -o.z, y: 0, z: o.x }, { x: 0, y: 0, z: 1 });
     const j = world.createImpulseJoint(jd, headBody, fb, true);
-    j.setContactsEnabled(false); j.setLimits(TAKO ? -0.01 : -0.62, TAKO ? 0.9 : CLAW === 'two' ? 1.3 : 0.7);
+    j.setContactsEnabled(false); j.setLimits(TAKO ? -0.01 : FING.n === 1 ? -0.6 : -0.62, TAKO ? 0.9 : FING.n === 1 ? 0.7 : CLAW === 'two' ? 1.3 : 0.7);
     return { body: fb, joint: j, th };
   });
   // the prong motors are stiff, but their torque is capped: the cap (N·m) is the grip strength
   const setGrip = (target, torque) => fingers.forEach(f => { f.joint.configureMotorPosition(target, 4000, 130); f.joint.setMotorMaxForce(torque); });
   // the figure machine's long arms open wide so their feet can land past the ends of a box and slide under it
-  const OPEN_T = TAKO ? 0.3 : FIGURE ? 0.35 : CLAW === 'two' ? 0.12 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
+  const OPEN_T = TAKO ? 0.3 : FING.n === 1 ? 0.1 : FIGURE ? 0.35 : CLAW === 'two' ? 0.12 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
   // two-arm claws wait with their arms spread wide, like a UFO catcher at rest
-  const OPEN = TAKO ? 0.5 : FIGURE ? 0.95 : CLAW === 'two' ? 0.85 : 0.55, CLOSED = TAKO ? 0 : FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
+  const OPEN = TAKO ? 0.5 : RING_M ? 0.35 : SHOOK ? 0.35 : FIGURE ? 0.95 : CLAW === 'two' ? 0.85 : 0.55, CLOSED = TAKO ? 0 : RING_M ? 0.05 : SHOOK ? -0.2 : FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
   const DROP_OPEN = FIGURE ? 0.82 : 0.6;   // as it drops, the arms come in to their working angle
   setGrip(OPEN, OPEN_T);
   // while the prizes are poured in and settle (before the cable spring runs), the claw floats where it hangs
@@ -404,7 +426,7 @@ function start() {
         col(RAPIER.ColliderDesc.capsule(len / 2, RING.tube).setTranslation(0, (y0 + y1) / 2, (z0 + z1) / 2).setRotation({ x: q2.x, y: q2.y, z: q2.z, w: q2.w }).setDensity(400).setFriction(0.9));
       }
       obj = buildRingBox(kind);
-      const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 1.0); body.setRotation({ x: qy.x, y: qy.y, z: qy.z, w: qy.w }, true);   // rings face roughly left-right
+      const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 0.4); body.setRotation({ x: qy.x, y: qy.y, z: qy.z, w: qy.w }, true);   // rings face roughly left-right
     } else if (CAPSULES[kind]) {
       col(RAPIER.ColliderDesc.ball(CAP_R).setDensity(220).setFriction(1.1).setRestitution(0.3));
       obj = buildCapsule(kind);
@@ -465,7 +487,7 @@ function start() {
   }
   // a fixed mix of prizes, piled up (each one won is restocked with the same kind)
   const STOCK_MIX = POKER ? { card: 40, deck_red: 16, deck_blue: 16, deck_noir: 8, deck_jade: 8, deck_sakura: 8, deck_neon: 7, deck_gold: 4, deck_ice: 4, deck_ember: 3, deck_holo: 1 }
-    : RING_M ? { ring_candy: 4, ring_choco: 3, ring_matcha: 3, ring_cookie: 2, ring_gold: 1 } : CAPS ? { caps_red: 10, caps_blue: 10, caps_green: 8, caps_purple: 6, caps_silver: 3, caps_gold: 1 }
+    : RING_M ? { ring_candy: 9, ring_choco: 7, ring_matcha: 7, ring_cookie: 5, ring_gold: 2 } : CAPS ? { caps_red: 26, caps_blue: 26, caps_green: 20, caps_purple: 15, caps_silver: 9, caps_gold: 4 }
     : { chip: 40, chips: 20, dice: 15, cards: 15, rocks: 13, highball: 13, martini: 13, cash: 9, champagne: 5, bar: 3, golden: 1 };
   const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
   // pour them in a few at a time, letting each layer settle, so they pile up instead of exploding
@@ -570,8 +592,9 @@ function start() {
     discObj.add(dm);
     [-1, 1].forEach(sx => { const r = new THREE.Mesh(new THREE.RingGeometry(DISC.hole, DISC.hole + 0.005, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color(2, 1.4, 0.4), toneMapped: false, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.position.set(sx * DISC.at, 0.0012, 0); discObj.add(r); });
     const lipM = new THREE.Mesh(new THREE.TorusGeometry(DISC.r + 0.002, 0.004, 8, 64), gold); lipM.rotation.x = Math.PI / 2; lipM.position.y = 0.006; discObj.add(lipM);
-    const wall = new THREE.Mesh(new THREE.CylinderGeometry(DISC.r + 0.012, DISC.r + 0.012, DISC.y + 0.03, 48, 1, true), new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.14, roughness: 0.05, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide })); wall.position.set(DISC.x, (DISC.y + 0.03) / 2, DISC.z); scene.add(wall);
-    const wallRim = new THREE.Mesh(new THREE.TorusGeometry(DISC.r + 0.012, 0.003, 6, 64), gold); wallRim.rotation.x = Math.PI / 2; wallRim.position.set(DISC.x, DISC.y + 0.03, DISC.z); scene.add(wallRim);
+    PEGS.forEach(([a, r]) => { if (r === 0) return; const pg = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.028, 12), gold); pg.position.set(Math.cos(a) * r, 0.014, Math.sin(a) * r); pg.castShadow = true; discObj.add(pg); const tp = new THREE.Mesh(new THREE.SphereGeometry(0.006, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(2, 0.6, 1.2), toneMapped: false })); tp.position.set(Math.cos(a) * r, 0.029, Math.sin(a) * r); discObj.add(tp); });
+    const wall = new THREE.Mesh(new THREE.CylinderGeometry(DISC.r + 0.012, DISC.r + 0.012, DISC.y + 0.012, 48, 1, true), new THREE.MeshPhysicalMaterial({ color: '#ffffff', transparent: true, opacity: 0.14, roughness: 0.05, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide })); wall.position.set(DISC.x, (DISC.y + 0.012) / 2, DISC.z); scene.add(wall);
+    const wallRim = new THREE.Mesh(new THREE.TorusGeometry(DISC.r + 0.012, 0.003, 6, 64), gold); wallRim.rotation.x = Math.PI / 2; wallRim.position.set(DISC.x, DISC.y + 0.012, DISC.z); scene.add(wallRim);
     const pit = new THREE.Mesh(new THREE.CircleGeometry(DISC.r, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 0.6, 1.4), toneMapped: false })); pit.rotation.x = -Math.PI / 2; pit.position.set(DISC.x, 0.002, DISC.z); scene.add(pit);
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, DISC.y - 0.01, 16), chrome); post.position.set(DISC.x, (DISC.y - 0.01) / 2, DISC.z); scene.add(post);
   }
@@ -580,6 +603,8 @@ function start() {
     const rodM = new THREE.MeshStandardMaterial({ color: '#d8dce4', metalness: 1, roughness: 0.18 });
     RODS.forEach(r => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, r.x1 - r.x0, 12), rodM); m.rotation.z = Math.PI / 2; m.position.set((r.x0 + r.x1) / 2, r.y, r.z); m.castShadow = true; scene.add(m); const cap = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 12, 8), gold); cap.position.set(r.x0, r.y, r.z); scene.add(cap); });
     const panel = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.12, ZF - ZB - 0.04), new THREE.MeshStandardMaterial({ color: '#c99a2e', metalness: 0.9, roughness: 0.35 })); panel.position.set(X - 0.005, 0.3, (ZF + ZB) / 2); scene.add(panel);
+    // a heap of spare snack bags lying on the deck under the rods (decoration: the stock the attendant restocks from)
+    for (let i = 0; i < 16; i++) { const k = Object.keys(SNACK_BAGS)[i % 4]; const b = buildBag(k); b.rotation.set(-Math.PI / 2 + (Math.random() - 0.5) * 0.3, 0, Math.random() * 6); b.position.set(SH_FLOOR + 0.04 + Math.random() * (X - SH_FLOOR - 0.07), 0.012 + (i % 3) * 0.012, ZB + 0.04 + Math.random() * (ZF - ZB - 0.08)); scene.add(b); }
     const deck = new THREE.Mesh(new THREE.BoxGeometry(X - SH_FLOOR, 0.01, ZF - ZB), velvet); deck.position.set((X + SH_FLOOR) / 2, -0.005, (ZF + ZB) / 2); deck.receiveShadow = true; scene.add(deck);
     const drop = new THREE.Mesh(new THREE.PlaneGeometry(X + SH_FLOOR, ZF - ZB), new THREE.MeshBasicMaterial({ color: '#08030a' })); drop.rotation.x = -Math.PI / 2; drop.position.set((-X + SH_FLOOR) / 2, -0.06, (ZF + ZB) / 2); scene.add(drop);
     const edge = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.006, ZF - ZB), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.1, 0.4), toneMapped: false })); edge.position.set(SH_FLOOR, 0.002, (ZF + ZB) / 2); scene.add(edge);
@@ -717,7 +742,18 @@ function start() {
   const funnelM = new THREE.MeshPhysicalMaterial({ color: '#d8dce4', metalness: 0.9, roughness: 0.25, clearcoat: 0.6, side: THREE.DoubleSide });
   const fingerMeshes = fingers.map(() => {
     const g = new THREE.Group();
-    if (CLAW === 'funnel') {
+    if (CLAW === 'hook') {
+      const curve = new THREE.CatmullRomCurve3(JHOOK.map(([x, y]) => new THREE.Vector3(x, y, 0)));
+      const wire = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.0032, 10), chrome); wire.castShadow = true; g.add(wire);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0042, 12, 8), gold); tip.position.set(JHOOK[4][0], JHOOK[4][1], 0); g.add(tip);
+      const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.016, 14), gold); hinge.rotation.x = Math.PI / 2; hinge.position.y = JHOOK[0][1]; g.add(hinge);
+    } else if (CLAW === 'pusher') {
+      const L2 = FING.len / 2, yb = -L2 + PUSH.tine;
+      const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.006, L2 - yb + 0.004, 0.008), chrome); shaft.position.y = (L2 + yb) / 2; shaft.castShadow = true; g.add(shaft);
+      const bar = new THREE.Mesh(new RoundedBoxGeometry(0.008, 0.006, PUSH.gap * 2 + 0.012, 2, 0.002), gold); bar.position.y = yb; g.add(bar);
+      [-1, 1].forEach(sz => { const t = new THREE.Mesh(new RoundedBoxGeometry(0.008, PUSH.tine, 0.007, 2, 0.002), chrome); t.position.set(0, -L2 + PUSH.tine / 2, sz * PUSH.gap); t.castShadow = true; g.add(t); const pad = new THREE.Mesh(new THREE.BoxGeometry(0.0085, 0.012, 0.0075), new THREE.MeshStandardMaterial({ color: '#ff5a2a', roughness: 0.8 })); pad.position.set(0, -L2 + 0.008, sz * PUSH.gap); g.add(pad); });
+      const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.016, 14), gold); hinge.rotation.x = Math.PI / 2; hinge.position.y = L2; g.add(hinge);
+    } else if (CLAW === 'funnel') {
       // half a cone of polished steel with a gold rim, matching the slats in the physics
       const SPAN = Math.PI * 2 / FING.n, lg = new THREE.LatheGeometry([new THREE.Vector2(FUN.rb, -FUN.h), new THREE.Vector2(FUN.rt, 0)], 16, Math.PI / 2 - SPAN / 2, SPAN); lg.translate(-FING.r, 0, 0);
       const cone = new THREE.Mesh(lg, funnelM); cone.castShadow = true; g.add(cone);
@@ -734,7 +770,7 @@ function start() {
     } else {
       const curve = new THREE.CatmullRomCurve3(PRONG.map(([x, y]) => new THREE.Vector3(x, y, 0)));
       const wire = new THREE.Mesh(new THREE.TubeGeometry(curve, 28, 0.0032, 8), chrome); wire.castShadow = true; g.add(wire);
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 12, 10), rubber); tip.position.set(PRONG[4][0], PRONG[4][1], 0); g.add(tip);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(CLAW === 'four' ? 0.0065 : 0.0055, 12, 10), CLAW === 'four' ? new THREE.MeshStandardMaterial({ color: '#ff6fa8', roughness: 0.7 }) : rubber); tip.position.set(PRONG[4][0], PRONG[4][1], 0); g.add(tip);
       const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.012, 12), gold); hinge.rotation.x = Math.PI / 2; hinge.position.y = PRONG[0][1]; g.add(hinge);
     }
     scene.add(g); return g;
@@ -819,7 +855,7 @@ function start() {
       const slack = G.rope - dist;
       if (slack < 0.05) G.rope = Math.min(ROPE_MAX, G.rope + 0.2 * dt);
       G.slackT = slack > 0.015 ? (G.slackT || 0) + dt : 0;
-      if (G.slackT > 0.6 || G.rope >= ROPE_MAX) { G.state = 'settle'; G.t = 0; G.slackT = 0; }
+      if (G.slackT > 0.6 || G.rope >= ROPE_MAX) { G.state = 'settle'; G.t = 0; G.slackT = 0; if (CLAW === 'hook' && slack > 0.004) G.rope = dist - 0.009; }   // the J-hook backs off a little so its cup clears the box lid as it swings
     } else if (G.state === 'settle') {
       if (G.t > 0.3) { G.state = 'close'; G.t = 0; setGrip(CLOSED, G.grip); tone(300, 0.15, 0.04, 'square'); }
     } else if (G.state === 'close') { if (G.t > 0.6) { G.state = 'raise'; G.t = 0; } }
@@ -828,7 +864,7 @@ function start() {
       // at the top the grip relaxes on most plays: what's held loosely may slip on the way
       if (G.rope <= ROPE_MIN + 0.001 && SHOOK) { doRelease(); }   // the S-hook claw opens at the top and goes home empty: only its push counts
       else if (G.rope <= ROPE_MIN + 0.001) { { if (TAKO || CAPS) { /* the cup holds what it scooped; the capsule claw holds on, the luck is in when you let go */ } else if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; } }
-    } else if (G.state === 'carry') { const dropR = TAKO ? ROPE_DROP : CAPS ? 0.2 : null; if (dropR != null) G.rope = Math.min(dropR, G.rope + 0.16 * dt); if (CAPS && Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5 && G.rope >= dropR - 0.001) { G.state = 'hover'; G.t = 0; G.timer = 10; motor(false); paint(); if (!G.sim) say(tr('Watch the holes, then press Drop to let go')); } else if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5 && (dropR == null || (G.rope >= dropR - 0.001 && Math.hypot(headBody.linvel().x, headBody.linvel().z) < 0.03))) { G.state = 'release'; G.t = 0; setGrip(OPEN, OPEN_T * 1.6); if (TAKO) { const hp2 = headBody.translation(); balls.forEach(b => { const t2 = b.body.translation(); if (Math.hypot(t2.x - hp2.x, t2.y - hp2.y, t2.z - hp2.z) < 0.13) b.body.setAngvel({ x: (Math.random() - 0.5) * 30, y: (Math.random() - 0.5) * 30, z: (Math.random() - 0.5) * 30 }, true); }); } /* balls tumble out of the cup with a little spin */ tone(500, 0.12, 0.04, 'square'); } }
+    } else if (G.state === 'carry') { const dropR = TAKO ? ROPE_DROP : CAPS ? 0.15 : null; if (dropR != null) G.rope = Math.min(dropR, G.rope + 0.16 * dt); if (CAPS && Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5 && G.rope >= dropR - 0.001) { G.state = 'hover'; G.t = 0; G.timer = 10; motor(false); paint(); if (!G.sim) say(tr('Watch the holes, then press Drop to let go')); } else if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5 && (dropR == null || (G.rope >= dropR - 0.001 && Math.hypot(headBody.linvel().x, headBody.linvel().z) < 0.03))) { G.state = 'release'; G.t = 0; setGrip(CLAW === 'hook' ? -0.6 : OPEN, OPEN_T * (CLAW === 'hook' ? 4 : 1.6)); if (TAKO) { const hp2 = headBody.translation(); balls.forEach(b => { const t2 = b.body.translation(); if (Math.hypot(t2.x - hp2.x, t2.y - hp2.y, t2.z - hp2.z) < 0.13) b.body.setAngvel({ x: (Math.random() - 0.5) * 30, y: (Math.random() - 0.5) * 30, z: (Math.random() - 0.5) * 30 }, true); }); } /* balls tumble out of the cup with a little spin */ tone(500, 0.12, 0.04, 'square'); } }
     else if (G.state === 'hover') { G.timer -= dt; if (G.timer <= 0 || (G.sim && G.t > (G.simHover || 0.5))) doRelease(); }
     else if (G.state === 'release') { if (G.t > (TAKO ? 1.6 : CAPS ? 1.2 : 1.0)) { G.state = 'home'; G.t = 0; motor(true); } }
     else if (G.state === 'home') { if (TAKO || CAPS) G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt); if (Math.hypot(START.x - G.cx, START.z - G.cz) < 0.006 && G.rope <= ROPE_MIN + 0.001) { G.state = 'idle'; motor(false); setGrip(OPEN, OPEN_T); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
@@ -839,6 +875,8 @@ function start() {
     if (SHOOK) {
       for (let i = hooks.length - 1; i >= 0; i--) {
         const h = hooks[i];
+        // sliding friction on the rod: the hook only moves while something is pushing it
+        if (!h.free) { const v = h.hook.linvel(); const nx = Math.abs(v.x) < 0.015 ? 0 : v.x * Math.exp(-dt * hookF * 40); h.hook.setLinvel({ x: nx, y: 0, z: 0 }, true); }
         // pushed past the free end of the rod: let go of the slide, the hook and its bag fall
         if (!h.free && hookX(h) <= RODS[h.rod].x0 + 0.002) { world.removeImpulseJoint(h.joint, true); h.free = true; h.hook.applyImpulse({ x: -2e-4, y: 0, z: 0 }, true); }
         const bt = h.bag.translation();
@@ -973,7 +1011,7 @@ function start() {
   $('#clCol').onclick = () => {
     let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
     if (RING_M || SHOOK || CAPS) {
-      const tip = RING_M ? 'The arms stop at ring height. Line one arm up beside the ring so it swings through the hole as the arms close, then carry the box to the chute.' : SHOOK ? 'Lower an arm just to the right of a hook: as the arms close it shoves the hook to the left. Push it off the free end of the rod and the bag drops into the prize area.' : 'Grab a capsule. The claw carries it over the turntable and waits: press Let go when a lit hole is coming round.';
+      const tip = RING_M ? 'The J-hook stops at ring height. Drop it just to the right of a ring: as it swings left its tip threads the ring, then it lifts the box and carries it to the chute.' : SHOOK ? 'The forked pusher comes down astride a rod. Drop it just to the right of a hook: it sweeps left and shoves the hook along. Push it off the free end and the bag drops into the prize area.' : 'Grab a capsule with the four-finger grabber. It carries it over the spinning turntable and waits: press Let go when a lit hole is coming round. The pegs and the spin can still throw it off.';
       d.innerHTML = `<h2>${tr(RING_M ? 'Ring machine' : SHOOK ? 'S-hook machine' : 'Capsule spinner')}</h2><p class="sub">${tr(tip)}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
     } else if (TAKO) {
       const ids = Object.keys(TAKO_PRIZES), have = ids.filter(k => collection['tp_' + k]).length, zh = window.I18N && I18N.lang === 'zh';
@@ -1033,9 +1071,9 @@ function start() {
     ['poker', '🃏', 'Poker machine', 'Ten collector decks to find'],
     ['figure', '🎤', 'Figure machine', 'Bridge setup: tip the figure box between the bars'],
     ['tako', '🐙', 'Takoyaki machine', 'Scoop ping-pong balls onto the takoyaki plate'],
-    ['ring', '🍫', 'Ring machine', 'Slip an arm through the ring on a snack box'],
-    ['shook', '🪝', 'S-hook machine', 'Push the hook off the end of the rod'],
-    ['caps', '🌀', 'Capsule spinner', 'Let go when a hole comes round'],
+    ['ring', '🍫', 'Ring machine', 'Thread the J-hook through the ring on a snack box'],
+    ['shook', '🪝', 'S-hook machine', 'Shove the hook off the rod with the forked pusher'],
+    ['caps', '🌀', 'Capsule spinner', 'Let go when a hole comes round on the fast turntable'],
   ];
   function openMachines() {
     let d = document.getElementById('clMDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clMDlg'; d.className = 'rules cl-mdlg'; document.body.appendChild(d); }
@@ -1199,6 +1237,9 @@ function start() {
     prizeDrop: () => { prizeAnim = { t: 0 }; },
     hooks: () => hooks.map(h => [h.rod, h.kind, +hookX(h).toFixed(3), h.free]),
     hover: v => { G.simHover = v; },
+    tip: () => { const f = fingers[0].body, q = f.rotation(), p2 = f.translation(), v = new THREE.Vector3(...(CLAW === 'hook' ? [JHOOK[4][0], JHOOK[4][1], 0] : [0, -FING.len / 2, 0])).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w)); return [+(p2.x + v.x).toFixed(3), +(p2.y + v.y).toFixed(3), +(p2.z + v.z).toFixed(3)]; },
+    aimTo: (x, z) => { G.sim = true; G.simWon = 0; G.simWins = 0; G.simKinds = {}; newPlay(); for (let i = 0; i < 4000; i++) { const dx = x - G.cx, dz = z - G.cz, d = Math.hypot(dx, dz); input.x = d > 0.003 ? dx / d * Math.min(1, d * 15) : 0; input.z = d > 0.003 ? dz / d * Math.min(1, d * 15) : 0; step(world.timestep); if (d < 0.003 && Math.hypot(G.vx, G.vz) < 0.005) break; } input.x = input.z = 0; for (let i = 0; i < 360; i++) step(world.timestep); dropClaw(); },
+    until: (st, max = 3000) => { const out = []; let i = 0; while (G.state !== st && i++ < max) { step(world.timestep); if (i % 20 === 0) out.push([G.state, OL_CLAW.tip()]); } return out; },
     clear: () => { clearPlate(); G.sim = true; G.simKinds = {}; for (let i = 0; i < 240; i++) step(world.timestep); G.sim = false; },
     ray: (x, z) => { const h = world.castRay(new RAPIER.Ray({ x, y: 0.3, z }, { x: 0, y: -1, z: 0 }), 1, true, undefined, undefined, undefined, undefined, b => !balls.some(q => q.body === b)); return h ? +(0.3 - (h.timeOfImpact ?? h.toi)).toFixed(4) : null; },
     balls: () => ({ total: balls.length, plate: balls.filter(b => onPlate(b.body.translation())).length, holes: HOLES.map(h => h.kind[0]).join(''), filled: HOLES.map(h => balls.some(b => { const t2 = b.body.translation(); return Math.hypot(t2.x - h.x, t2.z - h.z) < 0.009 && t2.y < PL.y + 0.012; }) ? 1 : 0).join('') }),

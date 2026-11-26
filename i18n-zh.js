@@ -1112,6 +1112,12 @@ Object.assign(I18N.dict, {
 "Keychain capsule": "钥匙扣扭蛋",
 "Silver capsule": "银色扭蛋",
 "Gold capsule": "金色扭蛋",
+"The J-hook stops at ring height. Drop it just to the right of a ring: as it swings left its tip threads the ring, then it lifts the box and carries it to the chute.": "钩针爪只会降到环的高度。把它放在环的右边一点：钩子往左摆时，钩尖会穿进环里，再把盒子提起来运到出口。",
+"The forked pusher comes down astride a rod. Drop it just to the right of a hook: it sweeps left and shoves the hook along. Push it off the free end and the bag drops into the prize area.": "叉形推杆会跨在横杆上降下来。把它放在钩子右边一点：它往左一扫，就把钩子推着走。推出横杆末端，零食袋就掉进出奖区。",
+"Grab a capsule with the four-finger grabber. It carries it over the spinning turntable and waits: press Let go when a lit hole is coming round. The pegs and the spin can still throw it off.": "用四指小抓斗抓一颗扭蛋，它会移到飞快旋转的转盘上方等你：看到发光的洞转过来时按“放！”。转盘上的弹钉和离心力还是可能把扭蛋甩出去。",
+"Thread the J-hook through the ring on a snack box": "用钩针穿过零食盒上的环",
+"Shove the hook off the rod with the forked pusher": "用叉形推杆把钩子推出横杆",
+"Let go when a hole comes round on the fast turntable": "快速转盘上，洞转过来时松爪",
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],
