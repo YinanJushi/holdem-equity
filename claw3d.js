@@ -15,7 +15,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=148';
 import { TAKO_PRIZES, buildTako, takoArt } from './tako-prizes.js?v=153';
-import { RING_BOXES, SNACK_BAGS, CAPSULES, YAMA_SNACKS, BAG, CAP_R, RING, buildRingBox, buildBag, buildHook, buildCapsule, buildYama } from './claw-snacks.js?v=212';
+import { RING_BOXES, SNACK_BAGS, CAPSULES, YAMA_SNACKS, BAG, CAP_R, RING, buildRingBox, buildBag, buildHook, buildCapsule, buildYama } from './claw-snacks.js?v=217';
 import { headerChrome, onQuality } from './chrome3d.js?v=148';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
@@ -514,7 +514,7 @@ function start() {
   }
   // a fixed mix of prizes, piled up (each one won is restocked with the same kind)
   const STOCK_MIX = POKER ? { card: 58, deck_red: 23, deck_blue: 23, deck_noir: 12, deck_jade: 12, deck_sakura: 12, deck_neon: 10, deck_gold: 6, deck_ice: 6, deck_ember: 4, deck_holo: 1 }
-    : RING_M ? { ring_candy: 9, ring_choco: 7, ring_matcha: 7, ring_cookie: 5, ring_gold: 2 } : CAPS ? { caps_red: 50, caps_blue: 50, caps_green: 40, caps_purple: 30, caps_silver: 18, caps_gold: 8 } : YAMA ? { yama_choco: 52, yama_candy: 38, yama_cookie: 28, yama_jelly: 20, yama_gift: 12 }
+    : RING_M ? { ring_candy: 9, ring_choco: 7, ring_matcha: 7, ring_cookie: 5, ring_gold: 2 } : CAPS ? { caps_red: 50, caps_blue: 50, caps_green: 40, caps_purple: 30, caps_silver: 18, caps_gold: 8 } : YAMA ? { yama_choco: 100, yama_candy: 75, yama_cookie: 55, yama_jelly: 40, yama_gift: 24 }
     : { chip: 60, chips: 30, dice: 22, cards: 22, rocks: 18, highball: 18, martini: 18, cash: 13, champagne: 7, bar: 4, golden: 1 };   // a full machine (the chute walls stay the same height)
   const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
   // pour them in a few at a time, letting each layer settle, so they pile up instead of exploding
@@ -1093,7 +1093,7 @@ function start() {
   $('#clCol').onclick = () => {
     let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
     if (RING_M || SHOOK || CAPS || YAMA) {
-      const tip = YAMA ? 'A mountain of snacks sits on three steps above a trough that runs the whole width of the machine. The claw doesn\'t have to lift anything: dig into the slope or knock the peak, and whatever slides off the front step into the trough is yours. Sometimes half the slope comes down at once. The golden box on top is worth 200.' : RING_M ? 'The J-hook stops at ring height. Drop it just to the right of a ring: as it swings left its tip threads the ring, then it lifts the box and carries it to the chute.' : SHOOK ? 'The forked pusher comes down astride a rod. Drop it just to the right of a hook: it sweeps left and shoves the hook along. Push it off the free end and the bag drops into the prize area.' : 'Scoop a handful from the capsule pit with the funnel. It carries them over the spinning tower and waits: steer a little, then press Let go. Top tier: two holes, green drops to the next tier, red is out. Middle tier: four holes, two green, two red. Every capsule that reaches a gold hole in the bottom tier is yours.';
+      const tip = YAMA ? 'A mountain of snacks sits on three steps above a trough that runs the whole width of the machine. The claw doesn\'t have to lift anything: dig into the slope or knock the peak, and whatever slides off the front step into the trough is yours. Sometimes half the slope comes down at once. The golden box on top is worth 100.' : RING_M ? 'The J-hook stops at ring height. Drop it just to the right of a ring: as it swings left its tip threads the ring, then it lifts the box and carries it to the chute.' : SHOOK ? 'The forked pusher comes down astride a rod. Drop it just to the right of a hook: it sweeps left and shoves the hook along. Push it off the free end and the bag drops into the prize area.' : 'Scoop a handful from the capsule pit with the funnel. It carries them over the spinning tower and waits: steer a little, then press Let go. Top tier: two holes, green drops to the next tier, red is out. Middle tier: four holes, two green, two red. Every capsule that reaches a gold hole in the bottom tier is yours.';
       d.innerHTML = `<h2>${tr(YAMA ? 'Avalanche machine' : RING_M ? 'Ring machine' : SHOOK ? 'S-hook machine' : 'Capsule spinner')}</h2><p class="sub">${tr(tip)}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
     } else if (TAKO) {
       const ids = Object.keys(TAKO_PRIZES), have = ids.filter(k => collection['tp_' + k]).length, zh = window.I18N && I18N.lang === 'zh';

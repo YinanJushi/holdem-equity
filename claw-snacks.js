@@ -113,12 +113,12 @@ export function buildDRingBag(kind) {
 // ---------- the avalanche machine: small snacks heaped into a mountain on three steps ----------
 // size: [width, height, depth] in metres (the cookie tin is round: [diameter, height, diameter])
 export const YAMA_SNACKS = {
-  yama_choco: { name: 'Mini choco bar', value: 5, col: '#5a2e1a', band: '#f2c14e', size: [0.05, 0.014, 0.022] },
-  yama_candy: { name: 'Candy cube', value: 8, col: '#ff7fae', band: '#ffffff', size: [0.03, 0.03, 0.03] },
-  yama_cookie: { name: 'Cookie tin', value: 10, col: '#2a5aa8', band: '#ffe9b0', size: [0.038, 0.014, 0.038], round: true },
-  yama_jelly: { name: 'Jelly box', value: 15, col: '#3ad8a8', band: '#ff5a8a', size: [0.034, 0.022, 0.034] },
-  yama_gift: { name: 'Snack gift box', value: 30, col: '#8a4ad8', band: '#f2c14e', size: [0.042, 0.03, 0.042] },
-  yama_gold: { name: 'Golden mountain box', value: 200, col: '#e0a628', band: '#c8102e', size: [0.056, 0.044, 0.056], gold: true },
+  yama_choco: { name: 'Mini choco bar', value: 1, col: '#5a2e1a', band: '#f2c14e', size: [0.05, 0.014, 0.022] },
+  yama_candy: { name: 'Candy cube', value: 2, col: '#ff7fae', band: '#ffffff', size: [0.03, 0.03, 0.03] },
+  yama_cookie: { name: 'Cookie tin', value: 3, col: '#2a5aa8', band: '#ffe9b0', size: [0.038, 0.014, 0.038], round: true },
+  yama_jelly: { name: 'Jelly box', value: 5, col: '#3ad8a8', band: '#ff5a8a', size: [0.034, 0.022, 0.034] },
+  yama_gift: { name: 'Snack gift box', value: 10, col: '#8a4ad8', band: '#f2c14e', size: [0.042, 0.03, 0.042] },
+  yama_gold: { name: 'Golden mountain box', value: 100, col: '#e0a628', band: '#c8102e', size: [0.056, 0.044, 0.056], gold: true },
 };
 export function buildYama(kind) {
   const Y = YAMA_SNACKS[kind], [w, h, d] = Y.size, g = new THREE.Group();

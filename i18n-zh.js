@@ -1126,7 +1126,7 @@ Object.assign(I18N.dict, {
 "Space": "空格键",
 "Avalanche machine": "山崩台",
 "Push the snack mountain so it slides into the trough": "把零食山推崩，滑进出奖槽",
-"A mountain of snacks sits on three steps above a trough that runs the whole width of the machine. The claw doesn't have to lift anything: dig into the slope or knock the peak, and whatever slides off the front step into the trough is yours. Sometimes half the slope comes down at once. The golden box on top is worth 200.": "三级台阶上堆着一座零食山，前面是一条横贯整台机器的出奖槽。爪子不一定要抓起来：往山坡里挖、或者撞一下山尖，从最前面一级台阶滑进槽里的零食都归你。有时候半边山坡会一起崩下来。山顶的金色大礼盒价值 200。",
+"A mountain of snacks sits on three steps above a trough that runs the whole width of the machine. The claw doesn't have to lift anything: dig into the slope or knock the peak, and whatever slides off the front step into the trough is yours. Sometimes half the slope comes down at once. The golden box on top is worth 100.": "三级台阶上堆着一座零食山，前面是一条横贯整台机器的出奖槽。爪子不一定要抓起来：往山坡里挖、或者撞一下山尖，从最前面一级台阶滑进槽里的零食都归你。有时候半边山坡会一起崩下来。山顶的金色大礼盒价值 100。",
 "Mini choco bar": "迷你巧克力",
 "Candy cube": "方块糖",
 "Cookie tin": "饼干罐",
