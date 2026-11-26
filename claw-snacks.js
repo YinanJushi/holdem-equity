@@ -95,3 +95,17 @@ export function buildCapsule(kind) {
   if (!C.metal) { const toy = new THREE.Mesh(new THREE.IcosahedronGeometry(0.009, 0), mat(['#ffd23f', '#ff5a8a', '#3ad8c8'][Math.floor(Math.random() * 3)])); toy.position.y = 0.006; g.add(toy); }
   return g;
 }
+
+// a snack bag lying face-up on the pile with a D-ring standing on it (the ring's hole faces left-right): the prize for
+// the S-hook machine, where the claw's S-hook threads the D-ring and lifts the bag
+export const DRING = { r: 0.026, tube: 0.0032 };
+export function buildDRingBag(kind) {
+  const g = new THREE.Group();
+  const bag = buildBag(kind); bag.rotation.x = -Math.PI / 2; g.add(bag);
+  const m = new THREE.MeshStandardMaterial({ color: '#e8eaee', metalness: 1, roughness: 0.2 });
+  // the D: a half-circle on top, straight across the bottom, clipped to the bag by a little tab
+  const arc = new THREE.Mesh(new THREE.TorusGeometry(DRING.r, DRING.tube, 8, 24, Math.PI), m); arc.rotation.y = Math.PI / 2; arc.position.y = BAG[2] / 2 + 0.002; g.add(arc);
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(DRING.tube, DRING.tube, DRING.r * 2, 8), m); bar.rotation.x = Math.PI / 2; bar.position.y = BAG[2] / 2 + 0.002; g.add(bar);
+  const tab = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.004, 0.02), new THREE.MeshStandardMaterial({ color: '#f4f4f2', roughness: 0.5 })); tab.position.y = BAG[2] / 2 + 0.001; g.add(tab);
+  return g;
+}

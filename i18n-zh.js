@@ -1118,6 +1118,8 @@ Object.assign(I18N.dict, {
 "Thread the J-hook through the ring on a snack box": "用钩针穿过零食盒上的环",
 "Shove the hook off the rod with the forked pusher": "用叉形推杆把钩子推出横杆",
 "Let go when a hole comes round on the fast turntable": "快速转盘上，洞转过来时松爪",
+"The S-hook stops just above the pile. Drop it a little to the right of a D-ring: as it swings left its tip threads the ring, then it lifts the snack bag and carries it to the chute.": "S 钩会停在零食堆上方一点点。把它放在 D 形环右边一点：钩子往左摆时钩尖会穿进环里，再把零食袋提起来运到出口。",
+"Thread the S-hook through the D-ring on a snack bag": "用 S 钩穿过零食袋上的 D 形环",
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],

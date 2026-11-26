@@ -15,7 +15,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FIGS, buildBox, buildFigure, FIG_CREDIT, FIG_CREDIT_ZH } from './claw-figures.js?v=148';
 import { TAKO_PRIZES, buildTako, takoArt } from './tako-prizes.js?v=153';
-import { RING_BOXES, SNACK_BAGS, CAPSULES, BAG, CAP_R, RING, buildRingBox, buildBag, buildHook, buildCapsule } from './claw-snacks.js?v=167';
+import { RING_BOXES, SNACK_BAGS, CAPSULES, BAG, CAP_R, RING, DRING, buildRingBox, buildBag, buildHook, buildCapsule, buildDRingBag } from './claw-snacks.js?v=175';
 import { headerChrome, onQuality } from './chrome3d.js?v=148';
 
 const $ = s => document.querySelector(s), tr = x => (window.I18N ? I18N.t(x) : x);
@@ -25,14 +25,14 @@ const MACHINE = (() => { let m = new URLSearchParams(location.search).get('m'); 
 const POKER = MACHINE === 'poker', FIGURE = MACHINE === 'figure', TAKO = MACHINE === 'tako', SUFFIX = MACHINE === 'casino' ? '' : '-' + MACHINE;
 // the snack machines: RING (hook the ring on a snack box), SHOOK (push an S-hook off its rod), CAPS (capsule spinner)
 const RING_M = MACHINE === 'ring', SHOOK = MACHINE === 'shook', CAPS = MACHINE === 'caps';
-const CHUTE = !FIGURE && !TAKO && !SHOOK && !CAPS;   // the takoyaki machine has no prize chute: balls go onto the plate instead
+const CHUTE = !FIGURE && !TAKO && !CAPS;   // the takoyaki machine has no prize chute: balls go onto the plate instead
 // two kinds of claw, like real machines: a round head with three curved wire prongs (the classic crane claw),
 // or a box head with two arms and rubber feet (the UFO-catcher style). Switch with the Claw button.
 // the figure machine always uses the two-arm claw, like real prize-figure machines
 // the takoyaki machine always uses its funnel scoop: two half-cones that close into a cup and open at the bottom
 // each snack machine has its own claw: a single J-hook for the ring machine, a forked pusher for the S-hook machine,
 // and a four-finger mini grabber with rubber tips for the capsule spinner
-const CLAW = TAKO ? 'funnel' : RING_M ? 'hook' : SHOOK ? 'pusher' : CAPS ? 'four' : FIGURE ? 'two' : (() => { try { return localStorage.getItem('ol-claw-type') === 'two' ? 'two' : 'three'; } catch (e) { return 'three'; } })();
+const CLAW = TAKO ? 'funnel' : RING_M ? 'hook' : SHOOK ? 'shook' : CAPS ? 'four' : FIGURE ? 'two' : (() => { try { return localStorage.getItem('ol-claw-type') === 'two' ? 'two' : 'three'; } catch (e) { return 'three'; } })();
 const COST = 25;
 let renderer = null;
 try { renderer = new THREE.WebGLRenderer({ antialias: true }); if (!renderer.getContext()) renderer = null; } catch (e) { renderer = null; }
@@ -56,14 +56,16 @@ function start() {
   const X = FIGURE ? 0.42 : 0.28, ZB = FIGURE ? -0.36 : -0.26, ZF = FIGURE ? 0.32 : 0.24, TOP = 0.52;
   const CW = X * 2 + 0.14, CD = ZF - ZB + 0.16, CZ = (ZF + ZB) / 2;   // outside of the cabinet
   const CH = { x0: -X, x1: -X + 0.17, z0: ZF - 0.17, z1: ZF };          // the prize chute (front-left)
-  const HEAD = { r: 0.032, h: 0.04 }, FING = TAKO ? { n: 3, len: 0.075, r: 0.008 } : RING_M || SHOOK ? { n: 1, len: 0.115, r: 0.0 } : CAPS ? { n: 4, len: 0.095, r: 0.028 } : FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
+  const HEAD = { r: 0.032, h: 0.04 }, FING = TAKO ? { n: 3, len: 0.075, r: 0.008 } : RING_M || SHOOK ? { n: 1, len: 0.115, r: 0.0 } : CAPS ? { n: 4, len: 0.11, r: 0.03 } : FIGURE ? { n: 2, len: 0.17, r: 0.06 } : CLAW === 'two' ? { n: 2, len: 0.115, r: 0.042 } : { n: 3, len: 0.095, r: 0.026 };
   // a three-prong claw's wire prong, side view (x outward, y up; the hinge is at the top): it bows out, then hooks in
   // a UFO-catcher arm, side view (x outward, hinge at the top): it angles out, then an elbow turns the finger in
   const ARM = [[0, FING.len / 2], [0.016, -FING.len / 2 + FING.len * 0.32], [-FING.len * 0.13, -FING.len / 2 + 0.004]];
-  const PRONG = [[0, 0.0475], [0.011, 0.02], [0.012, -0.01], [0.004, -0.035], [-0.012, -0.0465]];
+  // the capsule grabber's fingers are longer, bow out wider and curl further under, so they cradle a round capsule
+  const PRONG = CLAW === 'four' ? [[0, 0.055], [0.017, 0.022], [0.02, -0.014], [0.01, -0.043], [-0.016, -0.054]] : [[0, 0.0475], [0.011, 0.02], [0.012, -0.01], [0.004, -0.035], [-0.012, -0.0465]];
   // ROPE_MAX: how far the cable pays out. The ring and S-hook machines have a descent limit (a real machine setting),
   // so the arms stop at the height of the ring or the hooks instead of sinking to the floor
-  const ROPE_MIN = 0.05, ROPE_MAX = RING_M ? 0.316 : SHOOK ? 0.11 : 0.46;
+  const ROPE_MIN = 0.05, ROPE_MAX = RING_M ? 0.316 : SHOOK ? 0.338 : 0.46;
+  const HOOKY = CLAW === 'hook' || CLAW === 'shook';   // the single swinging hooks (J-hook, S-hook) share their physics
   // the J-hook (side view, x outward, hinge at the top): a straight shaft, then a cup that curls inward with its tip up
   const JHOOK = [[0, 0.0575], [0, -0.0455], [-0.006, -0.0575], [-0.017, -0.0565], [-0.024, -0.044]];
   // the pusher: a shaft ending in a crossbar and two tines that straddle the rod (tines at z = ±0.013)
@@ -104,7 +106,7 @@ function start() {
   if (TAKO || CAPS) fixedBox(X, 0.02, (ZF - ZB) / 2, 0, -0.02, (ZF + ZB) / 2);
   // S-hook machine: floor only under the rods' roots on the right; the left half is the open prize drop
   const SH_FLOOR = 0.07;
-  if (SHOOK) fixedBox((X - SH_FLOOR) / 2, 0.02, (ZF - ZB) / 2, (X + SH_FLOOR) / 2, -0.02, (ZF + ZB) / 2);
+
   if (CHUTE) {
     fixedBox((X - CH.x1) / 2, 0.02, (ZF - ZB) / 2, CH.x1 + (X - CH.x1) / 2, -0.02, (ZF + ZB) / 2);
     fixedBox((CH.x1 - CH.x0) / 2, 0.02, (CH.z0 - ZB) / 2, (CH.x0 + CH.x1) / 2, -0.02, (CH.z0 + ZB) / 2);
@@ -179,7 +181,7 @@ function start() {
   // ---------- S-hook machine: rods from the right wall; each prize hangs from an S-hook that slides along its rod ----------
   // The hook rides the rod on a sliding (prismatic) joint with friction. Push it to the free end and the joint is let
   // go: hook and bag drop into the open prize area on the left.
-  const RODS = SHOOK ? [-0.19, -0.08, 0.03, 0.14].map(z => ({ z, y: 0.3, x0: 0.0, x1: X })) : [];
+  const RODS = [];   // (the old push-off-the-rod layout is retired: the S-hook machine now hooks D-rings on the pile)
   const hooks = [];   // { rod, kind, hook, bag, joint, hookObj, bagObj, free }
   let hookF = 0.9;   // sliding friction on the rods (N); lower on the plays the payout bank favours
   const HOOK_G = (0x0010 << 16) | 0xfff7, ROD_G = (0x0008 << 16) | 0xffef;   // hooks ride the rods without touching them
@@ -209,7 +211,7 @@ function start() {
 
   // ---------- the claw: carriage (kinematic), head on a springy cable, three motorised prongs ----------
   // like a real machine, the claw waits over the prize chute and comes back there after every play
-  const START = TAKO ? { x: -0.13, z: 0.1 } : SHOOK ? { x: -0.16, z: 0.12 } : CAPS ? { x: -0.14, z: 0.12 } : FIGURE ? { x: -X + 0.25, z: ZF - 0.13 } : { x: (CH.x0 + CH.x1) / 2, z: (CH.z0 + CH.z1) / 2 };   // the figure claw starts far enough from the glass to spread both arms
+  const START = TAKO ? { x: -0.13, z: 0.1 } : CAPS ? { x: -0.14, z: 0.12 } : FIGURE ? { x: -X + 0.25, z: ZF - 0.13 } : { x: (CH.x0 + CH.x1) / 2, z: (CH.z0 + CH.z1) / 2 };   // the figure claw starts far enough from the glass to spread both arms
   const carriage = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(START.x, TOP, START.z));
   const headBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(START.x, TOP - ROPE_MIN, START.z).setLinearDamping(0.6).setCcdEnabled(true));
   headBody.setEnabledRotations(false, false, false, true);
@@ -221,8 +223,8 @@ function start() {
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -th);
     const fb = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(hp.x + o.x * FING.r, hp.y - HEAD.h / 2 - (TAKO ? 0 : FING.len / 2), hp.z + o.z * FING.r).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }).setAngularDamping(2).setCcdEnabled(true));
     // local -x points toward the centre of the claw
-    if (CLAW === 'hook') {
-      // a steel J-hook: capsules along the shaft and round the cup
+    if (HOOKY) {
+      // a steel J-hook (the S-hook uses the same lower curve): capsules along the shaft and round the cup
       for (let k = 1; k < JHOOK.length; k++) {
         const [x0, y0] = JHOOK[k - 1], [x1, y1] = JHOOK[k], len = Math.hypot(x1 - x0, y1 - y0), ang = Math.atan2(x1 - x0, y1 - y0);
         const qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -ang);
@@ -264,7 +266,7 @@ function start() {
     }
     const jd = RAPIER.JointData.revoluteWithAxes({ x: o.x * FING.r, y: -HEAD.h / 2, z: o.z * FING.r }, { x: 0, y: TAKO ? 0 : FING.len / 2, z: 0 }, { x: -o.z, y: 0, z: o.x }, { x: 0, y: 0, z: 1 });
     const j = world.createImpulseJoint(jd, headBody, fb, true);
-    j.setContactsEnabled(false); j.setLimits(TAKO ? -0.01 : FING.n === 1 ? -0.6 : -0.62, TAKO ? 0.9 : FING.n === 1 ? 0.7 : CLAW === 'two' ? 1.3 : 0.7);
+    j.setContactsEnabled(false); j.setLimits(TAKO ? -0.01 : FING.n === 1 ? -0.65 : -0.62, TAKO ? 0.9 : FING.n === 1 ? 0.7 : CLAW === 'two' ? 1.3 : 0.7);
     return { body: fb, joint: j, th };
   });
   // the prong motors are stiff, but their torque is capped: the cap (N·m) is the grip strength
@@ -272,7 +274,7 @@ function start() {
   // the figure machine's long arms open wide so their feet can land past the ends of a box and slide under it
   const OPEN_T = TAKO ? 0.3 : FING.n === 1 ? 0.1 : FIGURE ? 0.35 : CLAW === 'two' ? 0.12 : 0.05;   // torque holding the arms open (the figure machine's long arms are heavy)
   // two-arm claws wait with their arms spread wide, like a UFO catcher at rest
-  const OPEN = TAKO ? 0.5 : RING_M ? 0.35 : SHOOK ? 0.35 : FIGURE ? 0.95 : CLAW === 'two' ? 0.85 : 0.55, CLOSED = TAKO ? 0 : RING_M ? 0.05 : SHOOK ? -0.2 : FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
+  const OPEN = TAKO ? 0.5 : CAPS ? 0.7 : RING_M || SHOOK ? 0.35 : FIGURE ? 0.95 : CLAW === 'two' ? 0.85 : 0.55, CLOSED = TAKO ? 0 : CAPS ? -0.6 : RING_M || SHOOK ? 0.05 : FIGURE ? -0.35 : CLAW === 'two' ? -0.45 : -0.5;
   const DROP_OPEN = FIGURE ? 0.82 : 0.6;   // as it drops, the arms come in to their working angle
   setGrip(OPEN, OPEN_T);
   // while the prizes are poured in and settle (before the cable spring runs), the claw floats where it hangs
@@ -427,6 +429,18 @@ function start() {
       }
       obj = buildRingBox(kind);
       const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 0.4); body.setRotation({ x: qy.x, y: qy.y, z: qy.z, w: qy.w }, true);   // rings face roughly left-right
+    } else if (SNACK_BAGS[kind]) {
+      // a bag lying face-up with a D-ring standing on it, hole facing left-right
+      col(RAPIER.ColliderDesc.cuboid(BAG[0] / 2, BAG[2] / 2, BAG[1] / 2).setDensity(260).setFriction(0.7));
+      const N = 8, cy = BAG[2] / 2 + 0.002;
+      for (let k = 0; k <= N; k++) {   // the curved side of the D
+        if (k === N) { col(RAPIER.ColliderDesc.capsule(DRING.r, DRING.tube).setTranslation(0, cy, 0).setRotation({ x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 }).setDensity(400)); break; }   // the straight side
+        const a0 = k / N * Math.PI, a1 = (k + 1) / N * Math.PI, y0 = cy + Math.sin(a0) * DRING.r, z0 = Math.cos(a0) * DRING.r, y1 = cy + Math.sin(a1) * DRING.r, z1 = Math.cos(a1) * DRING.r;
+        const len = Math.hypot(y1 - y0, z1 - z0), q2 = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, y1 - y0, z1 - z0).normalize());
+        col(RAPIER.ColliderDesc.capsule(len / 2, DRING.tube).setTranslation(0, (y0 + y1) / 2, (z0 + z1) / 2).setRotation({ x: q2.x, y: q2.y, z: q2.z, w: q2.w }).setDensity(400).setFriction(0.9));
+      }
+      obj = buildDRingBag(kind);
+      const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * 0.4); body.setRotation({ x: qy.x, y: qy.y, z: qy.z, w: qy.w }, true);
     } else if (CAPSULES[kind]) {
       col(RAPIER.ColliderDesc.ball(CAP_R).setDensity(220).setFriction(1.1).setRestitution(0.3));
       obj = buildCapsule(kind);
@@ -487,11 +501,11 @@ function start() {
   }
   // a fixed mix of prizes, piled up (each one won is restocked with the same kind)
   const STOCK_MIX = POKER ? { card: 40, deck_red: 16, deck_blue: 16, deck_noir: 8, deck_jade: 8, deck_sakura: 8, deck_neon: 7, deck_gold: 4, deck_ice: 4, deck_ember: 3, deck_holo: 1 }
-    : RING_M ? { ring_candy: 9, ring_choco: 7, ring_matcha: 7, ring_cookie: 5, ring_gold: 2 } : CAPS ? { caps_red: 26, caps_blue: 26, caps_green: 20, caps_purple: 15, caps_silver: 9, caps_gold: 4 }
+    : RING_M ? { ring_candy: 9, ring_choco: 7, ring_matcha: 7, ring_cookie: 5, ring_gold: 2 } : SHOOK ? { bag_gummy: 8, bag_pretzel: 7, bag_chips: 6, bag_shrimp: 5, bag_gold: 2 } : CAPS ? { caps_red: 26, caps_blue: 26, caps_green: 20, caps_purple: 15, caps_silver: 9, caps_gold: 4 }
     : { chip: 40, chips: 20, dice: 15, cards: 15, rocks: 13, highball: 13, martini: 13, cash: 9, champagne: 5, bar: 3, golden: 1 };
   const STOCK = Object.entries(STOCK_MIX).flatMap(([k, n]) => Array(n).fill(k)).sort(() => Math.random() - 0.5);
   // pour them in a few at a time, letting each layer settle, so they pile up instead of exploding
-  for (let i = 0; i < (FIGURE || TAKO || SHOOK ? 0 : STOCK.length); i += 16) {
+  for (let i = 0; i < (FIGURE || TAKO ? 0 : STOCK.length); i += 16) {
     STOCK.slice(i, i + 16).forEach((k, j) => { const s = randomSpot(); spawnPrize(k, s.x, 0.1 + (j % 4) * 0.05 + i * 0.002, s.z); });
     for (let k = 0; k < 120; k++) world.step();
     putBack();
@@ -533,7 +547,7 @@ function start() {
   // ---------- the cabinet (looks) ----------
   // base with a sloping control deck, prize door, glass box with gold pillars, a lit marquee
   const base = new THREE.Mesh(new RoundedBoxGeometry(CW, 0.5, CD, 4, 0.02), lacquer); base.position.set(0, -0.27, CZ); base.receiveShadow = true; scene.add(base);
-  const floorM = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.01, ZF - ZB), FIGURE ? new THREE.MeshStandardMaterial({ color: '#08080c', roughness: 0.9 }) : velvet); floorM.position.set(0, FIGURE ? -0.12 : -0.005, (ZF + ZB) / 2); floorM.receiveShadow = true; if (!SHOOK) scene.add(floorM);
+  const floorM = new THREE.Mesh(new THREE.BoxGeometry(X * 2, 0.01, ZF - ZB), FIGURE ? new THREE.MeshStandardMaterial({ color: '#08080c', roughness: 0.9 }) : velvet); floorM.position.set(0, FIGURE ? -0.12 : -0.005, (ZF + ZB) / 2); floorM.receiveShadow = true; scene.add(floorM);
   if (FIGURE) {
     // the bridge: four chrome bars on posts over a glowing drop
     const barMat = new THREE.MeshStandardMaterial({ color: '#d8dce4', metalness: 1, roughness: 0.18 });
@@ -599,7 +613,7 @@ function start() {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, DISC.y - 0.01, 16), chrome); post.position.set(DISC.x, (DISC.y - 0.01) / 2, DISC.z); scene.add(post);
   }
   // S-hook machine looks: chrome rods out of a panel on the right wall, a lit drop area on the left
-  if (SHOOK) {
+  if (SHOOK && RODS.length) {
     const rodM = new THREE.MeshStandardMaterial({ color: '#d8dce4', metalness: 1, roughness: 0.18 });
     RODS.forEach(r => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, r.x1 - r.x0, 12), rodM); m.rotation.z = Math.PI / 2; m.position.set((r.x0 + r.x1) / 2, r.y, r.z); m.castShadow = true; scene.add(m); const cap = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 12, 8), gold); cap.position.set(r.x0, r.y, r.z); scene.add(cap); });
     const panel = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.12, ZF - ZB - 0.04), new THREE.MeshStandardMaterial({ color: '#c99a2e', metalness: 0.9, roughness: 0.35 })); panel.position.set(X - 0.005, 0.3, (ZF + ZB) / 2); scene.add(panel);
@@ -643,7 +657,7 @@ function start() {
     g.fillStyle = gr; g.shadowColor = 'rgba(255,190,80,.9)'; g.shadowBlur = 30; g.font = 'italic 900 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(POKER ? 'Deck Hunter' : FIGURE ? 'Figure Stage' : TAKO ? 'Lucky Tako' : RING_M ? 'Snack Ring' : SHOOK ? 'Hook Shop' : CAPS ? 'Capsule Spin' : 'Lucky Claw', 512, 120);
     g.shadowBlur = 0; g.fillStyle = 'rgba(255,230,180,.8)'; g.font = '700 34px "Libre Franklin", Arial'; g.fillText(sub, 512, 212);
   }
-  const marqueeTex = canvasTex(1024, 256, g => drawMarquee(g, POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : RING_M ? '●  HOOK THE RING · WIN THE SNACKS  ●' : SHOOK ? '◀  PUSH THE HOOK OFF THE ROD  ◀' : CAPS ? '◎  LET GO OVER A HOLE  ◎' : TAKO ? '●  DROP A BALL IN THE GOLD HOLE  ●' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣'));
+  const marqueeTex = canvasTex(1024, 256, g => drawMarquee(g, POKER ? '♠  ♥  COLLECTOR DECKS  ♦  ♣' : RING_M ? '●  HOOK THE RING · WIN THE SNACKS  ●' : SHOOK ? '●  HOOK THE D-RING · LIFT THE SNACK  ●' : CAPS ? '◎  LET GO OVER A HOLE  ◎' : TAKO ? '●  DROP A BALL IN THE GOLD HOLE  ●' : FIGURE ? '♪  VIRTUAL SINGERS · PRIZE FIGURES  ♪' : '♠  ♥  ODDS LOUNGE  ♦  ♣'));
   const marquee = new THREE.Mesh(new THREE.BoxGeometry(CW, 0.16, 0.05), [blackGloss, blackGloss, blackGloss, blackGloss, new THREE.MeshBasicMaterial({ map: marqueeTex, toneMapped: false }), blackGloss]);
   marquee.position.set(0, 0.67, ZF - 0.01); scene.add(marquee);
   // ---------- figure machine: display shelves, posters, and colours that follow the chosen figure ----------
@@ -742,7 +756,14 @@ function start() {
   const funnelM = new THREE.MeshPhysicalMaterial({ color: '#d8dce4', metalness: 0.9, roughness: 0.25, clearcoat: 0.6, side: THREE.DoubleSide });
   const fingerMeshes = fingers.map(() => {
     const g = new THREE.Group();
-    if (CLAW === 'hook') {
+    if (CLAW === 'shook') {
+      // an S-hook in gold: the same lower curve as the J-hook, and a reverse curl at the top hung from a short chain
+      const S = [[0.022, 0.07], [0.016, 0.079], [0.006, 0.08], [0, 0.072], ...JHOOK];
+      const curve = new THREE.CatmullRomCurve3(S.map(([x, y]) => new THREE.Vector3(x, y, 0)));
+      const wire = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.0034, 10), gold); wire.castShadow = true; g.add(wire);
+      [S[0], JHOOK[4]].forEach(([x, y]) => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 12, 8), gold); b.position.set(x, y, 0); g.add(b); });
+      for (let k = 0; k < 2; k++) { const link = new THREE.Mesh(new THREE.TorusGeometry(0.005, 0.0013, 6, 12), chrome); link.position.set(0, 0.058 + k * 0.008, 0); link.rotation.y = k * Math.PI / 2; g.add(link); }
+    } else if (CLAW === 'hook') {
       const curve = new THREE.CatmullRomCurve3(JHOOK.map(([x, y]) => new THREE.Vector3(x, y, 0)));
       const wire = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.0032, 10), chrome); wire.castShadow = true; g.add(wire);
       const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0042, 12, 8), gold); tip.position.set(JHOOK[4][0], JHOOK[4][1], 0); g.add(tip);
@@ -808,7 +829,7 @@ function start() {
     G.strong = TUNE.P_STRONG != null ? Math.random() < TUNE.P_STRONG : (bank >= TUNE.STRONG_AT || Math.random() < TUNE.LUCKY);
     G.grip = TUNE.GRIP * (0.85 + Math.random() * 0.3);   // this play's motor strength
     if (FIGURE) G.grip *= G.strong ? 1.6 : 1.05;
-    if (CAPS) G.grip *= 1.6;   // capsules are round and slippery: the claw closes firmly, the luck is in the timing   // figure arms are weak: they tip and shift a box, they can't carry it away
+    if (CAPS) G.grip *= 2.5;   // capsules are round and slippery: the claw closes firmly, the luck is in the timing   // figure arms are weak: they tip and shift a box, they can't carry it away
     if (superClaw) { G.strong = true; G.grip = TUNE.GRIP * 4; }
     if (SHOOK) { hookF = superClaw ? 0.05 : G.strong ? 0.3 : 0.9; hooks.forEach(h => { if (!h.free) h.joint.setMotorMaxForce(hookF); }); }   // the bank sets how stiffly the hooks slide
     if (CAPS) HOME = { x: DISC.x, z: DISC.z + DISC.at };   // it carries the capsule to a spot over the holes' track and waits for you
@@ -855,16 +876,15 @@ function start() {
       const slack = G.rope - dist;
       if (slack < 0.05) G.rope = Math.min(ROPE_MAX, G.rope + 0.2 * dt);
       G.slackT = slack > 0.015 ? (G.slackT || 0) + dt : 0;
-      if (G.slackT > 0.6 || G.rope >= ROPE_MAX) { G.state = 'settle'; G.t = 0; G.slackT = 0; if (CLAW === 'hook' && slack > 0.004) G.rope = dist - 0.009; }   // the J-hook backs off a little so its cup clears the box lid as it swings
+      if (G.slackT > 0.6 || G.rope >= ROPE_MAX) { G.state = 'settle'; G.t = 0; G.slackT = 0; if (HOOKY && slack > 0.004) G.rope = dist - 0.009; }   // the J-hook backs off a little so its cup clears the box lid as it swings
     } else if (G.state === 'settle') {
       if (G.t > 0.3) { G.state = 'close'; G.t = 0; setGrip(CLOSED, G.grip); tone(300, 0.15, 0.04, 'square'); }
     } else if (G.state === 'close') { if (G.t > 0.6) { G.state = 'raise'; G.t = 0; } }
     else if (G.state === 'raise') {
       G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt);
       // at the top the grip relaxes on most plays: what's held loosely may slip on the way
-      if (G.rope <= ROPE_MIN + 0.001 && SHOOK) { doRelease(); }   // the S-hook claw opens at the top and goes home empty: only its push counts
-      else if (G.rope <= ROPE_MIN + 0.001) { { if (TAKO || CAPS) { /* the cup holds what it scooped; the capsule claw holds on, the luck is in when you let go */ } else if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; } }
-    } else if (G.state === 'carry') { const dropR = TAKO ? ROPE_DROP : CAPS ? 0.15 : null; if (dropR != null) G.rope = Math.min(dropR, G.rope + 0.16 * dt); if (CAPS && Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5 && G.rope >= dropR - 0.001) { G.state = 'hover'; G.t = 0; G.timer = 10; motor(false); paint(); if (!G.sim) say(tr('Watch the holes, then press Drop to let go')); } else if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5 && (dropR == null || (G.rope >= dropR - 0.001 && Math.hypot(headBody.linvel().x, headBody.linvel().z) < 0.03))) { G.state = 'release'; G.t = 0; setGrip(CLAW === 'hook' ? -0.6 : OPEN, OPEN_T * (CLAW === 'hook' ? 4 : 1.6)); if (TAKO) { const hp2 = headBody.translation(); balls.forEach(b => { const t2 = b.body.translation(); if (Math.hypot(t2.x - hp2.x, t2.y - hp2.y, t2.z - hp2.z) < 0.13) b.body.setAngvel({ x: (Math.random() - 0.5) * 30, y: (Math.random() - 0.5) * 30, z: (Math.random() - 0.5) * 30 }, true); }); } /* balls tumble out of the cup with a little spin */ tone(500, 0.12, 0.04, 'square'); } }
+      if (G.rope <= ROPE_MIN + 0.001) { { if (TAKO || CAPS) { /* the cup holds what it scooped; the capsule claw holds on, the luck is in when you let go */ } else if (!G.strong) setGrip(TUNE.LOOSE, G.grip * TUNE.WEAK); else if (!superClaw && Math.random() < TUNE.SLIP) setGrip(CLOSED, G.grip * TUNE.MID); G.state = 'carry'; G.t = 0; } }
+    } else if (G.state === 'carry') { const dropR = TAKO ? ROPE_DROP : CAPS ? 0.15 : null; if (dropR != null) G.rope = Math.min(dropR, G.rope + 0.16 * dt); if (CAPS && Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5 && G.rope >= dropR - 0.001) { G.state = 'hover'; G.t = 0; G.timer = 10; motor(false); paint(); if (!G.sim) say(tr('Watch the holes, then press Drop to let go')); } else if (Math.hypot(HOME.x - G.cx, HOME.z - G.cz) < 0.006 && G.t > 0.5 && (dropR == null || (G.rope >= dropR - 0.001 && Math.hypot(headBody.linvel().x, headBody.linvel().z) < 0.03))) { G.state = 'release'; G.t = 0; setGrip(HOOKY ? -0.6 : OPEN, OPEN_T * (HOOKY ? 4 : 1.6)); if (TAKO) { const hp2 = headBody.translation(); balls.forEach(b => { const t2 = b.body.translation(); if (Math.hypot(t2.x - hp2.x, t2.y - hp2.y, t2.z - hp2.z) < 0.13) b.body.setAngvel({ x: (Math.random() - 0.5) * 30, y: (Math.random() - 0.5) * 30, z: (Math.random() - 0.5) * 30 }, true); }); } /* balls tumble out of the cup with a little spin */ tone(500, 0.12, 0.04, 'square'); } }
     else if (G.state === 'hover') { G.timer -= dt; if (G.timer <= 0 || (G.sim && G.t > (G.simHover || 0.5))) doRelease(); }
     else if (G.state === 'release') { if (G.t > (TAKO ? 1.6 : CAPS ? 1.2 : 1.0)) { G.state = 'home'; G.t = 0; motor(true); } }
     else if (G.state === 'home') { if (TAKO || CAPS) G.rope = Math.max(ROPE_MIN, G.rope - 0.16 * dt); if (Math.hypot(START.x - G.cx, START.z - G.cz) < 0.006 && G.rope <= ROPE_MIN + 0.001) { G.state = 'idle'; motor(false); setGrip(OPEN, OPEN_T); paint(); if (!G.sim) say(tr(G.got ? 'Press Play to go again' : 'So close! Press Play to try again')); } }
@@ -1011,7 +1031,7 @@ function start() {
   $('#clCol').onclick = () => {
     let d = document.getElementById('clColDlg'); if (!d) { d = document.createElement('dialog'); d.id = 'clColDlg'; d.className = 'rules'; document.body.appendChild(d); }
     if (RING_M || SHOOK || CAPS) {
-      const tip = RING_M ? 'The J-hook stops at ring height. Drop it just to the right of a ring: as it swings left its tip threads the ring, then it lifts the box and carries it to the chute.' : SHOOK ? 'The forked pusher comes down astride a rod. Drop it just to the right of a hook: it sweeps left and shoves the hook along. Push it off the free end and the bag drops into the prize area.' : 'Grab a capsule with the four-finger grabber. It carries it over the spinning turntable and waits: press Let go when a lit hole is coming round. The pegs and the spin can still throw it off.';
+      const tip = RING_M ? 'The J-hook stops at ring height. Drop it just to the right of a ring: as it swings left its tip threads the ring, then it lifts the box and carries it to the chute.' : SHOOK ? 'The S-hook stops just above the pile. Drop it a little to the right of a D-ring: as it swings left its tip threads the ring, then it lifts the snack bag and carries it to the chute.' : 'Grab a capsule with the four-finger grabber. It carries it over the spinning turntable and waits: press Let go when a lit hole is coming round. The pegs and the spin can still throw it off.';
       d.innerHTML = `<h2>${tr(RING_M ? 'Ring machine' : SHOOK ? 'S-hook machine' : 'Capsule spinner')}</h2><p class="sub">${tr(tip)}</p><table class="pay-t">${Object.entries(KINDS).map(([k, v]) => `<tr><td>${tr(v.name)}</td><td>${tr('worth')} ${v.value}</td><td><b>× ${collection[k] || 0}</b></td></tr>`).join('')}</table><div class="rule-actions"><button type="button" class="primary" data-close>${tr('Done')}</button></div>`;
     } else if (TAKO) {
       const ids = Object.keys(TAKO_PRIZES), have = ids.filter(k => collection['tp_' + k]).length, zh = window.I18N && I18N.lang === 'zh';
@@ -1072,7 +1092,7 @@ function start() {
     ['figure', '🎤', 'Figure machine', 'Bridge setup: tip the figure box between the bars'],
     ['tako', '🐙', 'Takoyaki machine', 'Scoop ping-pong balls onto the takoyaki plate'],
     ['ring', '🍫', 'Ring machine', 'Thread the J-hook through the ring on a snack box'],
-    ['shook', '🪝', 'S-hook machine', 'Shove the hook off the rod with the forked pusher'],
+    ['shook', '🪝', 'S-hook machine', 'Thread the S-hook through the D-ring on a snack bag'],
     ['caps', '🌀', 'Capsule spinner', 'Let go when a hole comes round on the fast turntable'],
   ];
   function openMachines() {
@@ -1181,7 +1201,7 @@ function start() {
       if (!prizeAnim) shelfPrize.rotation.y = Math.sin(t * 0.8) * 0.35;
     }
     HOLES.forEach((h, i) => { if ((h.kind === 'gold' || (fullPlate && h.kind === 'plain')) && holeRings[i]) { holeRings[i].visible = true; holeRings[i].material.color.setRGB(1.8 + Math.sin(t * 5) * 0.6, 1.3 + Math.sin(t * 5) * 0.4, 0.4); } });
-    aimRing.visible = G.state === 'aim'; aimRing.position.set(G.cx, FIGURE ? BR.y + BR.r + BOX[1] + 0.004 : SHOOK ? 0.304 : 0.003, G.cz); aimRing.material.opacity = 0.45 + Math.sin(t * 6) * 0.2;
+    aimRing.visible = G.state === 'aim'; aimRing.position.set(G.cx, FIGURE ? BR.y + BR.r + BOX[1] + 0.004 : 0.003, G.cz); aimRing.material.opacity = 0.45 + Math.sin(t * 6) * 0.2;
     stick.rotation.set(input.z * 0.35, 0, -input.x * 0.35);
     if (bulbsHot > 0) bulbsHot -= 1 / 60;
     if (deckMatCache.deck_holo) { deckMatCache.deck_holo.face.emissiveIntensity = 0.4 + Math.max(0, Math.sin(t * 2.4)) * 0.6; deckMatCache.deck_holo.face.iridescenceIOR = 1.3 + Math.sin(t) * 0.2; }
@@ -1237,7 +1257,7 @@ function start() {
     prizeDrop: () => { prizeAnim = { t: 0 }; },
     hooks: () => hooks.map(h => [h.rod, h.kind, +hookX(h).toFixed(3), h.free]),
     hover: v => { G.simHover = v; },
-    tip: () => { const f = fingers[0].body, q = f.rotation(), p2 = f.translation(), v = new THREE.Vector3(...(CLAW === 'hook' ? [JHOOK[4][0], JHOOK[4][1], 0] : [0, -FING.len / 2, 0])).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w)); return [+(p2.x + v.x).toFixed(3), +(p2.y + v.y).toFixed(3), +(p2.z + v.z).toFixed(3)]; },
+    tip: () => { const f = fingers[0].body, q = f.rotation(), p2 = f.translation(), v = new THREE.Vector3(...(HOOKY ? [JHOOK[4][0], JHOOK[4][1], 0] : [0, -FING.len / 2, 0])).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w)); return [+(p2.x + v.x).toFixed(3), +(p2.y + v.y).toFixed(3), +(p2.z + v.z).toFixed(3)]; },
     aimTo: (x, z) => { G.sim = true; G.simWon = 0; G.simWins = 0; G.simKinds = {}; newPlay(); for (let i = 0; i < 4000; i++) { const dx = x - G.cx, dz = z - G.cz, d = Math.hypot(dx, dz); input.x = d > 0.003 ? dx / d * Math.min(1, d * 15) : 0; input.z = d > 0.003 ? dz / d * Math.min(1, d * 15) : 0; step(world.timestep); if (d < 0.003 && Math.hypot(G.vx, G.vz) < 0.005) break; } input.x = input.z = 0; for (let i = 0; i < 360; i++) step(world.timestep); dropClaw(); },
     until: (st, max = 3000) => { const out = []; let i = 0; while (G.state !== st && i++ < max) { step(world.timestep); if (i % 20 === 0) out.push([G.state, OL_CLAW.tip()]); } return out; },
     clear: () => { clearPlate(); G.sim = true; G.simKinds = {}; for (let i = 0; i < 240; i++) step(world.timestep); G.sim = false; },
