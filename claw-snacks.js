@@ -20,14 +20,14 @@ export const SNACK_BAGS = {
   bag_gold: { name: 'Lucky Gold Bag', value: 120, col: '#e0a628', col2: '#7a3a06', label: 'LUCKY\nSNACK', gold: true },
 };
 export const CAPSULES = {
-  caps_red: { name: 'Candy capsule', value: 40, col: '#e8303a' },
-  caps_blue: { name: 'Sticker capsule', value: 40, col: '#2a7ad8' },
-  caps_green: { name: 'Gummy capsule', value: 50, col: '#3aa84a' },
-  caps_purple: { name: 'Keychain capsule', value: 60, col: '#8a4ad8' },
-  caps_silver: { name: 'Silver capsule', value: 120, col: '#c8ccd4', metal: true },
-  caps_gold: { name: 'Gold capsule', value: 300, col: '#f2c14e', metal: true },
+  caps_red: { name: 'Candy capsule', value: 4, col: '#e8303a' },
+  caps_blue: { name: 'Sticker capsule', value: 4, col: '#2a7ad8' },
+  caps_green: { name: 'Gummy capsule', value: 5, col: '#3aa84a' },
+  caps_purple: { name: 'Keychain capsule', value: 7, col: '#8a4ad8' },
+  caps_silver: { name: 'Silver capsule', value: 14, col: '#c8ccd4', metal: true },
+  caps_gold: { name: 'Gold capsule', value: 40, col: '#f2c14e', metal: true },
 };
-export const BAG = [0.06, 0.085, 0.022], CAP_R = 0.024, RING = { r: 0.026, tube: 0.003 };
+export const BAG = [0.06, 0.085, 0.022], CAP_R = 0.02, RING = { r: 0.026, tube: 0.003 };
 
 const tex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
 const mat = (color, o = {}) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.45, clearcoat: 0.6, ...o });

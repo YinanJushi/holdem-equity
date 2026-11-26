@@ -1124,6 +1124,10 @@ Object.assign(I18N.dict, {
 "WASD or arrow keys to move · Space to drop · Enter to start": "WASD 或方向键移动 · 空格下爪 · 回车开始",
 "Enter": "回车键",
 "Space": "空格键",
+"Steer over the tower, then press Let go": "用摇杆对准转塔，再按「松爪」",
+"Grab a handful from the capsule pit with the six-finger grabber. It carries them over the spinning tower and waits: steer a little, then press Let go. The capsules bounce down three tiers that turn different ways; one that drops through a hole in the bottom tier is yours. Through the x3 hole on top or the x2 holes in the middle, its prize is multiplied.": "用六爪从扭蛋池里抓一把。爪子会把扭蛋带到旋转塔上方停住：可以用摇杆稍微挪一下，再按「松爪」。扭蛋会一层层往下弹，三层转盘各转各的方向；从最底层的洞掉下去的扭蛋就归你。路上穿过顶层的 x3 洞或中间层的 x2 洞，奖品还会翻倍。",
+"Drop a handful of capsules on the three-tier spinning tower": "抓一把扭蛋，丢进三层旋转塔",
+"Through the x{0} hole!": "穿过 x{0} 洞！",
 });
 I18N.rules.push([/^(Hand (\d+) )?(hard|soft) (\d+) \(([^)]+)\) vs (\S+): you chose$/, (_, h, n, k, t, c, v) => `${h ? `第 ${n} 手 ` : ''}${k === 'hard' ? '硬' : '软'} ${t}（${c}）对 ${v}：你选择了`],
   [/^(Big help|Improved|Little change|Worse|Badly hurt) (?:on|after) the (flop|turn|river); (ahead of average|close spot|probably behind|far behind)$/, (_, a, st, b) => `${({ flop: '翻牌', turn: '转牌', river: '河牌' })[st]}${({ 'Big help': '大有帮助', Improved: '后变强', 'Little change': '变化不大', Worse: '后变差', 'Badly hurt': '后大受打击' })[a]}；${({ 'ahead of average': '领先于平均', 'close spot': '局面接近', 'probably behind': '可能落后', 'far behind': '大幅落后' })[b]}`],
