@@ -999,8 +999,3 @@ body.cl-super .cl-host { box-shadow: inset 0 0 60px rgba(255,200,90,.35); }
 .cl-mcard em { position: absolute; top: 8px; right: 8px; font: 700 10px var(--sans); font-style: normal; padding: 2px 8px; border-radius: 999px; background: #c99a2e; color: #1a0a04; }
 .cl-mcard.on { border-color: #c99a2e; box-shadow: inset 0 0 0 1px #c99a2e; }
 @media (max-width: 640px) { .cl-mgrid { grid-template-columns: 1fr 1fr; gap: 8px; } .cl-mcard { padding: 10px; } .cl-mcard .cl-mic { font-size: 24px; } .cl-mcard b { font-size: 13px; } .cl-mcard small { font-size: 11px; } }
-/* extra machines: the candy scoop needs no joystick; a single candy shows a small card near the top */
-body.cl-nopad .cl-pad { visibility: hidden; }
-.cl-win.small { top: 12%; padding: 6px 16px; border-width: 1px; }
-.cl-win.small b { font-size: 18px; margin: 0; } .cl-win.small em { font-size: 20px; } .cl-win.small small { display: none; }
-#clDrop { touch-action: none; -webkit-user-select: none; user-select: none; }
